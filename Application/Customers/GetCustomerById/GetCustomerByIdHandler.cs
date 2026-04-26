@@ -1,13 +1,16 @@
 using GarageFlow.Domain.Customers.Repositories;
 using GarageFlow.Domain.Customers.ValueObjects;
+using GarageFlow.Domain.Vehicles.Repositories;
 using Mediator;
 
 namespace GarageFlow.Application.Customers.GetCustomerById;
 
 public sealed class GetCustomerByIdHandler(
-    ICustomerRepository customerRepository) : IRequestHandler<GetCustomerByIdQuery, CustomerDto?>
+    ICustomerRepository customerRepository,
+    IVehicleRepository vehicleRepository) : IRequestHandler<GetCustomerByIdQuery, CustomerDto?>
 {
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
+    private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
 
     public async ValueTask<CustomerDto?> Handle(GetCustomerByIdQuery request, CancellationToken cancellationToken)
     {
@@ -19,6 +22,20 @@ public sealed class GetCustomerByIdHandler(
             return null;
         }
 
+        var vehicleDtos = (await _vehicleRepository.ListDetailsByCustomerIdAsync(customerId, cancellationToken))
+            .Select(vehicle => new CustomerVehicleDto(
+                Id: vehicle.Id,
+                Year: vehicle.Year,
+                Plate: vehicle.Plate,
+                VehicleBrandId: vehicle.VehicleBrandId,
+                VehicleBrandName: vehicle.VehicleBrandName,
+                VehicleModelId: vehicle.VehicleModelId,
+                VehicleModelName: vehicle.VehicleModelName,
+                VehicleColorId: vehicle.VehicleColorId,
+                VehicleColorName: vehicle.VehicleColorName,
+                CreatedAt: vehicle.CreatedAt))
+            .ToList();
+
         return new CustomerDto(
             Id: customer.Id.Value,
             TaxDocument: customer.TaxDocument.Value,
@@ -26,6 +43,7 @@ public sealed class GetCustomerByIdHandler(
             FullName: customer.FullName.Value,
             Email: customer.Email.Value,
             PhoneNumber: customer.PhoneNumber.Value,
-            CreatedAt: customer.CreatedAt);
+            CreatedAt: customer.CreatedAt,
+            Vehicles: vehicleDtos);
     }
 }

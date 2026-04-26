@@ -60,6 +60,165 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
 
                     b.ToTable("Customers", (string)null);
                 });
+
+            modelBuilder.Entity("GarageFlow.Domain.Vehicles.Entities.Vehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LicensePlate")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VehicleBrandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VehicleColorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VehicleModelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("LicensePlate")
+                        .IsUnique();
+
+                    b.HasIndex("VehicleBrandId");
+
+                    b.HasIndex("VehicleColorId");
+
+                    b.HasIndex("VehicleModelId", "VehicleBrandId");
+
+                    b.ToTable("Vehicles", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.Vehicles.Entities.VehicleBrand", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("VehicleBrands", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.Vehicles.Entities.VehicleColor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("VehicleColors", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.Vehicles.Entities.VehicleModel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VehicleBrandId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VehicleBrandId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("VehicleModels", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.Vehicles.Entities.Vehicle", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.Customers.Entities.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GarageFlow.Domain.Vehicles.Entities.VehicleBrand", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleBrandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GarageFlow.Domain.Vehicles.Entities.VehicleColor", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleColorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GarageFlow.Domain.Vehicles.Entities.VehicleModel", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleModelId", "VehicleBrandId")
+                        .HasPrincipalKey("Id", "VehicleBrandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.Vehicles.Entities.VehicleModel", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.Vehicles.Entities.VehicleBrand", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleBrandId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }

@@ -1,0 +1,30 @@
+using GarageFlow.Application.Vehicles.DeleteVehicle;
+using Mediator;
+
+namespace GarageFlow.Api.Vehicles.DeleteVehicle;
+
+public static class DeleteVehicleEndpoint
+{
+    public static IEndpointRouteBuilder MapDeleteVehicleEndpoint(this IEndpointRouteBuilder app)
+    {
+        app.MapDelete("/vehicles/{id:guid}", DeleteVehicle)
+            .WithName("DeleteVehicle")
+            .WithTags("Vehicles")
+            .WithSummary("Delete an existing vehicle by ID")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status500InternalServerError);
+
+        return app;
+    }
+
+    private static async Task<IResult> DeleteVehicle(
+        Guid id,
+        IMediator mediator,
+        CancellationToken cancellationToken)
+    {
+        var command = new DeleteVehicleCommand(Id: id);
+        await mediator.Send(command, cancellationToken);
+        return Results.NoContent();
+    }
+}

@@ -7,4 +7,5 @@ public sealed record CustomerDto(
     string FullName,
     string Email,
     string PhoneNumber,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    IReadOnlyList<CustomerVehicleDto>? Vehicles = null);

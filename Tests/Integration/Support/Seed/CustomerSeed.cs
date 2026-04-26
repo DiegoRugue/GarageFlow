@@ -6,13 +6,26 @@ namespace GarageFlow.Tests.Integration.Support.Seed;
 
 public static class CustomerSeed
 {
+    private static int _taxDocumentSequence;
+
+    public static CustomerBuilder CreateUniqueBuilder()
+    {
+        var taxDocument = NextTaxDocument();
+
+        return new CustomerBuilder()
+            .WithTaxDocument(taxDocument)
+            .WithEmail($"customer.{taxDocument}@example.com");
+    }
+
     public static async Task<Guid> CreateIdAsync(
         HttpClient client,
         CustomerBuilder? builder = null)
     {
+        var effectiveBuilder = builder ?? CreateUniqueBuilder();
+
         var response = await client.PostAsJsonAsync(
             "/customers",
-            (builder ?? new CustomerBuilder()).BuildCreateRequest());
+            effectiveBuilder.BuildCreateRequest());
 
         response.EnsureSuccessStatusCode();
 
@@ -26,5 +39,35 @@ public static class CustomerSeed
         }
 
         return customerId;
+    }
+
+    private static string NextTaxDocument()
+    {
+        var sequence = Interlocked.Increment(ref _taxDocumentSequence);
+        var firstNineDigits = sequence
+            .ToString("D9")
+            .Select(character => character - '0')
+            .ToArray();
+
+        var firstCheckDigit = CalculateCheckDigit(firstNineDigits, 10);
+        var tenDigits = new int[10];
+        Array.Copy(firstNineDigits, tenDigits, firstNineDigits.Length);
+        tenDigits[9] = firstCheckDigit;
+
+        var secondCheckDigit = CalculateCheckDigit(tenDigits, 11);
+
+        return string.Concat(tenDigits.Select(digit => (char)('0' + digit))) + secondCheckDigit;
+    }
+
+    private static int CalculateCheckDigit(IReadOnlyList<int> digits, int initialWeight)
+    {
+        var sum = 0;
+        for (var index = 0; index < digits.Count; index++)
+        {
+            sum += digits[index] * (initialWeight - index);
+        }
+
+        var remainder = sum % 11;
+        return remainder < 2 ? 0 : 11 - remainder;
     }
 }

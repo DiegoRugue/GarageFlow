@@ -1,6 +1,8 @@
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Customers.Repositories;
+using GarageFlow.Domain.Vehicles.Repositories;
 using GarageFlow.Infrastructure.Customers.Repositories;
+using GarageFlow.Infrastructure.Vehicles.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -49,6 +51,10 @@ public static class DependencyInjection
         }
 
         builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+        builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
+        builder.Services.AddScoped<IVehicleBrandRepository, VehicleBrandRepository>();
+        builder.Services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();
+        builder.Services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
         builder.Services.AddScoped<IUnitOfWork>(serviceProvider => serviceProvider.GetRequiredService<GarageFlowDbContext>());
 
         return builder;

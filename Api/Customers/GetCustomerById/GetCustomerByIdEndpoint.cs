@@ -43,7 +43,20 @@ public static class GetCustomerByIdEndpoint
             FullName: result.FullName,
             Email: result.Email,
             PhoneNumber: result.PhoneNumber,
-            CreatedAt: result.CreatedAt);
+            CreatedAt: result.CreatedAt,
+            Vehicles: result.Vehicles?
+                .Select(vehicle => new CustomerVehicleResponse(
+                    Id: vehicle.Id,
+                    Year: vehicle.Year,
+                    Plate: vehicle.Plate,
+                    VehicleBrandId: vehicle.VehicleBrandId,
+                    VehicleBrandName: vehicle.VehicleBrandName,
+                    VehicleModelId: vehicle.VehicleModelId,
+                    VehicleModelName: vehicle.VehicleModelName,
+                    VehicleColorId: vehicle.VehicleColorId,
+                    VehicleColorName: vehicle.VehicleColorName,
+                    CreatedAt: vehicle.CreatedAt))
+                .ToList());
 
         return Results.Ok(response);
     }

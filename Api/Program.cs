@@ -1,5 +1,6 @@
 using GarageFlow.Api.Customers;
 using GarageFlow.Api.Middlewares;
+using GarageFlow.Api.Vehicles;
 using GarageFlow.Infrastructure.DataAccess;
 using Scalar.AspNetCore;
 
@@ -27,6 +28,7 @@ if (app.Environment.IsEnvironment("IntegrationTests"))
         (HttpContext _) => throw new InvalidOperationException("Integration test exception."));
 }
 app.MapCustomerEndpoints();
+app.MapVehicleEndpoints();
 
 app.Run();
 
