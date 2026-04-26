@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/Api/">
+    <Project Path="Api/GarageFlow.Api.csproj" />
+  </Folder>
+  <Folder Name="/Application/">
+    <Project Path="Application/GarageFlow.Application.csproj" />
+  </Folder>
+  <Folder Name="/BuildingBlocks/">
+    <Project Path="BuildingBlocks/GarageFlow.BuildingBlocks.csproj" />
+  </Folder>
+  <Folder Name="/Domain/">
+    <Project Path="Domain/GarageFlow.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Infrastructure/">
+    <Project Path="Infrastructure/GarageFlow.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/Tests/" />
+  <Folder Name="/Tests/Integration/">
+    <Project Path="Tests/Integration/GarageFlow.Tests.Integration.csproj" />
+  </Folder>
+  <Folder Name="/Tests/Shared/">
+    <Project Path="Tests/Shared/GarageFlow.Tests.Shared.csproj" />
+  </Folder>
+  <Folder Name="/Tests/Unit/">
+    <Project Path="Tests/Unit/GarageFlow.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

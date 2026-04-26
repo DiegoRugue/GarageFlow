@@ -1,1 +1,22 @@
 .worktrees/
+
+# .NET build outputs
+**/bin/
+**/obj/
+TestResults/
+
+# IDE/user files
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Local .NET tooling cache
+.dotnet/
+
+# Local SQLite artifacts
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-garageflow}
+      POSTGRES_USER: ${POSTGRES_USER:-garageflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-garageflow}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - garageflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-garageflow} -d ${POSTGRES_DB:-garageflow}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:8.14
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@garageflow.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: ${PGADMIN_SERVER_MODE:-False}
+    ports:
+      - "${PGADMIN_PORT:-5050}:5050"
+    volumes:
+      - garageflow_pgadmin_data:/var/lib/pgadmin
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Database__Provider: ${DATABASE_PROVIDER:-Postgres}
+      Database__AutoMigrate: ${DATABASE_AUTO_MIGRATE:-true}
+      ConnectionStrings__GarageFlow: "Host=${POSTGRES_HOST:-postgres};Port=5432;Database=${POSTGRES_DB:-garageflow};Username=${POSTGRES_USER:-garageflow};Password=${POSTGRES_PASSWORD:-garageflow}"
+    ports:
+      - "${API_PORT:-8080}:8080"
+
+volumes:
+  garageflow_postgres_data:
+  garageflow_pgadmin_data:
