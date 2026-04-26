@@ -1,7 +1,12 @@
+using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Customers.Repositories;
+using GarageFlow.Domain.Users.Repositories;
 using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Infrastructure.Auth;
+using GarageFlow.Infrastructure.Auth.Jwt;
 using GarageFlow.Infrastructure.Customers.Repositories;
+using GarageFlow.Infrastructure.Users.Repositories;
 using GarageFlow.Infrastructure.Vehicles.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -51,10 +56,14 @@ public static class DependencyInjection
         }
 
         builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+        builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
         builder.Services.AddScoped<IVehicleBrandRepository, VehicleBrandRepository>();
         builder.Services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();
         builder.Services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
+        builder.Services.AddScoped<IPasswordHashService, PasswordHashService>();
+        builder.Services.AddScoped<ITokenService, JwtTokenService>();
+        builder.Services.Configure<JwtTokenOptions>(builder.Configuration.GetSection(JwtTokenOptions.SectionName));
         builder.Services.AddScoped<IUnitOfWork>(serviceProvider => serviceProvider.GetRequiredService<GarageFlowDbContext>());
 
         return builder;

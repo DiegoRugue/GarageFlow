@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using GarageFlow.Tests.Integration.Support.Factories;
+using GarageFlow.Tests.Integration.Support.Helpers;
 
 namespace GarageFlow.Tests.Integration.Support.Fixtures;
 
@@ -15,6 +16,13 @@ public sealed class GarageFlowApiFixture : IAsyncLifetime
 
         _factories.Add(factory);
         return factory.CreateClient();
+    }
+
+    public async Task<HttpClient> CreateAuthenticatedClientAsync(bool disableAutoMigrate = false)
+    {
+        var client = CreateClient(disableAutoMigrate);
+        await client.AuthenticateAsActiveBootstrapAdminAsync();
+        return client;
     }
 
     public Task InitializeAsync() => Task.CompletedTask;

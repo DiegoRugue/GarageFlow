@@ -15,9 +15,19 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     private readonly GarageFlowApiFixture _fixture = fixture;
 
     [Fact]
-    public async Task PostCustomer_ShouldReturn201_WhenRequestIsValid()
+    public async Task CustomersRoutes_ShouldReturn401_WhenRequestHasNoToken()
     {
         using var client = _fixture.CreateClient();
+
+        var response = await client.GetAsync("/customers?page=1&pageSize=10");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task PostCustomer_ShouldReturn201_WhenRequestIsValid()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var request = CustomerSeed.CreateUniqueBuilder().BuildCreateRequest();
 
         var response = await client.PostAsJsonAsync("/customers", request);
@@ -32,7 +42,7 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     [Fact]
     public async Task GetCustomerById_ShouldReturn404_WhenCustomerDoesNotExist()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync($"/customers/{Guid.NewGuid()}");
 
@@ -42,7 +52,7 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     [Fact]
     public async Task PutCustomer_ShouldReturn200_WhenCustomerExists()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var customerId = await CustomerSeed.CreateIdAsync(
             client,
             new CustomerBuilder()
@@ -69,7 +79,7 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     [Fact]
     public async Task DeleteCustomer_ShouldReturn204_WhenCustomerExists()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var customerId = await CustomerSeed.CreateIdAsync(
             client,
             new CustomerBuilder().WithTaxDocument("776.885.154-40"));
@@ -84,7 +94,7 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     [Fact]
     public async Task PutCustomer_ShouldReturn404_WhenCustomerDoesNotExist()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var request = new CustomerBuilder()
             .WithFullName("Ghost User")
             .WithEmail("ghost@example.com")
@@ -99,7 +109,7 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     [Fact]
     public async Task DeleteCustomer_ShouldReturn409_WhenCustomerHasRelatedVehicles()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var seeded = await VehicleSeed.CreateWithDependenciesAsync(
             client,
@@ -126,7 +136,7 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     [Fact]
     public async Task GetCustomerById_ShouldReturnVehicles_WhenCustomerHasVehicles()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
             client,
@@ -156,7 +166,7 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     [Fact]
     public async Task GetCustomerById_ShouldReturnEmptyVehicles_WhenCustomerHasNoVehicles()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var customerId = await CustomerSeed.CreateIdAsync(
             client,
@@ -170,3 +180,4 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
         Assert.Empty(payload.Vehicles ?? Array.Empty<CustomerVehicleResponse>());
     }
 }
+

@@ -1,6 +1,11 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using GarageFlow.Tests.Integration.Support.Helpers;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace GarageFlow.Tests.Integration.Support.Factories;
 
@@ -18,7 +23,15 @@ public sealed class GarageFlowWebApplicationFactory(string databaseName, bool di
             var settings = new Dictionary<string, string?>
             {
                 ["Database:Provider"] = "InMemory",
-                ["Database:DatabaseName"] = _databaseName
+                ["Database:DatabaseName"] = _databaseName,
+                ["Auth:Jwt:Issuer"] = IntegrationTestAuthSettings.JwtIssuer,
+                ["Auth:Jwt:Audience"] = IntegrationTestAuthSettings.JwtAudience,
+                ["Auth:Jwt:Key"] = IntegrationTestAuthSettings.JwtKey,
+                ["Auth:Jwt:ExpiresMinutes"] = IntegrationTestAuthSettings.JwtExpiresMinutes.ToString(),
+                ["Auth:BootstrapAdmin:FullName"] = IntegrationTestAuthSettings.BootstrapAdminFullName,
+                ["Auth:BootstrapAdmin:Email"] = IntegrationTestAuthSettings.BootstrapAdminEmail,
+                ["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate,
+                ["Auth:BootstrapAdmin:Password"] = IntegrationTestAuthSettings.BootstrapAdminInitialPassword
             };
 
             if (_disableAutoMigrate)
@@ -27,6 +40,17 @@ public sealed class GarageFlowWebApplicationFactory(string databaseName, bool di
             }
 
             configurationBuilder.AddInMemoryCollection(settings);
+        });
+
+        builder.ConfigureServices(services =>
+        {
+            services.PostConfigureAll<JwtBearerOptions>(options =>
+            {
+                options.TokenValidationParameters.ValidIssuer = IntegrationTestAuthSettings.JwtIssuer;
+                options.TokenValidationParameters.ValidAudience = IntegrationTestAuthSettings.JwtAudience;
+                options.TokenValidationParameters.IssuerSigningKey =
+                    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(IntegrationTestAuthSettings.JwtKey));
+            });
         });
     }
 }

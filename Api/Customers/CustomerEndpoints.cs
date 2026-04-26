@@ -3,6 +3,7 @@ using GarageFlow.Api.Customers.DeleteCustomer;
 using GarageFlow.Api.Customers.GetCustomerById;
 using GarageFlow.Api.Customers.ListCustomers;
 using GarageFlow.Api.Customers.UpdateCustomer;
+using GarageFlow.Api.Security;
 
 namespace GarageFlow.Api.Customers;
 
@@ -10,11 +11,14 @@ public static class CustomerEndpoints
 {
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapCreateCustomerEndpoint();
-        app.MapGetCustomerByIdEndpoint();
-        app.MapListCustomersEndpoint();
-        app.MapUpdateCustomerEndpoint();
-        app.MapDeleteCustomerEndpoint();
+        var protectedCustomerRoutes = app.MapGroup(string.Empty)
+            .RequireAuthorization(SecurityPolicies.ActiveUser);
+
+        protectedCustomerRoutes.MapCreateCustomerEndpoint();
+        protectedCustomerRoutes.MapGetCustomerByIdEndpoint();
+        protectedCustomerRoutes.MapListCustomersEndpoint();
+        protectedCustomerRoutes.MapUpdateCustomerEndpoint();
+        protectedCustomerRoutes.MapDeleteCustomerEndpoint();
         return app;
     }
 }

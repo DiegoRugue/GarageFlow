@@ -15,7 +15,7 @@ public class VehicleModelsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task GetVehicleModelById_ShouldReturn404_WhenVehicleModelDoesNotExist()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync($"/vehicle-models/{Guid.NewGuid()}");
 
@@ -25,7 +25,7 @@ public class VehicleModelsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task VehicleModelCrudRoutes_ShouldReturnExpectedStatuses()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var vehicleBrandId = await VehicleBrandSeed.CreateIdAsync(
             client,
@@ -73,7 +73,7 @@ public class VehicleModelsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task PostVehicleModel_ShouldReturn409_WhenVehicleModelNameAlreadyExistsWithDifferentCaseInSameBrand()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var vehicleBrandId = await VehicleBrandSeed.CreateIdAsync(
             client,
@@ -103,7 +103,7 @@ public class VehicleModelsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task DeleteVehicleModel_ShouldReturn409_WhenVehicleModelHasRelatedVehicles()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var seeded = await VehicleSeed.CreateWithDependenciesAsync(
             client,
@@ -126,7 +126,7 @@ public class VehicleModelsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task ListVehicleModels_ShouldFilterByVehicleBrandId()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var targetBrandId = await VehicleBrandSeed.CreateIdAsync(
             client,
@@ -165,3 +165,4 @@ public class VehicleModelsApiTests(GarageFlowApiFixture fixture) : IClassFixture
         Assert.DoesNotContain(payload.Items, item => item.VehicleBrandId == otherBrandId);
     }
 }
+

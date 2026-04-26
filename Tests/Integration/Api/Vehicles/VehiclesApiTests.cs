@@ -13,9 +13,19 @@ public class VehiclesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
     private readonly GarageFlowApiFixture _fixture = fixture;
 
     [Fact]
-    public async Task GetVehicleById_ShouldReturn404_WhenVehicleDoesNotExist()
+    public async Task VehiclesRoutes_ShouldReturn401_WhenRequestHasNoToken()
     {
         using var client = _fixture.CreateClient();
+
+        var response = await client.GetAsync("/vehicles?page=1&pageSize=10");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GetVehicleById_ShouldReturn404_WhenVehicleDoesNotExist()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync($"/vehicles/{Guid.NewGuid()}");
 
@@ -25,7 +35,7 @@ public class VehiclesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
     [Fact]
     public async Task VehicleCrudRoutes_ShouldReturnExpectedStatuses()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var brandName = "Chevrolet";
         var modelName = "Onix";
@@ -107,7 +117,7 @@ public class VehiclesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
     [Fact]
     public async Task GetVehicles_ShouldFilterByCustomerId()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var firstCustomerVehicle = await VehicleSeed.CreateWithDependenciesAsync(
             client,
@@ -141,3 +151,4 @@ public class VehiclesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
             vehicle => vehicle.Id == secondCustomerVehicle.VehicleId);
     }
 }
+

@@ -15,7 +15,7 @@ public class VehicleBrandsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task GetVehicleBrandById_ShouldReturn404_WhenVehicleBrandDoesNotExist()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync($"/vehicle-brands/{Guid.NewGuid()}");
 
@@ -25,7 +25,7 @@ public class VehicleBrandsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task VehicleBrandCrudRoutes_ShouldReturnExpectedStatuses()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var createResponse = await client.PostAsJsonAsync(
             "/vehicle-brands",
@@ -67,7 +67,7 @@ public class VehicleBrandsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task PostVehicleBrand_ShouldReturn409_WhenVehicleBrandNameAlreadyExists()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var brandName = $"Brand-{Guid.NewGuid():N}";
 
         var firstCreateResponse = await client.PostAsJsonAsync(
@@ -89,7 +89,7 @@ public class VehicleBrandsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task PostVehicleBrand_ShouldReturn409_WhenVehicleBrandNameAlreadyExistsWithDifferentCase()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var brandName = $"Brand-{Guid.NewGuid():N}";
 
         var firstCreateResponse = await client.PostAsJsonAsync(
@@ -112,7 +112,7 @@ public class VehicleBrandsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task DeleteVehicleBrand_ShouldReturn409_WhenVehicleBrandHasRelatedVehicleModels()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var vehicleBrandId = await VehicleBrandSeed.CreateIdAsync(
             client,
@@ -137,3 +137,4 @@ public class VehicleBrandsApiTests(GarageFlowApiFixture fixture) : IClassFixture
         Assert.Equal(vehicleBrandId, vehicleBrand.Id);
     }
 }
+

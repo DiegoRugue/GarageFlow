@@ -1,0 +1,63 @@
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Users.Entities;
+using GarageFlow.Domain.Users.Enums;
+using GarageFlow.Tests.Shared.Users;
+
+namespace GarageFlow.Tests.Unit.Users;
+
+public class UserDomainTests
+{
+    [Fact]
+    public void GenerateInitialPassword_ShouldUseLowercaseLastNameAndBirthYear()
+    {
+        var fullName = FullName.Create("Ada Lovelace");
+        var birthDate = new DateOnly(1990, 1, 1);
+
+        var initialPassword = User.GenerateInitialPassword(fullName, birthDate);
+
+        Assert.Equal("lovelace1990", initialPassword);
+    }
+
+    [Fact]
+    public void Create_ShouldThrowValidationException_WhenRoleIsInvalid()
+    {
+        var exception = Assert.Throws<ValidationException>(() => User.Create(
+            fullName: FullName.Create("User Invalid Role"),
+            email: Email.Create("invalid.role@example.com"),
+            birthDate: new DateOnly(1990, 2, 3),
+            role: (UserRole)999,
+            passwordHash: "hash-password"));
+
+        Assert.Equal("User role '999' is invalid.", exception.Message);
+    }
+
+    [Fact]
+    public void Create_ShouldThrowValidationException_WhenBirthDateIsInFuture()
+    {
+        var farFutureBirthDate = new DateOnly(2999, 12, 31);
+
+        var exception = Assert.Throws<ValidationException>(() => User.Create(
+            fullName: FullName.Create("Future User"),
+            email: Email.Create("future.user@example.com"),
+            birthDate: farFutureBirthDate,
+            role: UserRole.Attendant,
+            passwordHash: "hash-password"));
+
+        Assert.Equal("Birth date cannot be in the future.", exception.Message);
+    }
+
+    [Fact]
+    public void ChangePassword_ShouldDisableMustChangePassword()
+    {
+        var user = new UserBuilder()
+            .WithPasswordHash("hash-initial")
+            .WithMustChangePassword(true)
+            .Build();
+
+        user.ChangePassword("hash-updated");
+
+        Assert.False(user.MustChangePassword);
+        Assert.Equal("hash-updated", user.PasswordHash);
+    }
+}

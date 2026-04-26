@@ -1,4 +1,5 @@
 using GarageFlow.Api.Vehicles.CreateVehicle;
+using GarageFlow.Api.Security;
 using GarageFlow.Api.Vehicles.DeleteVehicle;
 using GarageFlow.Api.Vehicles.GetVehicleById;
 using GarageFlow.Api.Vehicles.ListVehicles;
@@ -13,15 +14,18 @@ public static class VehicleEndpoints
 {
     public static IEndpointRouteBuilder MapVehicleEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapCreateVehicleEndpoint();
-        app.MapGetVehicleByIdEndpoint();
-        app.MapListVehiclesEndpoint();
-        app.MapUpdateVehicleEndpoint();
-        app.MapDeleteVehicleEndpoint();
+        var protectedVehicleRoutes = app.MapGroup(string.Empty)
+            .RequireAuthorization(SecurityPolicies.ActiveUser);
 
-        app.MapVehicleBrandEndpoints();
-        app.MapVehicleModelEndpoints();
-        app.MapVehicleColorEndpoints();
+        protectedVehicleRoutes.MapCreateVehicleEndpoint();
+        protectedVehicleRoutes.MapGetVehicleByIdEndpoint();
+        protectedVehicleRoutes.MapListVehiclesEndpoint();
+        protectedVehicleRoutes.MapUpdateVehicleEndpoint();
+        protectedVehicleRoutes.MapDeleteVehicleEndpoint();
+
+        protectedVehicleRoutes.MapVehicleBrandEndpoints();
+        protectedVehicleRoutes.MapVehicleModelEndpoints();
+        protectedVehicleRoutes.MapVehicleColorEndpoints();
 
         return app;
     }

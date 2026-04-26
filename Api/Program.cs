@@ -1,5 +1,8 @@
+using GarageFlow.Api.Auth;
 using GarageFlow.Api.Customers;
 using GarageFlow.Api.Middlewares;
+using GarageFlow.Api.Security;
+using GarageFlow.Api.Users;
 using GarageFlow.Api.Vehicles;
 using GarageFlow.Infrastructure.DataAccess;
 using Scalar.AspNetCore;
@@ -11,11 +14,14 @@ builder.Services.AddMediator(options =>
     options.ServiceLifetime = ServiceLifetime.Scoped;
 });
 builder.Services.AddOpenApi();
+builder.AddGarageFlowAuthentication();
 builder.AddGarageFlowDataAccess();
 
 var app = builder.Build();
 app.AutoMigrateGarageFlow();
 app.UseGarageFlowExceptionHandler();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapOpenApi();
 app.MapScalarApiReference();
@@ -27,6 +33,8 @@ if (app.Environment.IsEnvironment("IntegrationTests"))
         "/integration-tests/throw/unhandled",
         (HttpContext _) => throw new InvalidOperationException("Integration test exception."));
 }
+app.MapAuthEndpoints();
+app.MapUserEndpoints();
 app.MapCustomerEndpoints();
 app.MapVehicleEndpoints();
 

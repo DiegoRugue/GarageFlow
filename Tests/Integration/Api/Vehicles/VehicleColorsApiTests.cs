@@ -15,7 +15,7 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task GetVehicleColorById_ShouldReturn404_WhenVehicleColorDoesNotExist()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var response = await client.GetAsync($"/vehicle-colors/{Guid.NewGuid()}");
 
@@ -25,7 +25,7 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task VehicleColorCrudRoutes_ShouldReturnExpectedStatuses()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var createResponse = await client.PostAsJsonAsync(
             "/vehicle-colors",
@@ -65,7 +65,7 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task PostVehicleColor_ShouldReturn409_WhenVehicleColorNameAlreadyExistsWithDifferentCase()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
         var colorName = $"Color-{Guid.NewGuid():N}";
 
         var firstCreateResponse = await client.PostAsJsonAsync(
@@ -88,7 +88,7 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     [Fact]
     public async Task DeleteVehicleColor_ShouldReturn409_WhenVehicleColorHasRelatedVehicles()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var seeded = await VehicleSeed.CreateWithDependenciesAsync(
             client,
@@ -108,3 +108,4 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
         Assert.Equal(seeded.VehicleColorId, vehicleColor.Id);
     }
 }
+

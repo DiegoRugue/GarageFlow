@@ -41,6 +41,14 @@ services:
       Database__Provider: ${DATABASE_PROVIDER:-Postgres}
       Database__AutoMigrate: ${DATABASE_AUTO_MIGRATE:-true}
       ConnectionStrings__GarageFlow: "Host=${POSTGRES_HOST:-postgres};Port=5432;Database=${POSTGRES_DB:-garageflow};Username=${POSTGRES_USER:-garageflow};Password=${POSTGRES_PASSWORD:-garageflow}"
+      Auth__Jwt__Issuer: ${AUTH_JWT_ISSUER:-GarageFlow}
+      Auth__Jwt__Audience: ${AUTH_JWT_AUDIENCE:-GarageFlow.Api}
+      Auth__Jwt__Key: ${AUTH_JWT_KEY:-local-dev-jwt-key-change-me-please-32chars}
+      Auth__Jwt__ExpiresMinutes: ${AUTH_JWT_EXPIRES_MINUTES:-120}
+      Auth__BootstrapAdmin__FullName: ${BOOTSTRAP_ADMIN_FULL_NAME:-Development Admin}
+      Auth__BootstrapAdmin__Email: ${BOOTSTRAP_ADMIN_EMAIL:-admin-dev@garageflow.local}
+      Auth__BootstrapAdmin__BirthDate: ${BOOTSTRAP_ADMIN_BIRTH_DATE:-1990-01-01}
+      Auth__BootstrapAdmin__Password: ${BOOTSTRAP_ADMIN_PASSWORD:-Admin@12345}
     ports:
       - "${API_PORT:-8080}:8080"
 
