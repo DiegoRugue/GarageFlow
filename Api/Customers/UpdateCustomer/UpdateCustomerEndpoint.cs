@@ -13,9 +13,9 @@ public static class UpdateCustomerEndpoint
             .WithTags("Customers")
             .WithSummary("Update an existing customer's mutable fields")
             .Produces<CustomerResponse>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound)
-            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

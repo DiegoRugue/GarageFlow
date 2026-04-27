@@ -13,8 +13,8 @@ public static class ListCustomersEndpoint
             .WithTags("Customers")
             .WithSummary("List customers with pagination")
             .Produces<ListCustomersResponse>(StatusCodes.Status200OK)
-            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

@@ -1,4 +1,5 @@
 using GarageFlow.Application.Vehicles.VehicleBrands.GetVehicleBrandById;
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Vehicles.VehicleBrands.GetVehicleBrandById;
@@ -12,8 +13,9 @@ public static class GetVehicleBrandByIdEndpoint
             .WithTags("Vehicle Brands")
             .WithSummary("Get a vehicle brand by its unique identifier")
             .Produces<VehicleBrandResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }
@@ -28,10 +30,7 @@ public static class GetVehicleBrandByIdEndpoint
 
         if (result is null)
         {
-            return Results.Problem(
-                title: "Vehicle brand not found",
-                detail: $"No vehicle brand found with ID {id}",
-                statusCode: StatusCodes.Status404NotFound);
+            throw new NotFoundException($"Vehicle brand with ID '{id}' was not found.");
         }
 
         var response = new VehicleBrandResponse(

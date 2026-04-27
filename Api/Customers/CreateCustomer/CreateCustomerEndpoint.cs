@@ -12,8 +12,8 @@ public static class CreateCustomerEndpoint
             .WithTags("Customers")
             .WithSummary("Create a new customer")
             .Produces<CreateCustomerResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

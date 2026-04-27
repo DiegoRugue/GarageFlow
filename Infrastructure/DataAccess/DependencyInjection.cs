@@ -1,11 +1,13 @@
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Customers.Repositories;
+using GarageFlow.Domain.Services.Repositories;
 using GarageFlow.Domain.Users.Repositories;
 using GarageFlow.Domain.Vehicles.Repositories;
 using GarageFlow.Infrastructure.Auth;
 using GarageFlow.Infrastructure.Auth.Jwt;
 using GarageFlow.Infrastructure.Customers.Repositories;
+using GarageFlow.Infrastructure.Services.Repositories;
 using GarageFlow.Infrastructure.Users.Repositories;
 using GarageFlow.Infrastructure.Vehicles.Repositories;
 using Microsoft.AspNetCore.Builder;
@@ -56,6 +58,7 @@ public static class DependencyInjection
         }
 
         builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+        builder.Services.AddScoped<IServiceRepository, ServiceRepository>();
         builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
         builder.Services.AddScoped<IVehicleBrandRepository, VehicleBrandRepository>();

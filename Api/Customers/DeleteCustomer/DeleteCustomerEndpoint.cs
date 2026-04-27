@@ -12,8 +12,9 @@ public static class DeleteCustomerEndpoint
             .WithTags("Customers")
             .WithSummary("Delete an existing customer by ID")
             .Produces(StatusCodes.Status204NoContent)
-            .Produces(StatusCodes.Status404NotFound)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

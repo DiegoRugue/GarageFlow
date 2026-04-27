@@ -1,4 +1,5 @@
 using GarageFlow.Application.Vehicles.VehicleColors.GetVehicleColorById;
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Vehicles.VehicleColors.GetVehicleColorById;
@@ -12,8 +13,9 @@ public static class GetVehicleColorByIdEndpoint
             .WithTags("Vehicle Colors")
             .WithSummary("Get a vehicle color by its unique identifier")
             .Produces<VehicleColorResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }
@@ -28,10 +30,7 @@ public static class GetVehicleColorByIdEndpoint
 
         if (result is null)
         {
-            return Results.Problem(
-                title: "Vehicle color not found",
-                detail: $"No vehicle color found with ID {id}",
-                statusCode: StatusCodes.Status404NotFound);
+            throw new NotFoundException($"Vehicle color with ID '{id}' was not found.");
         }
 
         var response = new VehicleColorResponse(

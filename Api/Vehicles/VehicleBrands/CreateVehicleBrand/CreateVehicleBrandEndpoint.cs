@@ -12,9 +12,9 @@ public static class CreateVehicleBrandEndpoint
             .WithTags("Vehicle Brands")
             .WithSummary("Create a new vehicle brand")
             .Produces<CreateVehicleBrandResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

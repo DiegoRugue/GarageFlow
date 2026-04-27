@@ -12,10 +12,10 @@ public static class CreateVehicleModelEndpoint
             .WithTags("Vehicle Models")
             .WithSummary("Create a new vehicle model")
             .Produces<CreateVehicleModelResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

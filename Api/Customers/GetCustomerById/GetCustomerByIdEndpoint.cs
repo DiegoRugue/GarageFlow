@@ -1,4 +1,5 @@
 using GarageFlow.Application.Customers.GetCustomerById;
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Customers.GetCustomerById;
@@ -12,8 +13,9 @@ public static class GetCustomerByIdEndpoint
             .WithTags("Customers")
             .WithSummary("Get a customer by their unique identifier")
             .Produces<CustomerResponse>(StatusCodes.Status200OK)
-            .Produces(StatusCodes.Status404NotFound)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }
@@ -28,12 +30,7 @@ public static class GetCustomerByIdEndpoint
 
         if (result is null)
         {
-            return Results.NotFound(new
-            {
-                title = "Customer not found",
-                detail = $"No customer found with ID {id}",
-                status = StatusCodes.Status404NotFound
-            });
+            throw new NotFoundException($"Customer with ID '{id}' was not found.");
         }
 
         var response = new CustomerResponse(

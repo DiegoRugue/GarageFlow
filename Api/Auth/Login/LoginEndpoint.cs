@@ -15,8 +15,8 @@ public static class LoginEndpoint
             .WithSummary("Authenticate user and issue JWT token")
             .Produces<LoginResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }
@@ -41,10 +41,7 @@ public static class LoginEndpoint
         }
         catch (BusinessRuleViolationException exception)
         {
-            return Results.Problem(
-                title: "Unauthorized",
-                detail: exception.Message,
-                statusCode: StatusCodes.Status401Unauthorized);
+            throw new UnauthorizedAccessException(exception.Message);
         }
     }
 }

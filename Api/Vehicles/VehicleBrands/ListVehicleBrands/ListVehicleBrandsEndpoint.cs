@@ -14,7 +14,7 @@ public static class ListVehicleBrandsEndpoint
             .WithSummary("List vehicle brands with pagination")
             .Produces<ListVehicleBrandsResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

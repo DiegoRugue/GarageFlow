@@ -2,6 +2,7 @@ using GarageFlow.Api.Auth;
 using GarageFlow.Api.Customers;
 using GarageFlow.Api.Middlewares;
 using GarageFlow.Api.Security;
+using GarageFlow.Api.Services;
 using GarageFlow.Api.Users;
 using GarageFlow.Api.Vehicles;
 using GarageFlow.Infrastructure.DataAccess;
@@ -36,6 +37,7 @@ if (app.Environment.IsEnvironment("IntegrationTests"))
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapCustomerEndpoints();
+app.MapServiceEndpoints();
 app.MapVehicleEndpoints();
 
 app.Run();

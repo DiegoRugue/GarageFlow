@@ -12,9 +12,10 @@ public static class DeleteVehicleColorEndpoint
             .WithTags("Vehicle Colors")
             .WithSummary("Delete an existing vehicle color by ID")
             .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

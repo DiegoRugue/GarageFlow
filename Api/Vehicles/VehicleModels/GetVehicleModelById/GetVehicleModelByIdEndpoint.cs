@@ -1,4 +1,5 @@
 using GarageFlow.Application.Vehicles.VehicleModels.GetVehicleModelById;
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Vehicles.VehicleModels.GetVehicleModelById;
@@ -12,8 +13,9 @@ public static class GetVehicleModelByIdEndpoint
             .WithTags("Vehicle Models")
             .WithSummary("Get a vehicle model by its unique identifier")
             .Produces<VehicleModelResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }
@@ -28,10 +30,7 @@ public static class GetVehicleModelByIdEndpoint
 
         if (result is null)
         {
-            return Results.Problem(
-                title: "Vehicle model not found",
-                detail: $"No vehicle model found with ID {id}",
-                statusCode: StatusCodes.Status404NotFound);
+            throw new NotFoundException($"Vehicle model with ID '{id}' was not found.");
         }
 
         var response = new VehicleModelResponse(

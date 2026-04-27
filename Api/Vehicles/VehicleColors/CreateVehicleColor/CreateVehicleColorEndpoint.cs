@@ -12,9 +12,9 @@ public static class CreateVehicleColorEndpoint
             .WithTags("Vehicle Colors")
             .WithSummary("Create a new vehicle color")
             .Produces<CreateVehicleColorResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

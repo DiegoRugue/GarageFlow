@@ -38,30 +38,28 @@ public static class AuthHttpClientExtensions
 
     public static async Task<LoginResponse> AuthenticateAsActiveBootstrapAdminAsync(this HttpClient client)
     {
-        var activeLoginResponse = await client.PostAsJsonAsync(
-            "/auth/login",
-            new LoginRequest(
-                Email: IntegrationTestAuthSettings.BootstrapAdminEmail,
-                Password: IntegrationTestAuthSettings.BootstrapAdminActivePassword));
-
-        if (activeLoginResponse.IsSuccessStatusCode)
+        var activeLogin = await TryBootstrapAdminLoginAsync(client, IntegrationTestAuthSettings.BootstrapAdminActivePassword);
+        if (activeLogin is not null)
         {
-            var activeLogin = await HttpResponseAssertions.ReadRequiredJsonAsync<LoginResponse>(activeLoginResponse);
             client.AttachBearerToken(activeLogin.Token);
             return activeLogin;
         }
 
-        if (activeLoginResponse.StatusCode != HttpStatusCode.Unauthorized)
+        var firstLogin = await TryBootstrapAdminLoginAsync(client, IntegrationTestAuthSettings.BootstrapAdminInitialPassword);
+        if (firstLogin is null)
         {
-            var activeLoginBody = await activeLoginResponse.Content.ReadAsStringAsync();
+            var retryActiveLogin = await TryBootstrapAdminLoginAsync(client, IntegrationTestAuthSettings.BootstrapAdminActivePassword);
+            if (retryActiveLogin is not null)
+            {
+                client.AttachBearerToken(retryActiveLogin.Token);
+                return retryActiveLogin;
+            }
+
             throw new HttpRequestException(
-                $"Bootstrap admin active-password login failed with status {(int)activeLoginResponse.StatusCode} " +
-                $"({activeLoginResponse.StatusCode}). Body: {activeLoginBody}");
+                "Bootstrap admin login failed for both initial and active passwords.");
         }
 
-        var firstLogin = await client.LoginAndAttachBearerTokenAsync(
-            IntegrationTestAuthSettings.BootstrapAdminEmail,
-            IntegrationTestAuthSettings.BootstrapAdminInitialPassword);
+        client.AttachBearerToken(firstLogin.Token);
 
         if (!firstLogin.MustChangePassword)
         {
@@ -74,11 +72,50 @@ public static class AuthHttpClientExtensions
                 CurrentPassword: IntegrationTestAuthSettings.BootstrapAdminInitialPassword,
                 NewPassword: IntegrationTestAuthSettings.BootstrapAdminActivePassword));
 
-        changePasswordResponse.EnsureSuccessStatusCode();
+        if (!changePasswordResponse.IsSuccessStatusCode)
+        {
+            if (changePasswordResponse.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.Unauthorized)
+            {
+                var activeAfterConflict = await TryBootstrapAdminLoginAsync(client, IntegrationTestAuthSettings.BootstrapAdminActivePassword);
+                if (activeAfterConflict is not null)
+                {
+                    client.AttachBearerToken(activeAfterConflict.Token);
+                    return activeAfterConflict;
+                }
+            }
+
+            var changePasswordBody = await changePasswordResponse.Content.ReadAsStringAsync();
+            throw new HttpRequestException(
+                $"Bootstrap admin change-password failed with status {(int)changePasswordResponse.StatusCode} " +
+                $"({changePasswordResponse.StatusCode}). Body: {changePasswordBody}");
+        }
 
         return await client.LoginAndAttachBearerTokenAsync(
             IntegrationTestAuthSettings.BootstrapAdminEmail,
             IntegrationTestAuthSettings.BootstrapAdminActivePassword);
+    }
+
+    private static async Task<LoginResponse?> TryBootstrapAdminLoginAsync(HttpClient client, string password)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/auth/login",
+            new LoginRequest(
+                Email: IntegrationTestAuthSettings.BootstrapAdminEmail,
+                Password: password));
+
+        if (response.IsSuccessStatusCode)
+        {
+            return await HttpResponseAssertions.ReadRequiredJsonAsync<LoginResponse>(response);
+        }
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            return null;
+        }
+
+        var body = await response.Content.ReadAsStringAsync();
+        throw new HttpRequestException(
+            $"Bootstrap admin login failed with status {(int)response.StatusCode} ({response.StatusCode}). Body: {body}");
     }
 
     private sealed record LoginRequest(string Email, string Password);

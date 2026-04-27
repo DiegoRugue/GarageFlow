@@ -12,9 +12,10 @@ public static class DeleteVehicleModelEndpoint
             .WithTags("Vehicle Models")
             .WithSummary("Delete an existing vehicle model by ID")
             .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }

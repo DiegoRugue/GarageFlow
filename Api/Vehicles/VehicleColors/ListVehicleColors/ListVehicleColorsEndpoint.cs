@@ -14,7 +14,7 @@ public static class ListVehicleColorsEndpoint
             .WithSummary("List vehicle colors with pagination")
             .Produces<ListVehicleColorsResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .Produces(StatusCodes.Status500InternalServerError);
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }
