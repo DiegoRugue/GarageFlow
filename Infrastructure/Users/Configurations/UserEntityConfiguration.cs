@@ -1,4 +1,6 @@
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Customers.Entities;
+using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.ValueObjects;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +50,20 @@ public sealed class UserEntityConfiguration : IEntityTypeConfiguration<User>
             .HasConversion<string>()
             .HasMaxLength(32)
             .IsRequired();
+
+        builder.Property(user => user.CustomerId)
+            .HasConversion(
+                customerId => customerId.HasValue ? customerId.Value.Value : (Guid?)null,
+                value => value.HasValue ? CustomerId.From(value.Value) : null);
+
+        builder.HasIndex(user => user.CustomerId)
+            .IsUnique()
+            .HasFilter("\"CustomerId\" IS NOT NULL");
+
+        builder.HasOne<Customer>()
+            .WithMany()
+            .HasForeignKey(user => user.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(user => user.PasswordHash)
             .HasMaxLength(512)

@@ -1,4 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Repositories;
 using GarageFlow.Domain.Users.ValueObjects;
@@ -54,6 +55,20 @@ public sealed class UserRepository(GarageFlowDbContext dbContext) : IUserReposit
         return await _dbContext.Users
             .AsNoTracking()
             .AnyAsync(user => user.Email == email, cancellationToken);
+    }
+
+    public async Task<User?> GetByCustomerIdAsync(CustomerId customerId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Users.FirstOrDefaultAsync(
+            user => user.CustomerId == customerId,
+            cancellationToken);
+    }
+
+    public async Task<bool> ExistsByCustomerIdAsync(CustomerId customerId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Users
+            .AsNoTracking()
+            .AnyAsync(user => user.CustomerId == customerId, cancellationToken);
     }
 
     public void Remove(User user)

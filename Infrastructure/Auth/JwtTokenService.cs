@@ -33,6 +33,11 @@ public sealed class JwtTokenService(IOptions<JwtTokenOptions> options) : ITokenS
             new(JwtRegisteredClaimNames.Email, user.Email.Value)
         };
 
+        if (user.CustomerId.HasValue)
+        {
+            claims.Add(new Claim("customer_id", user.CustomerId.Value.Value.ToString()));
+        }
+
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 

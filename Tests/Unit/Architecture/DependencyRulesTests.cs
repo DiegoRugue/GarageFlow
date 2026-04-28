@@ -121,6 +121,20 @@ public class DependencyRulesTests
         AssertRule(result, nameof(Api_ModuleRegistrationTypes_ShouldNotDependOnDomainOrInfrastructure));
     }
 
+    [Fact]
+    public void Api_SecurityTypes_ShouldNotDependOnDomainOrInfrastructure()
+    {
+        var result = Types
+            .InAssembly(LoadAssembly("GarageFlow.Api", "Api"))
+            .That()
+            .ResideInNamespaceStartingWith($"{ApiNamespace}.Security")
+            .ShouldNot()
+            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, BuildingBlocksNamespace)
+            .GetResult();
+
+        AssertRule(result, nameof(Api_SecurityTypes_ShouldNotDependOnDomainOrInfrastructure));
+    }
+
     private static void AssertRule(TestResult result, string ruleName)
     {
         if (result.IsSuccessful)
