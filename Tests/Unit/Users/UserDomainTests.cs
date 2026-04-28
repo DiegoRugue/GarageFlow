@@ -185,4 +185,36 @@ public class UserDomainTests
             "hash",
             CustomerId.New()));
     }
+
+    [Fact]
+    public void Create_ShouldThrowValidationException_WhenCustomerRoleHasEmptyCustomerId()
+    {
+        Assert.Throws<ValidationException>(() => User.Create(
+            FullName.Create("Customer User"),
+            Email.Create("customer.user@example.com"),
+            new DateOnly(1990, 1, 1),
+            UserRole.Customer,
+            "hash",
+            default(CustomerId)));
+    }
+
+    [Fact]
+    public void Create_ShouldIncludeCustomerIdInUserCreatedDomainEvent_WhenUserIsCustomer()
+    {
+        var customerId = CustomerId.New();
+
+        var user = User.Create(
+            fullName: FullName.Create("Customer Event"),
+            email: Email.Create("customer.event@example.com"),
+            birthDate: new DateOnly(1990, 2, 3),
+            role: UserRole.Customer,
+            passwordHash: "hash-password",
+            customerId: customerId);
+
+        var domainEvent = Assert.Single(user.DomainEvents);
+        var userCreated = Assert.IsType<UserCreated>(domainEvent);
+
+        Assert.Equal(user.Id, userCreated.UserId);
+        Assert.Equal(customerId, userCreated.CustomerId);
+    }
 }

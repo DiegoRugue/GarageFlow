@@ -170,6 +170,11 @@ public sealed class User : Entity<UserId>, IAggregateRoot
             throw new ValidationException("Customer users must be linked to a customer.");
         }
 
+        if (role == UserRole.Customer && customerId is CustomerId id && id.Value == Guid.Empty)
+        {
+            throw new ValidationException("Customer users must be linked to a customer.");
+        }
+
         if (role != UserRole.Customer && customerId is not null)
         {
             throw new ValidationException("Only customer users can be linked to a customer.");
