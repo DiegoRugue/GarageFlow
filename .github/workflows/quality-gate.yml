@@ -70,22 +70,25 @@ jobs:
         run: >
           dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
           --no-build
+          --settings coverlet.runsettings
           --filter "FullyQualifiedName~Architecture"
-          --collect:"XPlat Code Coverage;Format=opencover"
+          --collect:"XPlat Code Coverage"
           --results-directory TestResults/Architecture
 
       - name: Unit Tests
         run: >
           dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
           --no-build
-          --collect:"XPlat Code Coverage;Format=opencover"
+          --settings coverlet.runsettings
+          --collect:"XPlat Code Coverage"
           --results-directory TestResults/Unit
 
       - name: Integration Tests
         run: >
           dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj
           --no-build
-          --collect:"XPlat Code Coverage;Format=opencover"
+          --settings coverlet.runsettings
+          --collect:"XPlat Code Coverage"
           --results-directory TestResults/Integration
           --
           RunConfiguration.MaxCpuCount=1
