@@ -17,7 +17,7 @@ public sealed class Estimate : Entity<EstimateId>
     public EstimateStatus Status { get; private set; }
     public IReadOnlyCollection<EstimateInventoryLine> InventoryLines => _inventoryLines.AsReadOnly();
     public IReadOnlyCollection<EstimateServiceLine> ServiceLines => _serviceLines.AsReadOnly();
-    public Price TotalPrice => Price.Create(
+    public Price TotalAmount => Price.Create(
         _inventoryLines.Sum(line => line.TotalPrice.Value) +
         _serviceLines.Sum(line => line.TotalPrice.Value));
 

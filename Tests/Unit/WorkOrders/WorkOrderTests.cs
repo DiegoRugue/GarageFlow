@@ -115,7 +115,7 @@ public class WorkOrderTests
             Description.Create("Installation labor"),
             Price.Create(50.00m));
 
-        Assert.Equal(125.00m, estimate.TotalPrice.Value);
+        Assert.Equal(125.00m, estimate.TotalAmount.Value);
         var inventoryLine = Assert.Single(estimate.InventoryLines);
         Assert.Equal(75.00m, inventoryLine.TotalPrice.Value);
         var serviceLine = Assert.Single(estimate.ServiceLines);
@@ -480,5 +480,115 @@ public class WorkOrderTests
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
         Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
         Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
+
+    [Fact]
+    public void ApproveEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsCompleted_AndKeepPendingEstimateUnchanged()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var approvedEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+
+        var pendingEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        workOrder.SubmitEstimate(pendingEstimate.Id);
+
+        workOrder.ApproveEstimate(approvedEstimate.Id);
+        workOrder.StartWork();
+        workOrder.Complete();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var approvedEventsBefore = workOrder.DomainEvents.OfType<EstimateApproved>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.ApproveEstimate(pendingEstimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
+        Assert.Equal(EstimateStatus.Pending, pendingEstimate.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
+        Assert.Equal(approvedEventsBefore, workOrder.DomainEvents.OfType<EstimateApproved>().Count());
+    }
+
+    [Fact]
+    public void RejectEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsCompleted_AndKeepPendingEstimateUnchanged()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var approvedEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+
+        var pendingEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        workOrder.SubmitEstimate(pendingEstimate.Id);
+
+        workOrder.ApproveEstimate(approvedEstimate.Id);
+        workOrder.StartWork();
+        workOrder.Complete();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var rejectedEventsBefore = workOrder.DomainEvents.OfType<EstimateRejected>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.RejectEstimate(pendingEstimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
+        Assert.Equal(EstimateStatus.Pending, pendingEstimate.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
+        Assert.Equal(rejectedEventsBefore, workOrder.DomainEvents.OfType<EstimateRejected>().Count());
+    }
+
+    [Fact]
+    public void ApproveEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsDelivered_AndKeepPendingEstimateUnchanged()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var approvedEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+
+        var pendingEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        workOrder.SubmitEstimate(pendingEstimate.Id);
+
+        workOrder.ApproveEstimate(approvedEstimate.Id);
+        workOrder.StartWork();
+        workOrder.Complete();
+        workOrder.Deliver();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var approvedEventsBefore = workOrder.DomainEvents.OfType<EstimateApproved>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.ApproveEstimate(pendingEstimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Delivered, workOrder.Status);
+        Assert.Equal(EstimateStatus.Pending, pendingEstimate.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
+        Assert.Equal(approvedEventsBefore, workOrder.DomainEvents.OfType<EstimateApproved>().Count());
+    }
+
+    [Fact]
+    public void RejectEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsDelivered_AndKeepPendingEstimateUnchanged()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var approvedEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+
+        var pendingEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        workOrder.SubmitEstimate(pendingEstimate.Id);
+
+        workOrder.ApproveEstimate(approvedEstimate.Id);
+        workOrder.StartWork();
+        workOrder.Complete();
+        workOrder.Deliver();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var rejectedEventsBefore = workOrder.DomainEvents.OfType<EstimateRejected>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.RejectEstimate(pendingEstimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Delivered, workOrder.Status);
+        Assert.Equal(EstimateStatus.Pending, pendingEstimate.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
+        Assert.Equal(rejectedEventsBefore, workOrder.DomainEvents.OfType<EstimateRejected>().Count());
     }
 }
