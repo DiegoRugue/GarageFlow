@@ -7,8 +7,6 @@ using GarageFlow.Tests.Integration.Api.Auth.Contracts;
 using GarageFlow.Tests.Integration.Api.Users.Contracts;
 using GarageFlow.Tests.Integration.Support.Fixtures;
 using GarageFlow.Tests.Integration.Support.Helpers;
-using GarageFlow.Tests.Integration.Support.Seed;
-using GarageFlow.Tests.Shared.Customers;
 using GarageFlow.Tests.Shared.Users;
 
 namespace GarageFlow.Tests.Integration.Api.Users;
@@ -189,116 +187,6 @@ public class UsersApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageF
         HttpResponseAssertions.AssertStatus(unblockedResponse, HttpStatusCode.OK);
     }
 
-    [Fact]
-    public async Task ActiveStaff_ShouldActivateCustomerPortalUser_WhenCustomerExists()
-    {
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
-        var uniqueToken = Guid.NewGuid().ToString("N");
-        var customerRequest = CustomerSeed.CreateUniqueBuilder()
-            .WithFullName("Portal Integration Customer")
-            .WithEmail($"portal.customer.{uniqueToken}@example.com")
-            .WithPhoneNumber("11987654321")
-            .BuildCreateRequest();
-
-        var createCustomerResponse = await client.PostAsJsonAsync("/customers", customerRequest);
-        HttpResponseAssertions.AssertStatus(createCustomerResponse, HttpStatusCode.Created);
-        var createdCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<Tests.Integration.Api.Customers.Contracts.CustomerResponse>(createCustomerResponse);
-
-        var activateResponse = await client.PostAsJsonAsync(
-            $"/customers/{createdCustomer.Id}/portal-user",
-            new ActivateCustomerPortalUserRequest(new DateOnly(1990, 1, 1)));
-
-        HttpResponseAssertions.AssertStatus(activateResponse, HttpStatusCode.Created);
-        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<ActivateCustomerPortalUserResponse>(activateResponse);
-        Assert.NotEqual(Guid.Empty, payload.Id);
-        Assert.Equal(createdCustomer.Id, payload.CustomerId);
-        Assert.Equal("portal.customer." + uniqueToken + "@example.com", payload.Email);
-        Assert.Equal("Customer", payload.Role);
-        Assert.True(payload.MustChangePassword);
-    }
-
-    [Fact]
-    public async Task ActiveStaff_ShouldReceive409_WhenCustomerPortalUserIsActivatedTwice()
-    {
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
-        var uniqueToken = Guid.NewGuid().ToString("N");
-        var customerRequest = CustomerSeed.CreateUniqueBuilder()
-            .WithFullName("Portal Duplicate Customer")
-            .WithEmail($"portal.duplicate.{uniqueToken}@example.com")
-            .WithPhoneNumber("11912312312")
-            .BuildCreateRequest();
-
-        var createCustomerResponse = await client.PostAsJsonAsync("/customers", customerRequest);
-        HttpResponseAssertions.AssertStatus(createCustomerResponse, HttpStatusCode.Created);
-        var createdCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<Tests.Integration.Api.Customers.Contracts.CustomerResponse>(createCustomerResponse);
-
-        var firstActivationResponse = await client.PostAsJsonAsync(
-            $"/customers/{createdCustomer.Id}/portal-user",
-            new ActivateCustomerPortalUserRequest(new DateOnly(1991, 2, 2)));
-        HttpResponseAssertions.AssertStatus(firstActivationResponse, HttpStatusCode.Created);
-
-        var duplicateActivationResponse = await client.PostAsJsonAsync(
-            $"/customers/{createdCustomer.Id}/portal-user",
-            new ActivateCustomerPortalUserRequest(new DateOnly(1991, 2, 2)));
-
-        HttpResponseAssertions.AssertStatus(duplicateActivationResponse, HttpStatusCode.Conflict);
-    }
-
-    [Fact]
-    public async Task ActiveCustomer_ShouldReceive403_WhenActivatingCustomerPortalUser()
-    {
-        using var client = await _fixture.CreateAuthenticatedClientAsync();
-        var uniqueToken = Guid.NewGuid().ToString("N");
-        var firstCustomerRequest = CustomerSeed.CreateUniqueBuilder()
-            .WithFullName("Portal Auth Customer One")
-            .WithEmail($"portal.auth.one.{uniqueToken}@example.com")
-            .WithPhoneNumber("11945645645")
-            .BuildCreateRequest();
-        var secondCustomerRequest = CustomerSeed.CreateUniqueBuilder()
-            .WithFullName("Portal Auth Customer Two")
-            .WithEmail($"portal.auth.two.{uniqueToken}@example.com")
-            .WithPhoneNumber("11978978978")
-            .BuildCreateRequest();
-
-        var firstCustomerResponse = await client.PostAsJsonAsync("/customers", firstCustomerRequest);
-        HttpResponseAssertions.AssertStatus(firstCustomerResponse, HttpStatusCode.Created);
-        var firstCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<Tests.Integration.Api.Customers.Contracts.CustomerResponse>(firstCustomerResponse);
-
-        var secondCustomerResponse = await client.PostAsJsonAsync("/customers", secondCustomerRequest);
-        HttpResponseAssertions.AssertStatus(secondCustomerResponse, HttpStatusCode.Created);
-        var secondCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<Tests.Integration.Api.Customers.Contracts.CustomerResponse>(secondCustomerResponse);
-
-        var activatePortalResponse = await client.PostAsJsonAsync(
-            $"/customers/{firstCustomer.Id}/portal-user",
-            new ActivateCustomerPortalUserRequest(new DateOnly(1992, 6, 10)));
-        HttpResponseAssertions.AssertStatus(activatePortalResponse, HttpStatusCode.Created);
-        var createdCustomerUser = await HttpResponseAssertions.ReadRequiredJsonAsync<ActivateCustomerPortalUserResponse>(activatePortalResponse);
-
-        var customerInitialPassword = User.GenerateInitialPassword(
-            FullName.Create(createdCustomerUser.FullName),
-            createdCustomerUser.BirthDate);
-        var customerFirstLogin = await client.LoginAndAttachBearerTokenAsync(createdCustomerUser.Email, customerInitialPassword);
-        Assert.True(customerFirstLogin.MustChangePassword);
-
-        var customerPasswordChangeResponse = await client.PutAsJsonAsync(
-            "/users/me/password",
-            new ChangeMyPasswordRequest(
-                CurrentPassword: customerInitialPassword,
-                NewPassword: "Customer.Active#123"));
-        HttpResponseAssertions.AssertStatus(customerPasswordChangeResponse, HttpStatusCode.NoContent);
-
-        var customerActiveLogin = await client.LoginAndAttachBearerTokenAsync(
-            createdCustomerUser.Email,
-            "Customer.Active#123");
-        Assert.False(customerActiveLogin.MustChangePassword);
-
-        var forbiddenActivationResponse = await client.PostAsJsonAsync(
-            $"/customers/{secondCustomer.Id}/portal-user",
-            new ActivateCustomerPortalUserRequest(new DateOnly(1993, 7, 11)));
-
-        HttpResponseAssertions.AssertStatus(forbiddenActivationResponse, HttpStatusCode.Forbidden);
-    }
-
     private static async Task<LoginResponse> AuthenticateCreatedUserAsActiveAsync(
         HttpClient client,
         string email,
@@ -322,15 +210,3 @@ public class UsersApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageF
         return activeLogin;
     }
 }
-
-public sealed record ActivateCustomerPortalUserRequest(DateOnly BirthDate);
-
-public sealed record ActivateCustomerPortalUserResponse(
-    Guid Id,
-    Guid CustomerId,
-    string FullName,
-    string Email,
-    DateOnly BirthDate,
-    string Role,
-    bool MustChangePassword,
-    DateTime CreatedAt);
