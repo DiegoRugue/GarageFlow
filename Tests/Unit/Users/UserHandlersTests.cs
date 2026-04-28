@@ -211,7 +211,7 @@ public class UserHandlersTests
     }
 
     [Fact]
-    public async Task Handle_ShouldThrowBusinessRuleViolationException_WhenLoginUserDoesNotExist()
+    public async Task Handle_ShouldThrowUnauthorizedAccessException_WhenLoginUserDoesNotExist()
     {
         var repositoryMock = CreateRepositoryMock();
         var passwordHashServiceMock = new Mock<IPasswordHashService>();
@@ -221,7 +221,7 @@ public class UserHandlersTests
             passwordHashServiceMock.Object,
             tokenServiceMock.Object);
 
-        await Assert.ThrowsAsync<BusinessRuleViolationException>(
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
             async () => await handler.Handle(
                 new LoginCommand("missing.user@example.com", "any-password"),
                 CancellationToken.None));
@@ -230,7 +230,7 @@ public class UserHandlersTests
     }
 
     [Fact]
-    public async Task Handle_ShouldThrowBusinessRuleViolationException_WhenLoginPasswordIsInvalid()
+    public async Task Handle_ShouldThrowUnauthorizedAccessException_WhenLoginPasswordIsInvalid()
     {
         var existingUser = new UserBuilder()
             .WithEmail("valid.user@example.com")
@@ -247,7 +247,7 @@ public class UserHandlersTests
             passwordHashServiceMock.Object,
             tokenServiceMock.Object);
 
-        await Assert.ThrowsAsync<BusinessRuleViolationException>(
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
             async () => await handler.Handle(
                 new LoginCommand("valid.user@example.com", "wrong-password"),
                 CancellationToken.None));

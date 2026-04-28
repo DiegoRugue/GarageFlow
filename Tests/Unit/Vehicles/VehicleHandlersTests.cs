@@ -267,14 +267,13 @@ public class VehicleHandlersTests
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnNull_WhenVehicleDoesNotExist()
+    public async Task Handle_ShouldThrowNotFoundException_WhenVehicleDoesNotExist()
     {
         var vehicleRepositoryMock = CreateVehicleRepositoryMock();
         var handler = new GetVehicleByIdHandler(vehicleRepositoryMock.Object);
 
-        var result = await handler.Handle(new GetVehicleByIdQuery(Guid.NewGuid()), CancellationToken.None);
-
-        Assert.Null(result);
+        await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(new GetVehicleByIdQuery(Guid.NewGuid()), CancellationToken.None));
     }
 
     [Fact]

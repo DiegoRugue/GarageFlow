@@ -1,5 +1,4 @@
 using GarageFlow.Application.Vehicles.VehicleBrands.GetVehicleBrandById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Vehicles.VehicleBrands.GetVehicleBrandById;
@@ -27,11 +26,6 @@ public static class GetVehicleBrandByIdEndpoint
     {
         var query = new GetVehicleBrandByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-
-        if (result is null)
-        {
-            throw new NotFoundException($"Vehicle brand with ID '{id}' was not found.");
-        }
 
         var response = new VehicleBrandResponse(
             Id: result.Id,

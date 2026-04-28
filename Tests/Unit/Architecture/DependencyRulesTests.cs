@@ -13,18 +13,6 @@ public class DependencyRulesTests
     private const string InfrastructureNamespace = "GarageFlow.Infrastructure";
     private static readonly string RepositoryRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-    private static readonly HashSet<string> KnownApiEndpointDependencyDrift =
-    [
-        "GarageFlow.Api.Auth.Login.LoginEndpoint",
-        "GarageFlow.Api.Customers.GetCustomerById.GetCustomerByIdEndpoint",
-        "GarageFlow.Api.InventoryItems.GetInventoryItemById.GetInventoryItemByIdEndpoint",
-        "GarageFlow.Api.Services.GetServiceById.GetServiceByIdEndpoint",
-        "GarageFlow.Api.Vehicles.GetVehicleById.GetVehicleByIdEndpoint",
-        "GarageFlow.Api.Vehicles.VehicleBrands.GetVehicleBrandById.GetVehicleBrandByIdEndpoint",
-        "GarageFlow.Api.Vehicles.VehicleColors.GetVehicleColorById.GetVehicleColorByIdEndpoint",
-        "GarageFlow.Api.Vehicles.VehicleModels.GetVehicleModelById.GetVehicleModelByIdEndpoint"
-    ];
-
     [Fact]
     public void BuildingBlocks_ShouldNotDependOnBusinessLayers()
     {
@@ -114,19 +102,7 @@ public class DependencyRulesTests
             .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, BuildingBlocksNamespace)
             .GetResult();
 
-        var unexpectedViolations = result.FailingTypeNames
-            .Except(KnownApiEndpointDependencyDrift, StringComparer.Ordinal)
-            .ToArray();
-        Assert.True(
-            unexpectedViolations.Length == 0,
-            $"Unexpected API endpoint dependency violations: {string.Join(", ", unexpectedViolations)}");
-
-        var missingKnownDriftEntries = KnownApiEndpointDependencyDrift
-            .Except(result.FailingTypeNames, StringComparer.Ordinal)
-            .ToArray();
-        Assert.True(
-            missingKnownDriftEntries.Length == 0,
-            $"Known API endpoint drift was removed or renamed; update allowlist and drift audit: {string.Join(", ", missingKnownDriftEntries)}");
+        AssertRule(result, nameof(Api_Endpoints_ShouldNotDependOnDomainOrInfrastructure_OutsideKnownDrift));
     }
 
     [Fact]

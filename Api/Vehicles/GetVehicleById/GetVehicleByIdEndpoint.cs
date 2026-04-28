@@ -1,5 +1,4 @@
 using GarageFlow.Application.Vehicles.GetVehicleById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Vehicles.GetVehicleById;
@@ -27,11 +26,6 @@ public static class GetVehicleByIdEndpoint
     {
         var query = new GetVehicleByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-
-        if (result is null)
-        {
-            throw new NotFoundException($"Vehicle with ID '{id}' was not found.");
-        }
 
         var response = new VehicleResponse(
             Id: result.Id,

@@ -28,7 +28,7 @@ public sealed class LoginHandler(
         var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (user is null || !_passwordHashService.Verify(request.Password, user.PasswordHash))
         {
-            throw new BusinessRuleViolationException("Invalid email or password.");
+            throw new UnauthorizedAccessException("Invalid email or password.");
         }
 
         var token = _tokenService.GenerateToken(user);

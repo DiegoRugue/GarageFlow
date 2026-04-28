@@ -1,3 +1,4 @@
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.Domain.InventoryItems.Repositories;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using Mediator;
@@ -5,18 +6,18 @@ using Mediator;
 namespace GarageFlow.Application.InventoryItems.GetInventoryItemById;
 
 public sealed class GetInventoryItemByIdHandler(
-    IInventoryItemRepository inventoryItemRepository) : IRequestHandler<GetInventoryItemByIdQuery, InventoryItemDto?>
+    IInventoryItemRepository inventoryItemRepository) : IRequestHandler<GetInventoryItemByIdQuery, InventoryItemDto>
 {
     private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
 
-    public async ValueTask<InventoryItemDto?> Handle(GetInventoryItemByIdQuery request, CancellationToken cancellationToken)
+    public async ValueTask<InventoryItemDto> Handle(GetInventoryItemByIdQuery request, CancellationToken cancellationToken)
     {
         var inventoryItemId = InventoryItemId.From(request.Id);
         var inventoryItem = await _inventoryItemRepository.GetByIdAsync(inventoryItemId, cancellationToken);
 
         if (inventoryItem is null)
         {
-            return null;
+            throw new NotFoundException($"Inventory item with ID '{request.Id}' was not found.");
         }
 
         return new InventoryItemDto(

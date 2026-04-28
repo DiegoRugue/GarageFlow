@@ -1,5 +1,4 @@
 using GarageFlow.Application.Services.GetServiceById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Services.GetServiceById;
@@ -27,11 +26,6 @@ public static class GetServiceByIdEndpoint
     {
         var query = new GetServiceByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-
-        if (result is null)
-        {
-            throw new NotFoundException($"Service with ID '{id}' was not found.");
-        }
 
         var response = new ServiceResponse(
             Id: result.Id,

@@ -1,3 +1,4 @@
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.Domain.Vehicles.Repositories;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -5,17 +6,17 @@ using Mediator;
 namespace GarageFlow.Application.Vehicles.VehicleModels.GetVehicleModelById;
 
 public sealed class GetVehicleModelByIdHandler(
-    IVehicleModelRepository vehicleModelRepository) : IRequestHandler<GetVehicleModelByIdQuery, VehicleModelDto?>
+    IVehicleModelRepository vehicleModelRepository) : IRequestHandler<GetVehicleModelByIdQuery, VehicleModelDto>
 {
     private readonly IVehicleModelRepository _vehicleModelRepository = vehicleModelRepository ?? throw new ArgumentNullException(nameof(vehicleModelRepository));
 
-    public async ValueTask<VehicleModelDto?> Handle(GetVehicleModelByIdQuery request, CancellationToken cancellationToken)
+    public async ValueTask<VehicleModelDto> Handle(GetVehicleModelByIdQuery request, CancellationToken cancellationToken)
     {
         var vehicleModelId = VehicleModelId.From(request.Id);
         var vehicleModel = await _vehicleModelRepository.GetByIdAsync(vehicleModelId, cancellationToken);
         if (vehicleModel is null)
         {
-            return null;
+            throw new NotFoundException($"Vehicle model with ID '{request.Id}' was not found.");
         }
 
         return new VehicleModelDto(

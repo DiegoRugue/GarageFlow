@@ -1,5 +1,4 @@
 using GarageFlow.Application.Customers.GetCustomerById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Customers.GetCustomerById;
@@ -27,11 +26,6 @@ public static class GetCustomerByIdEndpoint
     {
         var query = new GetCustomerByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-
-        if (result is null)
-        {
-            throw new NotFoundException($"Customer with ID '{id}' was not found.");
-        }
 
         var response = new CustomerResponse(
             Id: result.Id,

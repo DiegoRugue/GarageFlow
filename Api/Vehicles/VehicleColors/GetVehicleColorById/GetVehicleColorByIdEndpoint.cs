@@ -1,5 +1,4 @@
 using GarageFlow.Application.Vehicles.VehicleColors.GetVehicleColorById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Vehicles.VehicleColors.GetVehicleColorById;
@@ -27,11 +26,6 @@ public static class GetVehicleColorByIdEndpoint
     {
         var query = new GetVehicleColorByIdQuery(id);
         var result = await mediator.Send(query, cancellationToken);
-
-        if (result is null)
-        {
-            throw new NotFoundException($"Vehicle color with ID '{id}' was not found.");
-        }
 
         var response = new VehicleColorResponse(
             Id: result.Id,
