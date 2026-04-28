@@ -1,4 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using System.Globalization;
 
 namespace GarageFlow.Domain.WorkOrders.ValueObjects;
 
@@ -21,5 +22,7 @@ public readonly record struct EstimateItemQuantity
         return new EstimateItemQuantity(value);
     }
 
-    public override string ToString() => Value.ToString();
+    public override string ToString() => Value.ToString(CultureInfo.InvariantCulture);
+
+    public static implicit operator int(EstimateItemQuantity quantity) => quantity.Value;
 }

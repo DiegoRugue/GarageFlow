@@ -10,7 +10,7 @@ public sealed class EstimateServiceLine : Entity<EstimateServiceLineId>
 {
     public EstimateId EstimateId { get; private set; }
     public ServiceId ServiceId { get; private set; }
-    public Description Description { get; private set; }
+    public Description DescriptionSnapshot { get; private set; }
     public Price UnitPrice { get; private set; }
     public Price TotalPrice => Price.Create(UnitPrice.Value);
 
@@ -23,7 +23,7 @@ public sealed class EstimateServiceLine : Entity<EstimateServiceLineId>
     {
         EstimateId = EnsureValidEstimateId(estimateId);
         ServiceId = EnsureValidServiceId(serviceId);
-        Description = EnsureDescription(description);
+        DescriptionSnapshot = EnsureDescription(description);
         UnitPrice = EnsurePrice(unitPrice);
     }
 

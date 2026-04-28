@@ -10,7 +10,7 @@ public sealed class EstimateInventoryLine : Entity<EstimateInventoryLineId>
 {
     public EstimateId EstimateId { get; private set; }
     public InventoryItemId InventoryItemId { get; private set; }
-    public Description Description { get; private set; }
+    public Description DescriptionSnapshot { get; private set; }
     public EstimateItemQuantity Quantity { get; private set; }
     public Price UnitCost { get; private set; }
     public Price UnitPrice { get; private set; }
@@ -27,7 +27,7 @@ public sealed class EstimateInventoryLine : Entity<EstimateInventoryLineId>
     {
         EstimateId = EnsureValidEstimateId(estimateId);
         InventoryItemId = EnsureValidInventoryItemId(inventoryItemId);
-        Description = EnsureDescription(description);
+        DescriptionSnapshot = EnsureDescription(description);
         Quantity = EstimateItemQuantity.Create(quantity.Value);
         UnitCost = EnsurePrice(unitCost);
         UnitPrice = EnsurePrice(unitPrice);

@@ -117,8 +117,10 @@ public class WorkOrderTests
 
         Assert.Equal(125.00m, estimate.TotalAmount.Value);
         var inventoryLine = Assert.Single(estimate.InventoryLines);
+        Assert.Equal("Oil filter", inventoryLine.DescriptionSnapshot.Value);
         Assert.Equal(75.00m, inventoryLine.TotalPrice.Value);
         var serviceLine = Assert.Single(estimate.ServiceLines);
+        Assert.Equal("Installation labor", serviceLine.DescriptionSnapshot.Value);
         Assert.Equal(50.00m, serviceLine.TotalPrice.Value);
         Assert.Single(workOrder.DomainEvents.OfType<EstimateInventoryLineAdded>());
         Assert.Single(workOrder.DomainEvents.OfType<EstimateServiceLineAdded>());
@@ -328,6 +330,24 @@ public class WorkOrderTests
         var exception = Assert.Throws<ValidationException>(() => EstimateItemQuantity.Create(0));
 
         Assert.Equal("Estimate item quantity must be greater than zero.", exception.Message);
+    }
+
+    [Fact]
+    public void EstimateItemQuantity_ToString_ShouldUseInvariantCulture()
+    {
+        var quantity = EstimateItemQuantity.Create(12);
+
+        Assert.Equal("12", quantity.ToString());
+    }
+
+    [Fact]
+    public void EstimateItemQuantity_ShouldSupportImplicitIntConversion()
+    {
+        var quantity = EstimateItemQuantity.Create(7);
+
+        int rawQuantity = quantity;
+
+        Assert.Equal(7, rawQuantity);
     }
 
     [Fact]
