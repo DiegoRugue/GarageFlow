@@ -59,10 +59,10 @@ public static class CustomerSeed
         return string.Concat(tenDigits.Select(digit => (char)('0' + digit))) + secondCheckDigit;
     }
 
-    private static int CalculateCheckDigit(IReadOnlyList<int> digits, int initialWeight)
+    private static int CalculateCheckDigit(int[] digits, int initialWeight)
     {
         var sum = 0;
-        for (var index = 0; index < digits.Count; index++)
+        for (var index = 0; index < digits.Length; index++)
         {
             sum += digits[index] * (initialWeight - index);
         }

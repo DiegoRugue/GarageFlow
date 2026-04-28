@@ -26,17 +26,19 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
     public async Task VehicleColorCrudRoutes_ShouldReturnExpectedStatuses()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var originalColorName = $"Black-{Guid.NewGuid():N}";
+        var updatedColorName = $"Black-Updated-{Guid.NewGuid():N}";
 
         var createResponse = await client.PostAsJsonAsync(
             "/vehicle-colors",
             new VehicleColorBuilder()
-                .WithName("Black")
+                .WithName(originalColorName)
                 .BuildCreateRequest());
 
         HttpResponseAssertions.AssertStatus(createResponse, HttpStatusCode.Created);
         var created = await HttpResponseAssertions.ReadRequiredJsonAsync<VehicleColorResponse>(createResponse);
         Assert.NotEqual(Guid.Empty, created.Id);
-        Assert.Equal("Black", created.Name);
+        Assert.Equal(originalColorName, created.Name);
 
         var listResponse = await client.GetAsync("/vehicle-colors?page=1&pageSize=10");
         HttpResponseAssertions.AssertStatus(listResponse, HttpStatusCode.OK);
@@ -48,13 +50,13 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
         var updateResponse = await client.PutAsJsonAsync(
             $"/vehicle-colors/{created.Id}",
             new VehicleColorBuilder()
-                .WithName("Black Updated")
+                .WithName(updatedColorName)
                 .BuildUpdateRequest());
 
         HttpResponseAssertions.AssertStatus(updateResponse, HttpStatusCode.OK);
         var updated = await HttpResponseAssertions.ReadRequiredJsonAsync<VehicleColorResponse>(updateResponse);
         Assert.Equal(created.Id, updated.Id);
-        Assert.Equal("Black Updated", updated.Name);
+        Assert.Equal(updatedColorName, updated.Name);
 
         var deleteResponse = await client.DeleteAsync($"/vehicle-colors/{created.Id}");
         HttpResponseAssertions.AssertStatus(deleteResponse, HttpStatusCode.NoContent);
@@ -92,7 +94,7 @@ public class VehicleColorsApiTests(GarageFlowApiFixture fixture) : IClassFixture
 
         var seeded = await VehicleSeed.CreateWithDependenciesAsync(
             client,
-            colorBuilder: new VehicleColorBuilder().WithName("Silver"));
+            colorBuilder: new VehicleColorBuilder().WithName($"Silver-{Guid.NewGuid():N}"));
 
         var response = await client.DeleteAsync($"/vehicle-colors/{seeded.VehicleColorId}");
 

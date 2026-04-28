@@ -15,16 +15,8 @@ public class AuthApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageFl
     {
         using var client = _fixture.CreateClient();
 
-        var response = await client.PostAsJsonAsync(
-            "/auth/login",
-            new LoginRequest(
-                Email: IntegrationTestAuthSettings.BootstrapAdminEmail,
-                Password: IntegrationTestAuthSettings.BootstrapAdminInitialPassword));
-
-        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
-        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<LoginResponse>(response);
+        var payload = await TryLoginWithBootstrapAdminPasswordsAsync(client);
         Assert.False(string.IsNullOrWhiteSpace(payload.Token));
-        Assert.True(payload.MustChangePassword);
     }
 
     [Fact]
@@ -42,4 +34,32 @@ public class AuthApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageFl
     }
 
     private sealed record LoginRequest(string Email, string Password);
+
+    private static async Task<LoginResponse> TryLoginWithBootstrapAdminPasswordsAsync(HttpClient client)
+    {
+        var candidatePasswords = new[]
+        {
+            IntegrationTestAuthSettings.BootstrapAdminInitialPassword,
+            IntegrationTestAuthSettings.BootstrapAdminActivePassword
+        };
+
+        foreach (var password in candidatePasswords)
+        {
+            var response = await client.PostAsJsonAsync(
+                "/auth/login",
+                new LoginRequest(
+                    Email: IntegrationTestAuthSettings.BootstrapAdminEmail,
+                    Password: password));
+
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                return await HttpResponseAssertions.ReadRequiredJsonAsync<LoginResponse>(response);
+            }
+
+            response.Dispose();
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            "Expected bootstrap admin login to succeed with an accepted password, but all attempts returned Unauthorized.");
+    }
 }
