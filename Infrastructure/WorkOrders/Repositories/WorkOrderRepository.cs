@@ -84,7 +84,8 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
             .Include(workOrder => workOrder.Estimates)
             .ThenInclude(estimate => estimate.InventoryLines)
             .Include(workOrder => workOrder.Estimates)
-            .ThenInclude(estimate => estimate.ServiceLines);
+            .ThenInclude(estimate => estimate.ServiceLines)
+            .AsSplitQuery();
     }
 
     private IQueryable<WorkOrder> CreateWorkOrderDetailsQuery()
