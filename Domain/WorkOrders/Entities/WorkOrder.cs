@@ -118,22 +118,10 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public void SubmitEstimate(EstimateId estimateId)
     {
+        EnsureStatusAllowsEstimateSubmission();
+
         var estimate = GetEstimateOrThrow(estimateId);
         estimate.Submit();
-
-        if (Status == WorkOrderStatus.Created)
-        {
-            TransitionTo(WorkOrderStatus.Diagnosing);
-            TransitionTo(WorkOrderStatus.WaitingApproval);
-        }
-        else if (Status == WorkOrderStatus.Diagnosing)
-        {
-            TransitionTo(WorkOrderStatus.WaitingApproval);
-        }
-        else if (Status != WorkOrderStatus.WaitingApproval)
-        {
-            throw new BusinessRuleViolationException($"Work order status '{Status}' does not allow estimate submission.");
-        }
 
         UpdatedAt = DateTime.UtcNow;
 
@@ -147,6 +135,8 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public void ApproveEstimate(EstimateId estimateId)
     {
+        EnsureNotFinalizedForContentChanges();
+
         var estimate = GetEstimateOrThrow(estimateId);
         if (estimate.Status != EstimateStatus.Pending)
         {
@@ -175,6 +165,8 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public Estimate RejectEstimate(EstimateId estimateId)
     {
+        EnsureNotFinalizedForContentChanges();
+
         var estimate = GetEstimateOrThrow(estimateId);
         estimate.Reject();
 
@@ -247,6 +239,34 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         {
             throw new BusinessRuleViolationException("Finalized work orders cannot be changed.");
         }
+    }
+
+    private void EnsureStatusAllowsEstimateSubmission()
+    {
+        if (Status is WorkOrderStatus.Completed or WorkOrderStatus.Delivered or WorkOrderStatus.Cancelled)
+        {
+            throw new BusinessRuleViolationException("Finalized work orders cannot be changed.");
+        }
+
+        if (Status == WorkOrderStatus.Created)
+        {
+            TransitionTo(WorkOrderStatus.Diagnosing);
+            TransitionTo(WorkOrderStatus.WaitingApproval);
+            return;
+        }
+
+        if (Status == WorkOrderStatus.Diagnosing)
+        {
+            TransitionTo(WorkOrderStatus.WaitingApproval);
+            return;
+        }
+
+        if (Status == WorkOrderStatus.WaitingApproval)
+        {
+            return;
+        }
+
+        throw new BusinessRuleViolationException($"Work order status '{Status}' does not allow estimate submission.");
     }
 
     private void TransitionTo(WorkOrderStatus newStatus)

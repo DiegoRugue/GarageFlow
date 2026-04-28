@@ -322,4 +322,106 @@ public class WorkOrderTests
 
         Assert.Equal("Estimate item quantity must be greater than zero.", exception.Message);
     }
+
+    [Fact]
+    public void ApproveEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsCancelled_AndKeepEstimatePending()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
+        var estimate = workOrder.Estimates.Single();
+        workOrder.Cancel();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.ApproveEstimate(estimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+        Assert.Equal(EstimateStatus.Pending, estimate.Status);
+        Assert.Empty(workOrder.DomainEvents.OfType<EstimateApproved>());
+    }
+
+    [Fact]
+    public void RejectEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsCancelled_AndKeepEstimatePending()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
+        var estimate = workOrder.Estimates.Single();
+        workOrder.Cancel();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.RejectEstimate(estimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+        Assert.Equal(EstimateStatus.Pending, estimate.Status);
+        Assert.Empty(workOrder.DomainEvents.OfType<EstimateRejected>());
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsApproved_AndKeepEstimateDraft()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
+
+        Assert.Equal("Work order status 'Approved' does not allow estimate submission.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Approved, workOrder.Status);
+        Assert.Equal(EstimateStatus.Draft, estimate.Status);
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsCompleted_AndKeepEstimateDraft()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.StartWork();
+        workOrder.Complete();
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
+        Assert.Equal(EstimateStatus.Draft, estimate.Status);
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsDelivered_AndKeepEstimateDraft()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.StartWork();
+        workOrder.Complete();
+        workOrder.Deliver();
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Delivered, workOrder.Status);
+        Assert.Equal(EstimateStatus.Draft, estimate.Status);
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsCancelled_AndKeepEstimateDraft()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
+        var pendingEstimate = workOrder.Estimates.Single();
+        workOrder.RejectEstimate(pendingEstimate.Id);
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.Cancel();
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+        Assert.Equal(EstimateStatus.Draft, estimate.Status);
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
 }
