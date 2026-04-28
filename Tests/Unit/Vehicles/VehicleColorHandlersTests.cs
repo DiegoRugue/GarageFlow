@@ -328,16 +328,16 @@ public class VehicleColorHandlersTests
             });
 
         repositoryMock
-            .Setup(x => x.ExistsByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string name, CancellationToken _) =>
-                vehicleColors.Any(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)));
+            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleColorName>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VehicleColorName name, CancellationToken _) =>
+                vehicleColors.Any(c => c.Name == name));
 
         repositoryMock
-            .Setup(x => x.ExistsByNameAsync(It.IsAny<string>(), It.IsAny<VehicleColorId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string name, VehicleColorId excludingVehicleColorId, CancellationToken _) =>
+            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleColorName>(), It.IsAny<VehicleColorId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VehicleColorName name, VehicleColorId excludingVehicleColorId, CancellationToken _) =>
                 vehicleColors.Any(c =>
                     c.Id != excludingVehicleColorId &&
-                    string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)));
+                    c.Name == name));
 
         repositoryMock
             .Setup(x => x.Remove(It.IsAny<VehicleColor>()))

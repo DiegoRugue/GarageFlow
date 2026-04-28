@@ -1,6 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Persistence;
-using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Domain.Vehicles.Repositories;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -16,7 +15,7 @@ public sealed class UpdateVehicleColorHandler(
 
     public async ValueTask<UpdateVehicleColorResult> Handle(UpdateVehicleColorCommand request, CancellationToken cancellationToken)
     {
-        var normalizedName = VehicleColor.Create(request.Name).Name;
+        var normalizedName = VehicleColorName.Create(request.Name);
 
         var vehicleColorId = VehicleColorId.From(request.Id);
         var vehicleColor = await _vehicleColorRepository.GetByIdAsync(vehicleColorId, cancellationToken);

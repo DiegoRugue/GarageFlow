@@ -17,11 +17,11 @@ public interface IVehicleBrandRepository
     Task AddAsync(VehicleBrand vehicleBrand, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleBrandName name,
         CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleBrandName name,
         VehicleBrandId excludingVehicleBrandId,
         CancellationToken cancellationToken = default);
 

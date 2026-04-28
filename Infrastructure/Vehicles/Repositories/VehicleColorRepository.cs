@@ -44,28 +44,30 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
     }
 
     public async Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleColorName name,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.ToUpper();
+        var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleColors
             .AsNoTracking()
-            .AnyAsync(vehicleColor => vehicleColor.Name.ToUpper() == normalizedName, cancellationToken);
+            .AnyAsync(
+                vehicleColor => vehicleColor.Name.Value.ToUpperInvariant() == normalizedName,
+                cancellationToken);
     }
 
     public async Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleColorName name,
         VehicleColorId excludingVehicleColorId,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.ToUpper();
+        var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleColors
             .AsNoTracking()
             .AnyAsync(
                 vehicleColor =>
-                    vehicleColor.Name.ToUpper() == normalizedName &&
+                    vehicleColor.Name.Value.ToUpperInvariant() == normalizedName &&
                     vehicleColor.Id != excludingVehicleColorId,
                 cancellationToken);
     }

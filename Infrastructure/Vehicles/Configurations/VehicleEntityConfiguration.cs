@@ -28,6 +28,9 @@ public sealed class VehicleEntityConfiguration : IEntityTypeConfiguration<Vehicl
             .IsRequired();
 
         builder.Property(vehicle => vehicle.Year)
+            .HasConversion(
+                year => year.Value,
+                value => VehicleYear.Create(value))
             .IsRequired();
 
         builder.Property(vehicle => vehicle.VehicleBrandId)

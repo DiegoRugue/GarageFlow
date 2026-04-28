@@ -66,34 +66,34 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
 
     public async Task<bool> ExistsByNameAsync(
         VehicleBrandId vehicleBrandId,
-        string name,
+        VehicleModelName name,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.ToUpper();
+        var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleModels
             .AsNoTracking()
             .AnyAsync(
                 vehicleModel =>
                     vehicleModel.VehicleBrandId == vehicleBrandId &&
-                    vehicleModel.Name.ToUpper() == normalizedName,
+                    vehicleModel.Name.Value.ToUpperInvariant() == normalizedName,
                 cancellationToken);
     }
 
     public async Task<bool> ExistsByNameAsync(
         VehicleBrandId vehicleBrandId,
-        string name,
+        VehicleModelName name,
         VehicleModelId excludingVehicleModelId,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.ToUpper();
+        var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleModels
             .AsNoTracking()
             .AnyAsync(
                 vehicleModel =>
                     vehicleModel.VehicleBrandId == vehicleBrandId &&
-                    vehicleModel.Name.ToUpper() == normalizedName &&
+                    vehicleModel.Name.Value.ToUpperInvariant() == normalizedName &&
                     vehicleModel.Id != excludingVehicleModelId,
                 cancellationToken);
     }

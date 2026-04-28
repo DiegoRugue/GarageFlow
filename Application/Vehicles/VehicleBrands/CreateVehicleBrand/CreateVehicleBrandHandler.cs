@@ -2,6 +2,7 @@ using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
 
 namespace GarageFlow.Application.Vehicles.VehicleBrands.CreateVehicleBrand;
@@ -15,13 +16,15 @@ public sealed class CreateVehicleBrandHandler(
 
     public async ValueTask<CreateVehicleBrandResult> Handle(CreateVehicleBrandCommand request, CancellationToken cancellationToken)
     {
-        var vehicleBrand = VehicleBrand.Create(request.Name);
+        var brandName = VehicleBrandName.Create(request.Name);
 
-        var exists = await _vehicleBrandRepository.ExistsByNameAsync(vehicleBrand.Name, cancellationToken);
+        var exists = await _vehicleBrandRepository.ExistsByNameAsync(brandName, cancellationToken);
         if (exists)
         {
-            throw new BusinessRuleViolationException($"A vehicle brand with name '{vehicleBrand.Name}' already exists.");
+            throw new BusinessRuleViolationException($"A vehicle brand with name '{brandName}' already exists.");
         }
+
+        var vehicleBrand = VehicleBrand.Create(brandName);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 

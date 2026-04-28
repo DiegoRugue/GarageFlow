@@ -24,12 +24,12 @@ public interface IVehicleModelRepository
 
     Task<bool> ExistsByNameAsync(
         VehicleBrandId vehicleBrandId,
-        string name,
+        VehicleModelName name,
         CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByNameAsync(
         VehicleBrandId vehicleBrandId,
-        string name,
+        VehicleModelName name,
         VehicleModelId excludingVehicleModelId,
         CancellationToken cancellationToken = default);
 

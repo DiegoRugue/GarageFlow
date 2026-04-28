@@ -68,7 +68,7 @@ public class VehicleModelHandlersTests
             async () => await handler.Handle(new CreateVehicleModelCommand(Guid.NewGuid(), "Uno"), CancellationToken.None));
 
         vehicleModelRepositoryMock.Verify(
-            x => x.ExistsByNameAsync(It.IsAny<VehicleBrandId>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            x => x.ExistsByNameAsync(It.IsAny<VehicleBrandId>(), It.IsAny<VehicleModelName>(), It.IsAny<CancellationToken>()),
             Times.Never);
 
         unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
@@ -530,19 +530,19 @@ public class VehicleModelHandlersTests
             });
 
         repositoryMock
-            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleBrandId>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((VehicleBrandId vehicleBrandId, string name, CancellationToken _) =>
+            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleBrandId>(), It.IsAny<VehicleModelName>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VehicleBrandId vehicleBrandId, VehicleModelName name, CancellationToken _) =>
                 vehicleModels.Any(model =>
                     model.VehicleBrandId == vehicleBrandId &&
-                    string.Equals(model.Name, name, StringComparison.OrdinalIgnoreCase)));
+                    model.Name == name));
 
         repositoryMock
-            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleBrandId>(), It.IsAny<string>(), It.IsAny<VehicleModelId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((VehicleBrandId vehicleBrandId, string name, VehicleModelId excludingVehicleModelId, CancellationToken _) =>
+            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleBrandId>(), It.IsAny<VehicleModelName>(), It.IsAny<VehicleModelId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VehicleBrandId vehicleBrandId, VehicleModelName name, VehicleModelId excludingVehicleModelId, CancellationToken _) =>
                 vehicleModels.Any(model =>
                     model.Id != excludingVehicleModelId &&
                     model.VehicleBrandId == vehicleBrandId &&
-                    string.Equals(model.Name, name, StringComparison.OrdinalIgnoreCase)));
+                    model.Name == name));
 
         repositoryMock
             .Setup(x => x.Remove(It.IsAny<VehicleModel>()))

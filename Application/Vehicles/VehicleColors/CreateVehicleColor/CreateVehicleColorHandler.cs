@@ -2,6 +2,7 @@ using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
 
 namespace GarageFlow.Application.Vehicles.VehicleColors.CreateVehicleColor;
@@ -15,13 +16,15 @@ public sealed class CreateVehicleColorHandler(
 
     public async ValueTask<CreateVehicleColorResult> Handle(CreateVehicleColorCommand request, CancellationToken cancellationToken)
     {
-        var vehicleColor = VehicleColor.Create(request.Name);
+        var colorName = VehicleColorName.Create(request.Name);
 
-        var exists = await _vehicleColorRepository.ExistsByNameAsync(vehicleColor.Name, cancellationToken);
+        var exists = await _vehicleColorRepository.ExistsByNameAsync(colorName, cancellationToken);
         if (exists)
         {
-            throw new BusinessRuleViolationException($"A vehicle color with name '{vehicleColor.Name}' already exists.");
+            throw new BusinessRuleViolationException($"A vehicle color with name '{colorName}' already exists.");
         }
+
+        var vehicleColor = VehicleColor.Create(colorName);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 

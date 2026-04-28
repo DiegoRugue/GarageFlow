@@ -341,14 +341,14 @@ public class VehicleBrandHandlersTests
             });
 
         repositoryMock
-            .Setup(x => x.ExistsByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string name, CancellationToken _) =>
-                vehicleBrands.Any(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)));
+            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleBrandName>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VehicleBrandName name, CancellationToken _) =>
+                vehicleBrands.Any(v => v.Name == name));
 
         repositoryMock
-            .Setup(x => x.ExistsByNameAsync(It.IsAny<string>(), It.IsAny<VehicleBrandId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string name, VehicleBrandId excludingVehicleBrandId, CancellationToken _) =>
-                vehicleBrands.Any(v => v.Id != excludingVehicleBrandId && string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase)));
+            .Setup(x => x.ExistsByNameAsync(It.IsAny<VehicleBrandName>(), It.IsAny<VehicleBrandId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VehicleBrandName name, VehicleBrandId excludingVehicleBrandId, CancellationToken _) =>
+                vehicleBrands.Any(v => v.Id != excludingVehicleBrandId && v.Name == name));
 
         repositoryMock
             .Setup(x => x.Remove(It.IsAny<VehicleBrand>()))

@@ -17,11 +17,11 @@ public interface IVehicleColorRepository
     Task AddAsync(VehicleColor vehicleColor, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleColorName name,
         CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleColorName name,
         VehicleColorId excludingVehicleColorId,
         CancellationToken cancellationToken = default);
 

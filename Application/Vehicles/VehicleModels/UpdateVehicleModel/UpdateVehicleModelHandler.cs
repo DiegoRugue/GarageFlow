@@ -1,6 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Persistence;
-using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Domain.Vehicles.Repositories;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -44,7 +43,7 @@ public sealed class UpdateVehicleModelHandler(
             }
         }
 
-        var normalizedName = VehicleModel.Create(vehicleBrandId, request.Name).Name;
+        var normalizedName = VehicleModelName.Create(request.Name);
 
         var exists = await _vehicleModelRepository.ExistsByNameAsync(vehicleBrandId, normalizedName, vehicleModelId, cancellationToken);
         if (exists)

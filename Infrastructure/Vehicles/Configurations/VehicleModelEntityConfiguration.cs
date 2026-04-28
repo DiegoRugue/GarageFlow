@@ -26,7 +26,10 @@ public sealed class VehicleModelEntityConfiguration : IEntityTypeConfiguration<V
             .IsRequired();
 
         builder.Property(vehicleModel => vehicleModel.Name)
-            .HasMaxLength(VehicleModel.MaxNameLength)
+            .HasConversion(
+                name => name.Value,
+                value => VehicleModelName.Create(value))
+            .HasMaxLength(VehicleModelName.MaxLength)
             .IsRequired();
 
         builder.HasAlternateKey(vehicleModel => new { vehicleModel.Id, vehicleModel.VehicleBrandId });

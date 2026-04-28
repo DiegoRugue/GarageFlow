@@ -20,7 +20,10 @@ public sealed class VehicleBrandEntityConfiguration : IEntityTypeConfiguration<V
             .ValueGeneratedNever();
 
         builder.Property(vehicleBrand => vehicleBrand.Name)
-            .HasMaxLength(VehicleBrand.MaxNameLength)
+            .HasConversion(
+                name => name.Value,
+                value => VehicleBrandName.Create(value))
+            .HasMaxLength(VehicleBrandName.MaxLength)
             .IsRequired();
 
         builder.HasIndex(vehicleBrand => vehicleBrand.Name)

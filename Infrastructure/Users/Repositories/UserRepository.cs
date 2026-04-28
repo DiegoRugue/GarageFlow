@@ -20,10 +20,8 @@ public sealed class UserRepository(GarageFlowDbContext dbContext) : IUserReposit
 
     public async Task<User?> GetByEmailAsync(Email email, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = Email.Create(email.Value.ToLowerInvariant());
-
         return await _dbContext.Users.FirstOrDefaultAsync(
-            user => user.Email == normalizedEmail,
+            user => user.Email == email,
             cancellationToken);
     }
 
@@ -53,11 +51,9 @@ public sealed class UserRepository(GarageFlowDbContext dbContext) : IUserReposit
 
     public async Task<bool> ExistsByEmailAsync(Email email, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = Email.Create(email.Value.ToLowerInvariant());
-
         return await _dbContext.Users
             .AsNoTracking()
-            .AnyAsync(user => user.Email == normalizedEmail, cancellationToken);
+            .AnyAsync(user => user.Email == email, cancellationToken);
     }
 
     public void Remove(User user)

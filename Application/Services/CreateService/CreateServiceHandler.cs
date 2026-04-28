@@ -1,7 +1,7 @@
 using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.Repositories;
-using GarageFlow.Domain.Services.ValueObjects;
 using Mediator;
 
 namespace GarageFlow.Application.Services.CreateService;
@@ -15,8 +15,8 @@ public sealed class CreateServiceHandler(
 
     public async ValueTask<CreateServiceResult> Handle(CreateServiceCommand request, CancellationToken cancellationToken)
     {
-        var description = ServiceDescription.Create(request.Description);
-        var price = ServicePrice.Create(request.Price);
+        var description = Description.Create(request.Description);
+        var price = Price.Create(request.Price);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 

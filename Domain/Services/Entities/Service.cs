@@ -1,4 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.Entities;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Domain.Interfaces;
 using GarageFlow.Domain.Services.Events;
 using GarageFlow.Domain.Services.ValueObjects;
@@ -7,8 +8,8 @@ namespace GarageFlow.Domain.Services.Entities;
 
 public sealed class Service : Entity<ServiceId>, IAggregateRoot
 {
-    public ServiceDescription Description { get; private set; }
-    public ServicePrice Price { get; private set; }
+    public Description Description { get; private set; }
+    public Price Price { get; private set; }
 
     private Service(ServiceId id) : base(id)
     {
@@ -18,14 +19,14 @@ public sealed class Service : Entity<ServiceId>, IAggregateRoot
 
     private Service(
         ServiceId id,
-        ServiceDescription description,
-        ServicePrice price) : base(id)
+        Description description,
+        Price price) : base(id)
     {
         Description = description;
         Price = price;
     }
 
-    public static Service Create(ServiceDescription description, ServicePrice price)
+    public static Service Create(Description description, Price price)
     {
         var id = ServiceId.New();
         var service = new Service(id, description, price);
@@ -39,7 +40,7 @@ public sealed class Service : Entity<ServiceId>, IAggregateRoot
         return service;
     }
 
-    public void Update(ServiceDescription description, ServicePrice price)
+    public void Update(Description description, Price price)
     {
         Description = description;
         Price = price;

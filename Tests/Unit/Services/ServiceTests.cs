@@ -1,7 +1,7 @@
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.Events;
-using GarageFlow.Domain.Services.ValueObjects;
 
 namespace GarageFlow.Tests.Unit.Services;
 
@@ -10,8 +10,8 @@ public class ServiceTests
     [Fact]
     public void Create_ShouldRaiseServiceCreatedEvent()
     {
-        var description = ServiceDescription.Create("Oil change");
-        var price = ServicePrice.Create(129.90m);
+        var description = Description.Create("Oil change");
+        var price = Price.Create(129.90m);
 
         var service = Service.Create(description, price);
 
@@ -25,12 +25,12 @@ public class ServiceTests
     public void Update_ShouldRaiseServiceUpdatedEvent()
     {
         var service = Service.Create(
-            ServiceDescription.Create("Oil change"),
-            ServicePrice.Create(129.90m));
+            Description.Create("Oil change"),
+            Price.Create(129.90m));
         var originalUpdatedAt = service.UpdatedAt;
 
-        var updatedDescription = ServiceDescription.Create("Premium oil change");
-        var updatedPrice = ServicePrice.Create(199.90m);
+        var updatedDescription = Description.Create("Premium oil change");
+        var updatedPrice = Price.Create(199.90m);
 
         Thread.Sleep(10);
         service.Update(updatedDescription, updatedPrice);
@@ -48,8 +48,8 @@ public class ServiceTests
     public void Delete_ShouldRaiseServiceDeletedEvent()
     {
         var service = Service.Create(
-            ServiceDescription.Create("Oil change"),
-            ServicePrice.Create(129.90m));
+            Description.Create("Oil change"),
+            Price.Create(129.90m));
         var originalUpdatedAt = service.UpdatedAt;
 
         Thread.Sleep(10);
@@ -62,37 +62,36 @@ public class ServiceTests
     }
 
     [Fact]
-    public void ServiceDescription_Create_ShouldThrowValidationException_WhenEmpty()
+    public void Description_Create_ShouldThrowValidationException_WhenEmpty()
     {
-        var exception = Assert.Throws<ValidationException>(() => ServiceDescription.Create(" "));
+        var exception = Assert.Throws<ValidationException>(() => Description.Create(" "));
 
         Assert.Equal("Service description cannot be empty or whitespace.", exception.Message);
     }
 
     [Fact]
-    public void ServiceDescription_Create_ShouldThrowValidationException_WhenTooLong()
+    public void Description_Create_ShouldThrowValidationException_WhenTooLong()
     {
-        var description = new string('x', ServiceDescription.MaxLength + 1);
+        var description = new string('x', Description.MaxLength + 1);
 
-        var exception = Assert.Throws<ValidationException>(() => ServiceDescription.Create(description));
+        var exception = Assert.Throws<ValidationException>(() => Description.Create(description));
 
-        Assert.Equal($"Service description cannot exceed {ServiceDescription.MaxLength} characters.", exception.Message);
+        Assert.Equal($"Service description cannot exceed {Description.MaxLength} characters.", exception.Message);
     }
 
     [Fact]
-    public void ServicePrice_Create_ShouldThrowValidationException_WhenNegative()
+    public void Price_Create_ShouldThrowValidationException_WhenNegative()
     {
-        var exception = Assert.Throws<ValidationException>(() => ServicePrice.Create(-0.01m));
+        var exception = Assert.Throws<ValidationException>(() => Price.Create(-0.01m));
 
         Assert.Equal("Service price cannot be negative.", exception.Message);
     }
 
     [Fact]
-    public void ServicePrice_Create_ShouldThrowValidationException_WhenMoreThanTwoDecimalPlaces()
+    public void Price_Create_ShouldThrowValidationException_WhenMoreThanTwoDecimalPlaces()
     {
-        var exception = Assert.Throws<ValidationException>(() => ServicePrice.Create(120.999m));
+        var exception = Assert.Throws<ValidationException>(() => Price.Create(120.999m));
 
         Assert.Equal("Service price cannot have more than 2 decimal places.", exception.Message);
     }
 }
-

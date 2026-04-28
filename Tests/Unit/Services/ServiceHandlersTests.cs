@@ -4,6 +4,7 @@ using GarageFlow.Application.Services.GetServiceById;
 using GarageFlow.Application.Services.ListServices;
 using GarageFlow.Application.Services.UpdateService;
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.Repositories;
@@ -223,4 +224,3 @@ public class ServiceHandlersTests
         return unitOfWorkMock;
     }
 }
-

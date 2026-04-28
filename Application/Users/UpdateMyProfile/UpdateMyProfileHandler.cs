@@ -19,6 +19,7 @@ public sealed class UpdateMyProfileHandler(
         var fullName = FullName.Create(request.FullName);
         var email = Email.Create(request.Email);
         var normalizedEmail = Email.Create(email.Value.ToLowerInvariant());
+        var birthDate = UserBirthDate.Create(request.BirthDate);
 
         var userId = UserId.From(request.UserId);
         var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
@@ -37,14 +38,14 @@ public sealed class UpdateMyProfileHandler(
 
         try
         {
-            user.UpdateProfile(fullName, normalizedEmail, request.BirthDate);
+            user.UpdateProfile(fullName, normalizedEmail, birthDate);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
             return new UpdateMyProfileResult(
                 Id: user.Id.Value,
                 FullName: user.FullName.Value,
                 Email: user.Email.Value,
-                BirthDate: user.BirthDate,
+                BirthDate: user.BirthDate.Value,
                 Role: user.Role,
                 MustChangePassword: user.MustChangePassword,
                 CreatedAt: user.CreatedAt,

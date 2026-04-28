@@ -1,4 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Services.Repositories;
 using GarageFlow.Domain.Services.ValueObjects;
@@ -15,8 +16,8 @@ public sealed class UpdateServiceHandler(
 
     public async ValueTask<UpdateServiceResult> Handle(UpdateServiceCommand request, CancellationToken cancellationToken)
     {
-        var description = ServiceDescription.Create(request.Description);
-        var price = ServicePrice.Create(request.Price);
+        var description = Description.Create(request.Description);
+        var price = Price.Create(request.Price);
 
         var serviceId = ServiceId.From(request.Id);
         var service = await _serviceRepository.GetByIdAsync(serviceId, cancellationToken);
@@ -45,4 +46,3 @@ public sealed class UpdateServiceHandler(
         }
     }
 }
-

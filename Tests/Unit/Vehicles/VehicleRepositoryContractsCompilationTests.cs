@@ -43,9 +43,9 @@ public class VehicleRepositoryContractsCompilationTests
             (repository, page, pageSize, cancellationToken) => repository.ListAsync(page, pageSize, cancellationToken));
         Signature<Func<IVehicleBrandRepository, VehicleBrand, CancellationToken, Task>>(
             (repository, vehicleBrand, cancellationToken) => repository.AddAsync(vehicleBrand, cancellationToken));
-        Signature<Func<IVehicleBrandRepository, string, CancellationToken, Task<bool>>>(
+        Signature<Func<IVehicleBrandRepository, VehicleBrandName, CancellationToken, Task<bool>>>(
             (repository, name, cancellationToken) => repository.ExistsByNameAsync(name, cancellationToken));
-        Signature<Func<IVehicleBrandRepository, string, VehicleBrandId, CancellationToken, Task<bool>>>(
+        Signature<Func<IVehicleBrandRepository, VehicleBrandName, VehicleBrandId, CancellationToken, Task<bool>>>(
             (repository, name, excludingVehicleBrandId, cancellationToken) => repository.ExistsByNameAsync(name, excludingVehicleBrandId, cancellationToken));
         Signature<Action<IVehicleBrandRepository, VehicleBrand>>(
             (repository, vehicleBrand) => repository.Remove(vehicleBrand));
@@ -58,9 +58,9 @@ public class VehicleRepositoryContractsCompilationTests
             (repository, vehicleBrandId, page, pageSize, cancellationToken) => repository.ListByVehicleBrandIdAsync(vehicleBrandId, page, pageSize, cancellationToken));
         Signature<Func<IVehicleModelRepository, VehicleModel, CancellationToken, Task>>(
             (repository, vehicleModel, cancellationToken) => repository.AddAsync(vehicleModel, cancellationToken));
-        Signature<Func<IVehicleModelRepository, VehicleBrandId, string, CancellationToken, Task<bool>>>(
+        Signature<Func<IVehicleModelRepository, VehicleBrandId, VehicleModelName, CancellationToken, Task<bool>>>(
             (repository, vehicleBrandId, name, cancellationToken) => repository.ExistsByNameAsync(vehicleBrandId, name, cancellationToken));
-        Signature<Func<IVehicleModelRepository, VehicleBrandId, string, VehicleModelId, CancellationToken, Task<bool>>>(
+        Signature<Func<IVehicleModelRepository, VehicleBrandId, VehicleModelName, VehicleModelId, CancellationToken, Task<bool>>>(
             (repository, vehicleBrandId, name, excludingVehicleModelId, cancellationToken) => repository.ExistsByNameAsync(vehicleBrandId, name, excludingVehicleModelId, cancellationToken));
         Signature<Func<IVehicleModelRepository, VehicleBrandId, CancellationToken, Task<bool>>>(
             (repository, vehicleBrandId, cancellationToken) => repository.ExistsByVehicleBrandIdAsync(vehicleBrandId, cancellationToken));
@@ -73,9 +73,9 @@ public class VehicleRepositoryContractsCompilationTests
             (repository, page, pageSize, cancellationToken) => repository.ListAsync(page, pageSize, cancellationToken));
         Signature<Func<IVehicleColorRepository, VehicleColor, CancellationToken, Task>>(
             (repository, vehicleColor, cancellationToken) => repository.AddAsync(vehicleColor, cancellationToken));
-        Signature<Func<IVehicleColorRepository, string, CancellationToken, Task<bool>>>(
+        Signature<Func<IVehicleColorRepository, VehicleColorName, CancellationToken, Task<bool>>>(
             (repository, name, cancellationToken) => repository.ExistsByNameAsync(name, cancellationToken));
-        Signature<Func<IVehicleColorRepository, string, VehicleColorId, CancellationToken, Task<bool>>>(
+        Signature<Func<IVehicleColorRepository, VehicleColorName, VehicleColorId, CancellationToken, Task<bool>>>(
             (repository, name, excludingVehicleColorId, cancellationToken) => repository.ExistsByNameAsync(name, excludingVehicleColorId, cancellationToken));
         Signature<Action<IVehicleColorRepository, VehicleColor>>(
             (repository, vehicleColor) => repository.Remove(vehicleColor));

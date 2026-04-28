@@ -20,7 +20,10 @@ public sealed class VehicleColorEntityConfiguration : IEntityTypeConfiguration<V
             .ValueGeneratedNever();
 
         builder.Property(vehicleColor => vehicleColor.Name)
-            .HasMaxLength(VehicleColor.MaxNameLength)
+            .HasConversion(
+                name => name.Value,
+                value => VehicleColorName.Create(value))
+            .HasMaxLength(VehicleColorName.MaxLength)
             .IsRequired();
 
         builder.HasIndex(vehicleColor => vehicleColor.Name)

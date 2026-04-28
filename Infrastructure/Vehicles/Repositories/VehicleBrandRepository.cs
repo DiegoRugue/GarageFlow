@@ -44,28 +44,30 @@ public sealed class VehicleBrandRepository(GarageFlowDbContext dbContext) : IVeh
     }
 
     public async Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleBrandName name,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.ToUpper();
+        var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleBrands
             .AsNoTracking()
-            .AnyAsync(vehicleBrand => vehicleBrand.Name.ToUpper() == normalizedName, cancellationToken);
+            .AnyAsync(
+                vehicleBrand => vehicleBrand.Name.Value.Equals(normalizedName, StringComparison.OrdinalIgnoreCase),
+                cancellationToken);
     }
 
     public async Task<bool> ExistsByNameAsync(
-        string name,
+        VehicleBrandName name,
         VehicleBrandId excludingVehicleBrandId,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.ToUpper();
+        var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleBrands
             .AsNoTracking()
             .AnyAsync(
                 vehicleBrand =>
-                    vehicleBrand.Name.ToUpper() == normalizedName &&
+                    vehicleBrand.Name.Value.Equals(normalizedName, StringComparison.OrdinalIgnoreCase) &&
                     vehicleBrand.Id != excludingVehicleBrandId,
                 cancellationToken);
     }

@@ -1,5 +1,6 @@
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.ValueObjects;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,14 +23,14 @@ public sealed class ServiceEntityConfiguration : IEntityTypeConfiguration<Servic
         builder.Property(service => service.Description)
             .HasConversion(
                 description => description.Value,
-                value => ServiceDescription.Create(value))
-            .HasMaxLength(ServiceDescription.MaxLength)
+                value => Description.Create(value))
+            .HasMaxLength(Description.MaxLength)
             .IsRequired();
 
         builder.Property(service => service.Price)
             .HasConversion(
                 price => price.Value,
-                value => ServicePrice.Create(value))
+                value => Price.Create(value))
             .HasPrecision(18, 2)
             .IsRequired();
 
@@ -42,4 +43,3 @@ public sealed class ServiceEntityConfiguration : IEntityTypeConfiguration<Servic
         builder.Ignore(service => service.DomainEvents);
     }
 }
-

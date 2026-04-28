@@ -10,7 +10,7 @@ namespace GarageFlow.Domain.Vehicles.Entities;
 public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
 {
     public CustomerId CustomerId { get; private set; }
-    public int Year { get; private set; }
+    public VehicleYear Year { get; private set; }
     public VehicleBrandId VehicleBrandId { get; private set; }
     public VehicleModelId VehicleModelId { get; private set; }
     public VehicleColorId VehicleColorId { get; private set; }
@@ -24,7 +24,7 @@ public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
     private Vehicle(
         VehicleId id,
         CustomerId customerId,
-        int year,
+        VehicleYear year,
         VehicleBrandId vehicleBrandId,
         VehicleModelId vehicleModelId,
         VehicleColorId vehicleColorId,
@@ -41,6 +41,23 @@ public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
     public static Vehicle Create(
         CustomerId customerId,
         int year,
+        VehicleBrandId vehicleBrandId,
+        VehicleModelId vehicleModelId,
+        VehicleColorId vehicleColorId,
+        LicensePlate licensePlate)
+    {
+        return Create(
+            customerId,
+            VehicleYear.Create(year),
+            vehicleBrandId,
+            vehicleModelId,
+            vehicleColorId,
+            licensePlate);
+    }
+
+    public static Vehicle Create(
+        CustomerId customerId,
+        VehicleYear year,
         VehicleBrandId vehicleBrandId,
         VehicleModelId vehicleModelId,
         VehicleColorId vehicleColorId,
@@ -65,7 +82,7 @@ public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
         vehicle.RaiseDomainEvent(new VehicleCreated(
             VehicleId: id,
             CustomerId: validatedCustomerId,
-            Year: validatedYear,
+            Year: validatedYear.Value,
             VehicleBrandId: validatedBrandId,
             VehicleModelId: validatedModelId,
             VehicleColorId: validatedColorId,
@@ -83,6 +100,23 @@ public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
         VehicleColorId vehicleColorId,
         LicensePlate licensePlate)
     {
+        Update(
+            customerId,
+            VehicleYear.Create(year),
+            vehicleBrandId,
+            vehicleModelId,
+            vehicleColorId,
+            licensePlate);
+    }
+
+    public void Update(
+        CustomerId customerId,
+        VehicleYear year,
+        VehicleBrandId vehicleBrandId,
+        VehicleModelId vehicleModelId,
+        VehicleColorId vehicleColorId,
+        LicensePlate licensePlate)
+    {
         CustomerId = EnsureValidCustomerId(customerId);
         Year = EnsureValidYear(year);
         VehicleBrandId = EnsureValidBrandId(vehicleBrandId);
@@ -94,7 +128,7 @@ public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
         RaiseDomainEvent(new VehicleUpdated(
             VehicleId: Id,
             CustomerId: CustomerId,
-            Year: Year,
+            Year: Year.Value,
             VehicleBrandId: VehicleBrandId,
             VehicleModelId: VehicleModelId,
             VehicleColorId: VehicleColorId,
@@ -120,15 +154,7 @@ public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
         return customerId;
     }
 
-    private static int EnsureValidYear(int year)
-    {
-        if (year < 1)
-        {
-            throw new ValidationException("Vehicle year must be greater than or equal to 1.");
-        }
-
-        return year;
-    }
+    private static VehicleYear EnsureValidYear(VehicleYear year) => VehicleYear.Create(year.Value);
 
     private static VehicleBrandId EnsureValidBrandId(VehicleBrandId vehicleBrandId)
     {

@@ -2,6 +2,7 @@ using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
+using GarageFlow.Domain.Users.ValueObjects;
 using GarageFlow.Tests.Shared.Users;
 
 namespace GarageFlow.Tests.Unit.Users;
@@ -17,6 +18,35 @@ public class UserDomainTests
         var initialPassword = User.GenerateInitialPassword(fullName, birthDate);
 
         Assert.Equal("lovelace1990", initialPassword);
+    }
+
+    [Fact]
+    public void GenerateInitialPassword_WithDefaultUserBirthDate_ShouldThrowValidationException()
+    {
+        var fullName = FullName.Create("Ada Lovelace");
+
+        var exception = Assert.Throws<ValidationException>(
+            () => User.GenerateInitialPassword(fullName, default(UserBirthDate)));
+
+        Assert.Equal("Birth date cannot be empty.", exception.Message);
+    }
+
+    [Fact]
+    public void UserBirthDate_Create_WithPastDate_ShouldSucceed()
+    {
+        var birthDate = UserBirthDate.Create(new DateOnly(1990, 1, 1));
+
+        Assert.Equal(new DateOnly(1990, 1, 1), birthDate.Value);
+    }
+
+    [Fact]
+    public void UserBirthDate_Create_WithFutureDate_ShouldThrowValidationException()
+    {
+        var farFutureBirthDate = new DateOnly(2999, 12, 31);
+
+        var exception = Assert.Throws<ValidationException>(() => UserBirthDate.Create(farFutureBirthDate));
+
+        Assert.Equal("Birth date cannot be in the future.", exception.Message);
     }
 
     [Fact]

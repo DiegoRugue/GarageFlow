@@ -256,7 +256,7 @@ public class VehicleHandlersTests
         Assert.NotNull(result);
         Assert.Equal(vehicle.Id.Value, result.Id);
         Assert.Equal(vehicle.CustomerId.Value, result.CustomerId);
-        Assert.Equal(vehicle.Year, result.Year);
+        Assert.Equal(vehicle.Year.Value, result.Year);
         Assert.Equal(vehicle.VehicleBrandId.Value, result.VehicleBrandId);
         Assert.Equal("Fiat", result.VehicleBrandName);
         Assert.Equal(vehicle.VehicleModelId.Value, result.VehicleModelId);
@@ -299,7 +299,7 @@ public class VehicleHandlersTests
         Assert.Single(result.Items);
         Assert.Equal(firstVehicle.Id.Value, result.Items[0].Id);
         Assert.Equal(firstVehicle.CustomerId.Value, result.Items[0].CustomerId);
-        Assert.Equal(firstVehicle.Year, result.Items[0].Year);
+        Assert.Equal(firstVehicle.Year.Value, result.Items[0].Year);
         Assert.Equal("Fiat", result.Items[0].VehicleBrandName);
         Assert.Equal("Uno", result.Items[0].VehicleModelName);
         Assert.Equal("Black", result.Items[0].VehicleColorName);
@@ -332,7 +332,7 @@ public class VehicleHandlersTests
         Assert.Single(result.Items);
         Assert.Equal(firstVehicle.Id.Value, result.Items[0].Id);
         Assert.Equal(firstVehicle.CustomerId.Value, result.Items[0].CustomerId);
-        Assert.Equal(firstVehicle.Year, result.Items[0].Year);
+        Assert.Equal(firstVehicle.Year.Value, result.Items[0].Year);
         Assert.Equal(firstCustomerId.Value, result.Items[0].CustomerId);
         Assert.Equal("Fiat", result.Items[0].VehicleBrandName);
         Assert.Equal("Uno", result.Items[0].VehicleModelName);
@@ -412,7 +412,7 @@ public class VehicleHandlersTests
         Assert.Equal(secondColor.Id.Value, result.VehicleColorId);
         Assert.Equal("XYZ1A23", result.Plate);
         Assert.Equal(customer.Id, vehicle.CustomerId);
-        Assert.Equal(2025, vehicle.Year);
+        Assert.Equal(2025, vehicle.Year.Value);
         Assert.Equal(secondModel.VehicleBrandId, vehicle.VehicleBrandId);
         Assert.Equal(secondModel.Id, vehicle.VehicleModelId);
         Assert.Equal(secondColor.Id, vehicle.VehicleColorId);
@@ -792,7 +792,7 @@ public class VehicleHandlersTests
         return new VehicleDetailsReadModel(
             Id: vehicle.Id.Value,
             CustomerId: vehicle.CustomerId.Value,
-            Year: vehicle.Year,
+            Year: vehicle.Year.Value,
             VehicleBrandId: vehicle.VehicleBrandId.Value,
             VehicleBrandName: vehicleBrands.FirstOrDefault(vehicleBrand => vehicleBrand.Id == vehicle.VehicleBrandId)?.Name ?? string.Empty,
             VehicleModelId: vehicle.VehicleModelId.Value,

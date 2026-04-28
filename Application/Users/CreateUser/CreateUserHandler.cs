@@ -4,6 +4,7 @@ using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Repositories;
+using GarageFlow.Domain.Users.ValueObjects;
 using Mediator;
 
 namespace GarageFlow.Application.Users.CreateUser;
@@ -22,6 +23,7 @@ public sealed class CreateUserHandler(
         var fullName = FullName.Create(request.FullName);
         var email = Email.Create(request.Email);
         var normalizedEmail = Email.Create(email.Value.ToLowerInvariant());
+        var birthDate = UserBirthDate.Create(request.BirthDate);
 
         var exists = await _userRepository.ExistsByEmailAsync(normalizedEmail, cancellationToken);
         if (exists)
@@ -29,7 +31,7 @@ public sealed class CreateUserHandler(
             throw new BusinessRuleViolationException($"A user with email '{normalizedEmail.Value}' already exists.");
         }
 
-        var initialPassword = User.GenerateInitialPassword(fullName, request.BirthDate);
+        var initialPassword = User.GenerateInitialPassword(fullName, birthDate);
         var passwordHash = _passwordHashService.Hash(initialPassword);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -39,7 +41,7 @@ public sealed class CreateUserHandler(
             var user = User.Create(
                 fullName: fullName,
                 email: normalizedEmail,
-                birthDate: request.BirthDate,
+                birthDate: birthDate,
                 role: request.Role,
                 passwordHash: passwordHash);
 
@@ -50,7 +52,7 @@ public sealed class CreateUserHandler(
                 Id: user.Id.Value,
                 FullName: user.FullName.Value,
                 Email: user.Email.Value,
-                BirthDate: user.BirthDate,
+                BirthDate: user.BirthDate.Value,
                 Role: user.Role,
                 MustChangePassword: user.MustChangePassword,
                 CreatedAt: user.CreatedAt);

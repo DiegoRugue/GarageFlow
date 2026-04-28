@@ -72,6 +72,13 @@ public static class AuthenticationExtensions
                 policy => policy
                     .RequireRole(SecurityRoles.Admin)
                     .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+
+            options.AddPolicy(
+                SecurityPolicies.ActiveAttendant,
+                policy => policy
+                    .RequireAuthenticatedUser()
+                    .RequireRole(SecurityRoles.Attendant)
+                    .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
         });
 
         return builder;

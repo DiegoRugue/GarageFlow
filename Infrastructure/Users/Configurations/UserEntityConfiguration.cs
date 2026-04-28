@@ -38,6 +38,9 @@ public sealed class UserEntityConfiguration : IEntityTypeConfiguration<User>
             .IsUnique();
 
         builder.Property(user => user.BirthDate)
+            .HasConversion(
+                birthDate => birthDate.Value,
+                value => UserBirthDate.Create(value))
             .HasColumnType("date")
             .IsRequired();
 

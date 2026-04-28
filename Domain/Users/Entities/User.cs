@@ -11,7 +11,7 @@ public sealed class User : Entity<UserId>, IAggregateRoot
 {
     public FullName FullName { get; private set; }
     public Email Email { get; private set; }
-    public DateOnly BirthDate { get; private set; }
+    public UserBirthDate BirthDate { get; private set; }
     public UserRole Role { get; private set; }
     public string PasswordHash { get; private set; }
     public bool MustChangePassword { get; private set; }
@@ -27,7 +27,7 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         UserId id,
         FullName fullName,
         Email email,
-        DateOnly birthDate,
+        UserBirthDate birthDate,
         UserRole role,
         string passwordHash,
         bool mustChangePassword) : base(id)
@@ -47,6 +47,21 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         UserRole role,
         string passwordHash)
     {
+        return Create(
+            fullName,
+            email,
+            UserBirthDate.Create(birthDate),
+            role,
+            passwordHash);
+    }
+
+    public static User Create(
+        FullName fullName,
+        Email email,
+        UserBirthDate birthDate,
+        UserRole role,
+        string passwordHash)
+    {
         return new User(
             id: UserId.New(),
             fullName: fullName,
@@ -58,6 +73,11 @@ public sealed class User : Entity<UserId>, IAggregateRoot
     }
 
     public void UpdateProfile(FullName fullName, Email email, DateOnly birthDate)
+    {
+        UpdateProfile(fullName, email, UserBirthDate.Create(birthDate));
+    }
+
+    public void UpdateProfile(FullName fullName, Email email, UserBirthDate birthDate)
     {
         FullName = fullName;
         Email = NormalizeEmail(email);
@@ -74,6 +94,12 @@ public sealed class User : Entity<UserId>, IAggregateRoot
 
     public static string GenerateInitialPassword(FullName fullName, DateOnly birthDate)
     {
+        return GenerateInitialPassword(fullName, UserBirthDate.Create(birthDate));
+    }
+
+    public static string GenerateInitialPassword(FullName fullName, UserBirthDate birthDate)
+    {
+        var validatedBirthDate = EnsureValidBirthDate(birthDate);
         var nameParts = fullName.Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (nameParts.Length == 0)
         {
@@ -81,7 +107,7 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         }
 
         var lastName = nameParts[^1].Trim().ToLowerInvariant();
-        return $"{lastName}{birthDate.Year}";
+        return $"{lastName}{validatedBirthDate.Value.Year}";
     }
 
     private static Email NormalizeEmail(Email email)
@@ -109,19 +135,5 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         return role;
     }
 
-    private static DateOnly EnsureValidBirthDate(DateOnly birthDate)
-    {
-        if (birthDate == default || birthDate == DateOnly.MinValue)
-        {
-            throw new ValidationException("Birth date cannot be empty.");
-        }
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        if (birthDate > today)
-        {
-            throw new ValidationException("Birth date cannot be in the future.");
-        }
-
-        return birthDate;
-    }
+    private static UserBirthDate EnsureValidBirthDate(UserBirthDate birthDate) => UserBirthDate.Create(birthDate.Value);
 }

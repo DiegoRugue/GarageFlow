@@ -1,5 +1,5 @@
 using GarageFlow.Domain.Services.Entities;
-using GarageFlow.Domain.Services.ValueObjects;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 
 namespace GarageFlow.Tests.Shared.Services;
 
@@ -23,8 +23,8 @@ public sealed class ServiceBuilder
     public Service Build()
     {
         return Service.Create(
-            ServiceDescription.Create(_description),
-            ServicePrice.Create(_price));
+            Description.Create(_description),
+            Price.Create(_price));
     }
 
     public CreateServiceRequest BuildCreateRequest()
@@ -49,4 +49,3 @@ public sealed record CreateServiceRequest(
 public sealed record UpdateServiceRequest(
     string Description,
     decimal Price);
-

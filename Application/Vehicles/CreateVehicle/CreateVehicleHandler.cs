@@ -46,6 +46,7 @@ public sealed class CreateVehicleHandler(
         }
 
         var licensePlate = LicensePlate.Create(request.Plate);
+        var vehicleYear = VehicleYear.Create(request.Year);
 
         var exists = await _vehicleRepository.ExistsByLicensePlateAsync(licensePlate, cancellationToken);
         if (exists)
@@ -57,14 +58,14 @@ public sealed class CreateVehicleHandler(
 
         try
         {
-            var vehicle = Vehicle.Create(customerId, request.Year, vehicleModel.VehicleBrandId, vehicleModelId, vehicleColorId, licensePlate);
+            var vehicle = Vehicle.Create(customerId, vehicleYear, vehicleModel.VehicleBrandId, vehicleModelId, vehicleColorId, licensePlate);
             await _vehicleRepository.AddAsync(vehicle, cancellationToken);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
             return new CreateVehicleResult(
                 Id: vehicle.Id.Value,
                 CustomerId: vehicle.CustomerId.Value,
-                Year: vehicle.Year,
+                Year: vehicle.Year.Value,
                 VehicleBrandId: vehicle.VehicleBrandId.Value,
                 VehicleModelId: vehicle.VehicleModelId.Value,
                 VehicleColorId: vehicle.VehicleColorId.Value,

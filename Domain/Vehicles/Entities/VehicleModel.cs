@@ -8,17 +8,15 @@ namespace GarageFlow.Domain.Vehicles.Entities;
 
 public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
 {
-    public const int MaxNameLength = 100;
-
     public VehicleBrandId VehicleBrandId { get; private set; }
-    public string Name { get; private set; }
+    public VehicleModelName Name { get; private set; }
 
     private VehicleModel(VehicleModelId id) : base(id)
     {
         Name = null!;
     }
 
-    private VehicleModel(VehicleModelId id, VehicleBrandId vehicleBrandId, string name) : base(id)
+    private VehicleModel(VehicleModelId id, VehicleBrandId vehicleBrandId, VehicleModelName name) : base(id)
     {
         VehicleBrandId = EnsureValidBrandId(vehicleBrandId);
         Name = name;
@@ -26,7 +24,7 @@ public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
 
     public static VehicleModel Create(VehicleBrandId vehicleBrandId, string name)
     {
-        var normalizedName = NormalizeName(name);
+        var normalizedName = VehicleModelName.Create(name);
         var id = VehicleModelId.New();
         var validatedBrandId = EnsureValidBrandId(vehicleBrandId);
         var model = new VehicleModel(id, validatedBrandId, normalizedName);
@@ -34,7 +32,7 @@ public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
         model.RaiseDomainEvent(new VehicleModelCreated(
             VehicleModelId: id,
             VehicleBrandId: validatedBrandId,
-            Name: normalizedName,
+            Name: normalizedName.Value,
             CreatedAt: model.CreatedAt));
 
         return model;
@@ -43,13 +41,13 @@ public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
     public void Update(VehicleBrandId vehicleBrandId, string name)
     {
         VehicleBrandId = EnsureValidBrandId(vehicleBrandId);
-        Name = NormalizeName(name);
+        Name = VehicleModelName.Create(name);
         UpdatedAt = DateTime.UtcNow;
 
         RaiseDomainEvent(new VehicleModelUpdated(
             VehicleModelId: Id,
             VehicleBrandId: VehicleBrandId,
-            Name: Name));
+            Name: Name.Value));
     }
 
     public void Delete()
@@ -59,7 +57,7 @@ public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
         RaiseDomainEvent(new VehicleModelDeleted(
             VehicleModelId: Id,
             VehicleBrandId: VehicleBrandId,
-            Name: Name));
+            Name: Name.Value));
     }
 
     private static VehicleBrandId EnsureValidBrandId(VehicleBrandId vehicleBrandId)
@@ -72,20 +70,4 @@ public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
         return vehicleBrandId;
     }
 
-    private static string NormalizeName(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ValidationException("Vehicle model name cannot be empty.");
-        }
-
-        var normalizedValue = value.Trim();
-
-        if (normalizedValue.Length > MaxNameLength)
-        {
-            throw new ValidationException($"Vehicle model name cannot exceed {MaxNameLength} characters.");
-        }
-
-        return normalizedValue;
-    }
 }

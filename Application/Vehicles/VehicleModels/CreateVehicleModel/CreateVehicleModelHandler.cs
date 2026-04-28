@@ -25,13 +25,15 @@ public sealed class CreateVehicleModelHandler(
             throw new NotFoundException($"Vehicle brand with ID '{request.VehicleBrandId}' was not found.");
         }
 
-        var vehicleModel = VehicleModel.Create(vehicleBrandId, request.Name);
+        var modelName = VehicleModelName.Create(request.Name);
 
-        var exists = await _vehicleModelRepository.ExistsByNameAsync(vehicleBrandId, vehicleModel.Name, cancellationToken);
+        var exists = await _vehicleModelRepository.ExistsByNameAsync(vehicleBrandId, modelName, cancellationToken);
         if (exists)
         {
-            throw new BusinessRuleViolationException($"A vehicle model with name '{vehicleModel.Name}' already exists for vehicle brand with ID '{request.VehicleBrandId}'.");
+            throw new BusinessRuleViolationException($"A vehicle model with name '{modelName}' already exists for vehicle brand with ID '{request.VehicleBrandId}'.");
         }
+
+        var vehicleModel = VehicleModel.Create(vehicleBrandId, modelName);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 

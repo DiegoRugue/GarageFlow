@@ -1,9 +1,11 @@
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Customers.Entities;
+using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Infrastructure.Customers.Configurations;
+using GarageFlow.Infrastructure.InventoryItems.Configurations;
 using GarageFlow.Infrastructure.Services.Configurations;
 using GarageFlow.Infrastructure.Users.Configurations;
 using GarageFlow.Infrastructure.Vehicles.Configurations;
@@ -18,6 +20,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     private IDbContextTransaction? _currentTransaction;
 
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<Service> Services => Set<Service>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
@@ -28,6 +31,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new CustomerEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new InventoryItemEntityConfiguration());
         modelBuilder.ApplyConfiguration(new ServiceEntityConfiguration());
         modelBuilder.ApplyConfiguration(new UserEntityConfiguration());
         modelBuilder.ApplyConfiguration(new VehicleEntityConfiguration());

@@ -1,5 +1,6 @@
 using GarageFlow.Api.Auth;
 using GarageFlow.Api.Customers;
+using GarageFlow.Api.InventoryItems;
 using GarageFlow.Api.Middlewares;
 using GarageFlow.Api.Security;
 using GarageFlow.Api.Services;
@@ -39,6 +40,7 @@ app.MapUserEndpoints();
 app.MapCustomerEndpoints();
 app.MapServiceEndpoints();
 app.MapVehicleEndpoints();
+app.MapInventoryItemEndpoints();
 
 app.Run();
 

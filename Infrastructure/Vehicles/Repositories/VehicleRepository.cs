@@ -94,13 +94,13 @@ public sealed class VehicleRepository(GarageFlowDbContext dbContext) : IVehicleR
             select new VehicleDetailsReadModel(
                 vehicle.Id.Value,
                 vehicle.CustomerId.Value,
-                vehicle.Year,
+                vehicle.Year.Value,
                 vehicle.VehicleBrandId.Value,
-                brand.Name,
+                EF.Property<string>(brand, nameof(VehicleBrand.Name)),
                 vehicle.VehicleModelId.Value,
-                model.Name,
+                EF.Property<string>(model, nameof(VehicleModel.Name)),
                 vehicle.VehicleColorId.Value,
-                color.Name,
+                EF.Property<string>(color, nameof(VehicleColor.Name)),
                 vehicle.LicensePlate.Value,
                 vehicle.CreatedAt);
     }

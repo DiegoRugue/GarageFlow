@@ -33,6 +33,78 @@ public class VehicleDomainTests
     }
 
     [Fact]
+    public void VehicleBrandName_Create_ShouldNormalize()
+    {
+        var name = VehicleBrandName.Create("  Fiat  ");
+
+        Assert.Equal("Fiat", name.Value);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void VehicleBrandName_Create_WithEmptyValue_ShouldThrowValidationException(string value)
+    {
+        Assert.Throws<ValidationException>(() => VehicleBrandName.Create(value));
+    }
+
+    [Fact]
+    public void VehicleBrandName_Create_WithValueLongerThanMaxLength_ShouldThrowValidationException()
+    {
+        var value = new string('A', VehicleBrandName.MaxLength + 1);
+
+        Assert.Throws<ValidationException>(() => VehicleBrandName.Create(value));
+    }
+
+    [Fact]
+    public void VehicleModelName_Create_ShouldNormalize()
+    {
+        var name = VehicleModelName.Create("  Mobi  ");
+
+        Assert.Equal("Mobi", name.Value);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void VehicleModelName_Create_WithEmptyValue_ShouldThrowValidationException(string value)
+    {
+        Assert.Throws<ValidationException>(() => VehicleModelName.Create(value));
+    }
+
+    [Fact]
+    public void VehicleModelName_Create_WithValueLongerThanMaxLength_ShouldThrowValidationException()
+    {
+        var value = new string('A', VehicleModelName.MaxLength + 1);
+
+        Assert.Throws<ValidationException>(() => VehicleModelName.Create(value));
+    }
+
+    [Fact]
+    public void VehicleColorName_Create_ShouldNormalize()
+    {
+        var name = VehicleColorName.Create("  Black  ");
+
+        Assert.Equal("Black", name.Value);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void VehicleColorName_Create_WithEmptyValue_ShouldThrowValidationException(string value)
+    {
+        Assert.Throws<ValidationException>(() => VehicleColorName.Create(value));
+    }
+
+    [Fact]
+    public void VehicleColorName_Create_WithValueLongerThanMaxLength_ShouldThrowValidationException()
+    {
+        var value = new string('A', VehicleColorName.MaxLength + 1);
+
+        Assert.Throws<ValidationException>(() => VehicleColorName.Create(value));
+    }
+
+    [Fact]
     public void LicensePlate_Create_WithOldFormat_ShouldNormalize()
     {
         var licensePlate = LicensePlate.Create("abc-1234");
@@ -46,6 +118,20 @@ public class VehicleDomainTests
         var licensePlate = LicensePlate.Create("abc1d23");
 
         Assert.Equal("ABC1D23", licensePlate.Value);
+    }
+
+    [Fact]
+    public void VehicleYear_Create_WithPositiveValue_ShouldSucceed()
+    {
+        var year = VehicleYear.Create(2024);
+
+        Assert.Equal(2024, year.Value);
+    }
+
+    [Fact]
+    public void VehicleYear_Create_WithInvalidValue_ShouldThrowValidationException()
+    {
+        Assert.Throws<ValidationException>(() => VehicleYear.Create(0));
     }
 
     [Theory]
@@ -63,11 +149,12 @@ public class VehicleDomainTests
     [Fact]
     public void VehicleBrand_Create_ShouldRaiseVehicleBrandCreatedEvent()
     {
-        var brand = VehicleBrand.Create("Fiat");
+        var brand = VehicleBrand.Create("  Fiat  ");
 
         var createdEvent = Assert.Single(brand.DomainEvents.OfType<VehicleBrandCreated>());
         Assert.Equal(brand.Id, createdEvent.VehicleBrandId);
-        Assert.Equal(brand.Name, createdEvent.Name);
+        Assert.Equal("Fiat", brand.Name.Value);
+        Assert.Equal(brand.Name.Value, createdEvent.Name);
     }
 
     [Theory]
@@ -81,7 +168,7 @@ public class VehicleDomainTests
     [Fact]
     public void VehicleBrand_Create_WithNameLongerThanMaxLength_ShouldThrowValidationException()
     {
-        var value = new string('A', VehicleBrand.MaxNameLength + 1);
+        var value = new string('A', VehicleBrandName.MaxLength + 1);
 
         Assert.Throws<ValidationException>(() => VehicleBrand.Create(value));
     }
@@ -93,7 +180,7 @@ public class VehicleDomainTests
         var originalUpdatedAt = brand.UpdatedAt;
         var beforeUpdate = DateTime.UtcNow;
 
-        brand.Update("Ford");
+        brand.Update("  Ford  ");
 
         var updatedEvent = Assert.Single(brand.DomainEvents.OfType<VehicleBrandUpdated>());
         Assert.Equal(brand.Id, updatedEvent.VehicleBrandId);
@@ -117,7 +204,7 @@ public class VehicleDomainTests
     public void VehicleBrand_Update_WithNameLongerThanMaxLength_ShouldThrowValidationException()
     {
         var brand = VehicleBrand.Create("Fiat");
-        var value = new string('A', VehicleBrand.MaxNameLength + 1);
+        var value = new string('A', VehicleBrandName.MaxLength + 1);
 
         Assert.Throws<ValidationException>(() => brand.Update(value));
     }
@@ -133,7 +220,7 @@ public class VehicleDomainTests
 
         var deletedEvent = Assert.Single(brand.DomainEvents.OfType<VehicleBrandDeleted>());
         Assert.Equal(brand.Id, deletedEvent.VehicleBrandId);
-        Assert.Equal(brand.Name, deletedEvent.Name);
+        Assert.Equal(brand.Name.Value, deletedEvent.Name);
         Assert.True(brand.UpdatedAt >= beforeDelete);
         Assert.True(brand.UpdatedAt >= originalUpdatedAt);
     }
@@ -143,12 +230,12 @@ public class VehicleDomainTests
     {
         var brandId = VehicleBrandId.New();
 
-        var model = VehicleModel.Create(brandId, "Mobi");
+        var model = VehicleModel.Create(brandId, "  Mobi  ");
 
         var createdEvent = Assert.Single(model.DomainEvents.OfType<VehicleModelCreated>());
         Assert.Equal(model.Id, createdEvent.VehicleModelId);
         Assert.Equal(brandId, createdEvent.VehicleBrandId);
-        Assert.Equal(model.Name, createdEvent.Name);
+        Assert.Equal(model.Name.Value, createdEvent.Name);
     }
 
     [Theory]
@@ -162,7 +249,7 @@ public class VehicleDomainTests
     [Fact]
     public void VehicleModel_Create_WithNameLongerThanMaxLength_ShouldThrowValidationException()
     {
-        var value = new string('A', VehicleModel.MaxNameLength + 1);
+        var value = new string('A', VehicleModelName.MaxLength + 1);
 
         Assert.Throws<ValidationException>(() => VehicleModel.Create(VehicleBrandId.New(), value));
     }
@@ -181,7 +268,7 @@ public class VehicleDomainTests
         var originalUpdatedAt = model.UpdatedAt;
         var beforeUpdate = DateTime.UtcNow;
 
-        model.Update(updatedBrandId, "Pulse");
+        model.Update(updatedBrandId, "  Pulse  ");
 
         var updatedEvent = Assert.Single(model.DomainEvents.OfType<VehicleModelUpdated>());
         Assert.Equal(model.Id, updatedEvent.VehicleModelId);
@@ -207,7 +294,7 @@ public class VehicleDomainTests
     public void VehicleModel_Update_WithNameLongerThanMaxLength_ShouldThrowValidationException()
     {
         var model = VehicleModel.Create(VehicleBrandId.New(), "Mobi");
-        var value = new string('A', VehicleModel.MaxNameLength + 1);
+        var value = new string('A', VehicleModelName.MaxLength + 1);
 
         Assert.Throws<ValidationException>(() => model.Update(VehicleBrandId.New(), value));
     }
@@ -232,7 +319,7 @@ public class VehicleDomainTests
         var deletedEvent = Assert.Single(model.DomainEvents.OfType<VehicleModelDeleted>());
         Assert.Equal(model.Id, deletedEvent.VehicleModelId);
         Assert.Equal(model.VehicleBrandId, deletedEvent.VehicleBrandId);
-        Assert.Equal(model.Name, deletedEvent.Name);
+        Assert.Equal(model.Name.Value, deletedEvent.Name);
         Assert.True(model.UpdatedAt >= beforeDelete);
         Assert.True(model.UpdatedAt >= originalUpdatedAt);
     }
@@ -240,11 +327,11 @@ public class VehicleDomainTests
     [Fact]
     public void VehicleColor_Create_ShouldRaiseVehicleColorCreatedEvent()
     {
-        var color = VehicleColor.Create("Black");
+        var color = VehicleColor.Create("  Black  ");
 
         var createdEvent = Assert.Single(color.DomainEvents.OfType<VehicleColorCreated>());
         Assert.Equal(color.Id, createdEvent.VehicleColorId);
-        Assert.Equal(color.Name, createdEvent.Name);
+        Assert.Equal(color.Name.Value, createdEvent.Name);
     }
 
     [Theory]
@@ -258,7 +345,7 @@ public class VehicleDomainTests
     [Fact]
     public void VehicleColor_Create_WithNameLongerThanMaxLength_ShouldThrowValidationException()
     {
-        var value = new string('A', VehicleColor.MaxNameLength + 1);
+        var value = new string('A', VehicleColorName.MaxLength + 1);
 
         Assert.Throws<ValidationException>(() => VehicleColor.Create(value));
     }
@@ -270,7 +357,7 @@ public class VehicleDomainTests
         var originalUpdatedAt = color.UpdatedAt;
         var beforeUpdate = DateTime.UtcNow;
 
-        color.Update("White");
+        color.Update("  White  ");
 
         var updatedEvent = Assert.Single(color.DomainEvents.OfType<VehicleColorUpdated>());
         Assert.Equal(color.Id, updatedEvent.VehicleColorId);
@@ -294,7 +381,7 @@ public class VehicleDomainTests
     public void VehicleColor_Update_WithNameLongerThanMaxLength_ShouldThrowValidationException()
     {
         var color = VehicleColor.Create("Black");
-        var value = new string('A', VehicleColor.MaxNameLength + 1);
+        var value = new string('A', VehicleColorName.MaxLength + 1);
 
         Assert.Throws<ValidationException>(() => color.Update(value));
     }
@@ -310,7 +397,7 @@ public class VehicleDomainTests
 
         var deletedEvent = Assert.Single(color.DomainEvents.OfType<VehicleColorDeleted>());
         Assert.Equal(color.Id, deletedEvent.VehicleColorId);
-        Assert.Equal(color.Name, deletedEvent.Name);
+        Assert.Equal(color.Name.Value, deletedEvent.Name);
         Assert.True(color.UpdatedAt >= beforeDelete);
         Assert.True(color.UpdatedAt >= originalUpdatedAt);
     }
@@ -336,7 +423,7 @@ public class VehicleDomainTests
         Assert.Equal(colorId, createdEvent.VehicleColorId);
         Assert.Equal(licensePlate.Value, createdEvent.LicensePlate);
         Assert.Equal(customerId, vehicle.CustomerId);
-        Assert.Equal(year, vehicle.Year);
+        Assert.Equal(year, vehicle.Year.Value);
     }
 
     [Fact]
@@ -443,7 +530,7 @@ public class VehicleDomainTests
         Assert.Equal(updatedColorId, updatedEvent.VehicleColorId);
         Assert.Equal(updatedPlate.Value, updatedEvent.LicensePlate);
         Assert.Equal(updatedCustomerId, vehicle.CustomerId);
-        Assert.Equal(updatedYear, vehicle.Year);
+        Assert.Equal(updatedYear, vehicle.Year.Value);
         Assert.Equal(updatedBrandId, vehicle.VehicleBrandId);
         Assert.Equal(updatedModelId, vehicle.VehicleModelId);
         Assert.Equal(updatedColorId, vehicle.VehicleColorId);
