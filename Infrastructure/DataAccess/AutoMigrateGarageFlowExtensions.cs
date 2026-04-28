@@ -13,7 +13,7 @@ using Npgsql;
 
 namespace GarageFlow.Infrastructure.DataAccess;
 
-public static class AutoMigrateGarageFlowExtensions
+public static partial class AutoMigrateGarageFlowExtensions
 {
     public static WebApplication AutoMigrateGarageFlow(this WebApplication app)
     {
@@ -61,9 +61,7 @@ public static class AutoMigrateGarageFlowExtensions
             string.IsNullOrWhiteSpace(options.BirthDate) ||
             string.IsNullOrWhiteSpace(options.Password))
         {
-            logger.LogWarning(
-                "Skipped bootstrap admin creation because configuration section '{SectionName}' is incomplete.",
-                BootstrapAdminOptions.SectionName);
+            LogBootstrapAdminConfigurationIncomplete(logger, BootstrapAdminOptions.SectionName);
             return;
         }
 
@@ -92,7 +90,7 @@ public static class AutoMigrateGarageFlowExtensions
 
             if (IsUniqueConstraintViolation(exception) || dbContext.Users.AsNoTracking().Any())
             {
-                logger.LogInformation("Bootstrap admin creation skipped because another instance already created a user.");
+                LogBootstrapAdminCreationSkipped(logger);
                 return;
             }
 
@@ -109,4 +107,16 @@ public static class AutoMigrateGarageFlowExtensions
 
         return false;
     }
+
+    [LoggerMessage(
+        EventId = 1,
+        Level = LogLevel.Warning,
+        Message = "Skipped bootstrap admin creation because configuration section '{SectionName}' is incomplete.")]
+    private static partial void LogBootstrapAdminConfigurationIncomplete(ILogger logger, string sectionName);
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Information,
+        Message = "Bootstrap admin creation skipped because another instance already created a user.")]
+    private static partial void LogBootstrapAdminCreationSkipped(ILogger logger);
 }

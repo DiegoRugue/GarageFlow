@@ -47,6 +47,7 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleColorName name,
         CancellationToken cancellationToken = default)
     {
+#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
         var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleColors
@@ -54,6 +55,7 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
             .AnyAsync(
                 vehicleColor => vehicleColor.Name.Value.ToUpperInvariant() == normalizedName,
                 cancellationToken);
+#pragma warning restore CA1862
     }
 
     public async Task<bool> ExistsByNameAsync(
@@ -61,6 +63,7 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleColorId excludingVehicleColorId,
         CancellationToken cancellationToken = default)
     {
+#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
         var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleColors
@@ -70,6 +73,7 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
                     vehicleColor.Name.Value.ToUpperInvariant() == normalizedName &&
                     vehicleColor.Id != excludingVehicleColorId,
                 cancellationToken);
+#pragma warning restore CA1862
     }
 
     public void Remove(VehicleColor vehicleColor)

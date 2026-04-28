@@ -137,7 +137,7 @@ public sealed class InventoryItem : Entity<InventoryItemId>, IAggregateRoot
 
     private static InventoryItemType EnsureValidType(InventoryItemType type)
     {
-        if (!Enum.IsDefined(typeof(InventoryItemType), type))
+        if (!Enum.IsDefined(type))
         {
             throw new ValidationException("Inventory item type is invalid.");
         }

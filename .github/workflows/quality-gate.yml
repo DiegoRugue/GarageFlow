@@ -12,18 +12,54 @@ jobs:
     timeout-minutes: 30
     env:
       DOTNET_NOLOGO: true
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
+      - name: Detect SonarQube configuration
+        id: sonar-config
+        shell: bash
+        run: |
+          if [[ -n "${SONAR_HOST_URL}" && -n "${SONAR_TOKEN}" && -n "${SONAR_PROJECT_KEY}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Java (SonarQube)
+        if: steps.sonar-config.outputs.enabled == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install SonarScanner for .NET
+        if: steps.sonar-config.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          dotnet tool install --global dotnet-sonarscanner
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
       - name: Restore
         run: dotnet restore GarageFlow.slnx
+
+      - name: SonarQube Begin
+        if: steps.sonar-config.outputs.enabled == 'true'
+        run: >
+          dotnet sonarscanner begin
+          /k:"${{ env.SONAR_PROJECT_KEY }}"
+          /d:sonar.host.url="${{ env.SONAR_HOST_URL }}"
+          /d:sonar.token="${{ env.SONAR_TOKEN }}"
+          /d:sonar.qualitygate.wait=true
 
       - name: Build
         run: dotnet build GarageFlow.slnx --no-restore
@@ -36,3 +72,7 @@ jobs:
 
       - name: Integration Tests
         run: dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj --no-build -- RunConfiguration.MaxCpuCount=1
+
+      - name: SonarQube End
+        if: always() && steps.sonar-config.outputs.enabled == 'true'
+        run: dotnet sonarscanner end /d:sonar.token="${{ env.SONAR_TOKEN }}"

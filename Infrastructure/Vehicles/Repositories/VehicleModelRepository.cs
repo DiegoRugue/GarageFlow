@@ -69,6 +69,7 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleModelName name,
         CancellationToken cancellationToken = default)
     {
+#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
         var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleModels
@@ -78,6 +79,7 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
                     vehicleModel.VehicleBrandId == vehicleBrandId &&
                     vehicleModel.Name.Value.ToUpperInvariant() == normalizedName,
                 cancellationToken);
+#pragma warning restore CA1862
     }
 
     public async Task<bool> ExistsByNameAsync(
@@ -86,6 +88,7 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleModelId excludingVehicleModelId,
         CancellationToken cancellationToken = default)
     {
+#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
         var normalizedName = name.Value.ToUpperInvariant();
 
         return await _dbContext.VehicleModels
@@ -96,6 +99,7 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
                     vehicleModel.Name.Value.ToUpperInvariant() == normalizedName &&
                     vehicleModel.Id != excludingVehicleModelId,
                 cancellationToken);
+#pragma warning restore CA1862
     }
 
     public async Task<bool> ExistsByVehicleBrandIdAsync(

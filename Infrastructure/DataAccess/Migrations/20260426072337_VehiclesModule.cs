@@ -8,6 +8,10 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
     /// <inheritdoc />
     public partial class VehiclesModule : Migration
     {
+        private static readonly string[] VehicleModelPrincipalColumns = ["Id", "VehicleBrandId"];
+        private static readonly string[] VehicleModelNameIndexColumns = ["VehicleBrandId", "Name"];
+        private static readonly string[] VehicleModelFkColumns = ["VehicleModelId", "VehicleBrandId"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -100,7 +104,7 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                         name: "FK_Vehicles_VehicleModels_VehicleModelId_VehicleBrandId",
                         columns: x => new { x.VehicleModelId, x.VehicleBrandId },
                         principalTable: "VehicleModels",
-                        principalColumns: new[] { "Id", "VehicleBrandId" },
+                        principalColumns: VehicleModelPrincipalColumns,
                         onDelete: ReferentialAction.Restrict);
                 });
 
@@ -119,7 +123,7 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_VehicleModels_VehicleBrandId_Name",
                 table: "VehicleModels",
-                columns: new[] { "VehicleBrandId", "Name" },
+                columns: VehicleModelNameIndexColumns,
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -146,7 +150,7 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Vehicles_VehicleModelId_VehicleBrandId",
                 table: "Vehicles",
-                columns: new[] { "VehicleModelId", "VehicleBrandId" });
+                columns: VehicleModelFkColumns);
         }
 
         /// <inheritdoc />
