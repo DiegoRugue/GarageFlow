@@ -1,13 +1,18 @@
 using GarageFlow.Application.WorkOrders.AddEstimateInventoryItem;
 using GarageFlow.Application.WorkOrders.AddEstimateService;
+using GarageFlow.Application.WorkOrders.ApproveMyEstimate;
 using GarageFlow.Application.WorkOrders.CancelWorkOrder;
 using GarageFlow.Application.WorkOrders.CompleteWorkOrder;
 using GarageFlow.Application.WorkOrders.CreateEstimate;
 using GarageFlow.Application.WorkOrders.CreateWorkOrder;
 using GarageFlow.Application.WorkOrders.DeliverWorkOrder;
+using GarageFlow.Application.WorkOrders.GetMyWorkOrderById;
+using GarageFlow.Application.WorkOrders.ListMyWorkOrders;
+using GarageFlow.Application.WorkOrders.RejectMyEstimate;
 using GarageFlow.Application.WorkOrders.StartDiagnosis;
 using GarageFlow.Application.WorkOrders.StartWork;
 using GarageFlow.Application.WorkOrders.SubmitEstimate;
+using GarageFlow.Application.WorkOrders;
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Persistence;
@@ -21,6 +26,7 @@ using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.Repositories;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
+using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Domain.Users.Repositories;
 using GarageFlow.Domain.Users.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
@@ -33,6 +39,7 @@ using GarageFlow.Domain.WorkOrders.ValueObjects;
 using GarageFlow.Tests.Shared.Customers;
 using GarageFlow.Tests.Shared.InventoryItems;
 using GarageFlow.Tests.Shared.Services;
+using GarageFlow.Tests.Shared.Users;
 using GarageFlow.Tests.Shared.Vehicles;
 using GarageFlow.Tests.Shared.WorkOrders;
 using Mediator;
@@ -406,14 +413,372 @@ public class WorkOrderHandlersTests
         unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static Mock<IWorkOrderRepository> CreateWorkOrderRepositoryMock(List<WorkOrder>? initialWorkOrders = null)
+    [Fact]
+    public async Task ApproveMyEstimate_ShouldApproveEstimate_WhenWorkOrderBelongsToCustomer()
+    {
+        var customerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customerId)
+            .WithEmail("customer.approve@example.com")
+            .Build();
+
+        var workOrder = WorkOrder.Create(customerId, VehicleId.New());
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.SubmitEstimate(estimate.Id);
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new ApproveMyEstimateHandler(
+            userRepositoryMock.Object,
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object);
+
+        var result = await handler.Handle(
+            new ApproveMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
+            CancellationToken.None);
+
+        Assert.Equal(MediatorUnit.Value, result);
+        Assert.Equal(WorkOrderStatus.Approved, workOrder.Status);
+        Assert.Equal(EstimateStatus.Approved, workOrder.Estimates.Single().Status);
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ApproveMyEstimate_ShouldThrowNotFoundException_WhenWorkOrderBelongsToAnotherCustomer()
+    {
+        var ownerCustomerId = CustomerId.New();
+        var requesterCustomerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(requesterCustomerId)
+            .WithEmail("customer.other-owner@example.com")
+            .Build();
+
+        var workOrder = WorkOrder.Create(ownerCustomerId, VehicleId.New());
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.SubmitEstimate(estimate.Id);
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new ApproveMyEstimateHandler(
+            userRepositoryMock.Object,
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(
+                new ApproveMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
+                CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrder.Id.Value}' was not found.", exception.Message);
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RejectMyEstimate_ShouldRejectEstimate_AndRestoreStock_WhenWorkOrderBelongsToCustomer()
+    {
+        var customerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customerId)
+            .WithEmail("customer.reject@example.com")
+            .Build();
+
+        var inventoryItem = new InventoryItemBuilder().WithStockQuantity(8).Build();
+        var workOrder = WorkOrder.Create(customerId, VehicleId.New());
+        var estimate = workOrder.CreateEstimate();
+        workOrder.AddInventoryLine(
+            estimate.Id,
+            inventoryItem.Id,
+            Description.Create("Battery replacement"),
+            EstimateItemQuantity.Create(2),
+            Price.Create(110m),
+            Price.Create(180m));
+        workOrder.SubmitEstimate(estimate.Id);
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var inventoryItemRepositoryMock = CreateInventoryItemRepositoryMock([inventoryItem]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new RejectMyEstimateHandler(
+            userRepositoryMock.Object,
+            workOrderRepositoryMock.Object,
+            inventoryItemRepositoryMock.Object,
+            unitOfWorkMock.Object);
+
+        var result = await handler.Handle(
+            new RejectMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
+            CancellationToken.None);
+
+        Assert.Equal(MediatorUnit.Value, result);
+        Assert.Equal(EstimateStatus.Rejected, workOrder.Estimates.Single().Status);
+        Assert.Equal(10, inventoryItem.StockQuantity.Value);
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RejectMyEstimate_ShouldThrowNotFoundException_WhenWorkOrderBelongsToAnotherCustomer()
+    {
+        var ownerCustomerId = CustomerId.New();
+        var requesterCustomerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(requesterCustomerId)
+            .WithEmail("customer.reject.other-owner@example.com")
+            .Build();
+
+        var workOrder = WorkOrder.Create(ownerCustomerId, VehicleId.New());
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.SubmitEstimate(estimate.Id);
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var inventoryItemRepositoryMock = CreateInventoryItemRepositoryMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new RejectMyEstimateHandler(
+            userRepositoryMock.Object,
+            workOrderRepositoryMock.Object,
+            inventoryItemRepositoryMock.Object,
+            unitOfWorkMock.Object);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(
+                new RejectMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
+                CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrder.Id.Value}' was not found.", exception.Message);
+        inventoryItemRepositoryMock.Verify(
+            x => x.GetByIdAsync(It.IsAny<InventoryItemId>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetMyWorkOrderById_ShouldNotExposeInventoryCost()
+    {
+        var customerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customerId)
+            .WithEmail("customer.get-by-id@example.com")
+            .Build();
+
+        var workOrderId = Guid.NewGuid();
+        var estimateId = Guid.NewGuid();
+        var inventoryLineId = Guid.NewGuid();
+        var serviceLineId = Guid.NewGuid();
+        var details = CreateWorkOrderDetailsReadModel(
+            workOrderId,
+            customerId.Value,
+            estimates:
+            [
+                new WorkOrderEstimateReadModel(
+                    Id: estimateId,
+                    WorkOrderId: workOrderId,
+                    Status: "Pending",
+                    TotalAmount: 450m,
+                    CreatedAt: DateTime.UtcNow,
+                    UpdatedAt: DateTime.UtcNow,
+                    InventoryLines:
+                    [
+                        new WorkOrderInventoryLineReadModel(
+                            Id: inventoryLineId,
+                            EstimateId: estimateId,
+                            InventoryItemId: Guid.NewGuid(),
+                            DescriptionSnapshot: "Starter motor",
+                            Quantity: 1,
+                            UnitCost: 220m,
+                            UnitPrice: 300m,
+                            TotalPrice: 300m)
+                    ],
+                    ServiceLines:
+                    [
+                        new WorkOrderServiceLineReadModel(
+                            Id: serviceLineId,
+                            EstimateId: estimateId,
+                            ServiceId: Guid.NewGuid(),
+                            DescriptionSnapshot: "Diagnostics",
+                            UnitPrice: 150m,
+                            TotalPrice: 150m)
+                    ])
+            ]);
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(customerDetailsById: [details]);
+        var handler = new GetMyWorkOrderByIdHandler(
+            userRepositoryMock.Object,
+            workOrderRepositoryMock.Object);
+
+        var result = await handler.Handle(
+            new GetMyWorkOrderByIdQuery(user.Id.Value, workOrderId),
+            CancellationToken.None);
+
+        var estimate = Assert.Single(result.Estimates);
+        var inventoryLine = Assert.Single(estimate.InventoryLines);
+
+        Assert.Equal(workOrderId, result.Id);
+        Assert.Equal("Starter motor", inventoryLine.Description);
+        Assert.Equal(1, inventoryLine.Quantity);
+        Assert.Equal(300m, inventoryLine.UnitPrice);
+        Assert.Equal(300m, inventoryLine.TotalPrice);
+        Assert.DoesNotContain(
+            typeof(CustomerWorkOrderInventoryLineDto).GetProperties(),
+            property => property.Name.Contains("Cost", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ListMyWorkOrders_ShouldReturnMappedPage_WhenUserIsCustomer()
+    {
+        var customerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customerId)
+            .WithEmail("customer.list@example.com")
+            .Build();
+
+        var pagedDetails = Enumerable.Range(0, 6)
+            .Select(_ => CreateWorkOrderDetailsReadModel(Guid.NewGuid(), customerId.Value))
+            .ToList();
+        var expectedWorkOrderId = pagedDetails[^1].Id;
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(customerDetailsList: pagedDetails);
+        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderRepositoryMock.Object);
+
+        var result = await handler.Handle(
+            new ListMyWorkOrdersQuery(user.Id.Value, Page: 2, PageSize: 5),
+            CancellationToken.None);
+
+        Assert.Single(result.Items);
+        Assert.Equal(expectedWorkOrderId, result.Items[0].Id);
+        Assert.Equal(6, result.TotalCount);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(5, result.PageSize);
+        workOrderRepositoryMock.Verify(
+            x => x.ListCustomerDetailsAsync(2, 5, customerId, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ListMyWorkOrders_ShouldThrowUnauthorizedAccessException_WhenUserIsNotCustomer()
+    {
+        var user = new UserBuilder()
+            .WithRole(UserRole.Attendant)
+            .WithEmail("attendant.list@example.com")
+            .Build();
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderRepositoryMock.Object);
+
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            async () => await handler.Handle(
+                new ListMyWorkOrdersQuery(user.Id.Value),
+                CancellationToken.None));
+
+        Assert.Equal("Authenticated user is not a customer user.", exception.Message);
+        workOrderRepositoryMock.Verify(
+            x => x.ListCustomerDetailsAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<CustomerId>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task RejectMyEstimate_ShouldRollback_WhenInventoryItemIsMissing()
+    {
+        var customerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customerId)
+            .WithEmail("customer.reject.rollback@example.com")
+            .Build();
+
+        var missingInventoryItemId = InventoryItemId.New();
+        var workOrder = WorkOrder.Create(customerId, VehicleId.New());
+        var estimate = workOrder.CreateEstimate();
+        workOrder.AddInventoryLine(
+            estimate.Id,
+            missingInventoryItemId,
+            Description.Create("Missing stock item"),
+            EstimateItemQuantity.Create(1),
+            Price.Create(10m),
+            Price.Create(15m));
+        workOrder.SubmitEstimate(estimate.Id);
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var inventoryItemRepositoryMock = CreateInventoryItemRepositoryMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new RejectMyEstimateHandler(
+            userRepositoryMock.Object,
+            workOrderRepositoryMock.Object,
+            inventoryItemRepositoryMock.Object,
+            unitOfWorkMock.Object);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(
+                new RejectMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
+                CancellationToken.None));
+
+        Assert.Equal($"Inventory item with ID '{missingInventoryItemId.Value}' was not found.", exception.Message);
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static Mock<IWorkOrderRepository> CreateWorkOrderRepositoryMock(
+        List<WorkOrder>? initialWorkOrders = null,
+        List<WorkOrderDetailsReadModel>? customerDetailsById = null,
+        List<WorkOrderDetailsReadModel>? customerDetailsList = null)
     {
         var workOrders = initialWorkOrders ?? [];
+        var detailsById = customerDetailsById ?? [];
+        var detailsList = customerDetailsList ?? [];
         var repositoryMock = new Mock<IWorkOrderRepository>();
 
         repositoryMock
             .Setup(x => x.GetByIdAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((WorkOrderId id, CancellationToken _) => workOrders.SingleOrDefault(workOrder => workOrder.Id == id));
+
+        repositoryMock
+            .Setup(x => x.GetCustomerDetailsByIdAsync(
+                It.IsAny<WorkOrderId>(),
+                It.IsAny<CustomerId>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WorkOrderId id, CustomerId customerId, CancellationToken _) =>
+                detailsById.SingleOrDefault(item => item.Id == id.Value && item.CustomerId == customerId.Value));
+
+        repositoryMock
+            .Setup(x => x.ListCustomerDetailsAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<CustomerId>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int page, int pageSize, CustomerId customerId, CancellationToken _) =>
+            {
+                var items = detailsList
+                    .Where(item => item.CustomerId == customerId.Value)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                var totalCount = detailsList.Count(item => item.CustomerId == customerId.Value);
+                return ((IReadOnlyList<WorkOrderDetailsReadModel>)items, totalCount);
+            });
 
         repositoryMock
             .Setup(x => x.AddAsync(It.IsAny<WorkOrder>(), It.IsAny<CancellationToken>()))
@@ -424,6 +789,21 @@ public class WorkOrderHandlersTests
             });
 
         return repositoryMock;
+    }
+
+    private static WorkOrderDetailsReadModel CreateWorkOrderDetailsReadModel(
+        Guid id,
+        Guid customerId,
+        IReadOnlyList<WorkOrderEstimateReadModel>? estimates = null)
+    {
+        return new WorkOrderDetailsReadModel(
+            Id: id,
+            CustomerId: customerId,
+            VehicleId: Guid.NewGuid(),
+            Status: "WaitingApproval",
+            CreatedAt: DateTime.UtcNow,
+            UpdatedAt: DateTime.UtcNow,
+            Estimates: estimates ?? []);
     }
 
     private static Mock<ICustomerRepository> CreateCustomerRepositoryMock(List<Customer>? initialCustomers = null)
