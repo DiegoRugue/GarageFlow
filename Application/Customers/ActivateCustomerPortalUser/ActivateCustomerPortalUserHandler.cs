@@ -28,6 +28,7 @@ public sealed class ActivateCustomerPortalUserHandler(
         CancellationToken cancellationToken)
     {
         var customerId = CustomerId.From(request.CustomerId);
+        var birthDate = UserBirthDate.Create(request.BirthDate);
         var customer = await _customerRepository.GetByIdAsync(customerId, cancellationToken);
         if (customer is null)
         {
@@ -45,7 +46,6 @@ public sealed class ActivateCustomerPortalUserHandler(
             throw new BusinessRuleViolationException($"A user with email '{normalizedEmail.Value}' already exists.");
         }
 
-        var birthDate = UserBirthDate.Create(request.BirthDate);
         var initialPassword = User.GenerateInitialPassword(customer.FullName, birthDate);
         var passwordHash = _passwordHashService.Hash(initialPassword);
 

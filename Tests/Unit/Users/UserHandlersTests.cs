@@ -460,6 +460,39 @@ public class UserHandlersTests
         unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task ActivateCustomerPortalUser_ShouldThrowValidationException_WhenBirthDateIsInvalid_BeforeDuplicateChecks()
+    {
+        var customer = new CustomerBuilder()
+            .WithEmail("duplicate.check.customer@example.com")
+            .Build();
+        var users = new List<User>
+        {
+            new UserBuilder()
+                .WithEmail("duplicate.check.customer@example.com")
+                .WithRole(UserRole.Customer)
+                .WithCustomerId(customer.Id)
+                .Build()
+        };
+        var customerRepositoryMock = CreateCustomerRepositoryMock([customer]);
+        var userRepositoryMock = CreateUserRepositoryMock(users);
+        var passwordHashServiceMock = CreatePasswordHashServiceMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new ActivateCustomerPortalUserHandler(
+            customerRepositoryMock.Object,
+            userRepositoryMock.Object,
+            passwordHashServiceMock.Object,
+            unitOfWorkMock.Object);
+
+        var invalidFutureBirthDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+
+        await Assert.ThrowsAsync<ValidationException>(() => handler.Handle(
+            new ActivateCustomerPortalUserCommand(customer.Id.Value, invalidFutureBirthDate),
+            CancellationToken.None).AsTask());
+
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static Mock<IUserRepository> CreateRepositoryMock(List<User>? initialUsers = null)
     {
         var users = initialUsers ?? [];

@@ -244,6 +244,61 @@ public class UsersApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageF
         HttpResponseAssertions.AssertStatus(duplicateActivationResponse, HttpStatusCode.Conflict);
     }
 
+    [Fact]
+    public async Task ActiveCustomer_ShouldReceive403_WhenActivatingCustomerPortalUser()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var uniqueToken = Guid.NewGuid().ToString("N");
+        var firstCustomerRequest = CustomerSeed.CreateUniqueBuilder()
+            .WithFullName("Portal Auth Customer One")
+            .WithEmail($"portal.auth.one.{uniqueToken}@example.com")
+            .WithPhoneNumber("11945645645")
+            .BuildCreateRequest();
+        var secondCustomerRequest = CustomerSeed.CreateUniqueBuilder()
+            .WithFullName("Portal Auth Customer Two")
+            .WithEmail($"portal.auth.two.{uniqueToken}@example.com")
+            .WithPhoneNumber("11978978978")
+            .BuildCreateRequest();
+
+        var firstCustomerResponse = await client.PostAsJsonAsync("/customers", firstCustomerRequest);
+        HttpResponseAssertions.AssertStatus(firstCustomerResponse, HttpStatusCode.Created);
+        var firstCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<Tests.Integration.Api.Customers.Contracts.CustomerResponse>(firstCustomerResponse);
+
+        var secondCustomerResponse = await client.PostAsJsonAsync("/customers", secondCustomerRequest);
+        HttpResponseAssertions.AssertStatus(secondCustomerResponse, HttpStatusCode.Created);
+        var secondCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<Tests.Integration.Api.Customers.Contracts.CustomerResponse>(secondCustomerResponse);
+
+        var activatePortalResponse = await client.PostAsJsonAsync(
+            $"/customers/{firstCustomer.Id}/portal-user",
+            new ActivateCustomerPortalUserRequest(new DateOnly(1992, 6, 10)));
+        HttpResponseAssertions.AssertStatus(activatePortalResponse, HttpStatusCode.Created);
+        var createdCustomerUser = await HttpResponseAssertions.ReadRequiredJsonAsync<ActivateCustomerPortalUserResponse>(activatePortalResponse);
+
+        var customerInitialPassword = User.GenerateInitialPassword(
+            FullName.Create(createdCustomerUser.FullName),
+            createdCustomerUser.BirthDate);
+        var customerFirstLogin = await client.LoginAndAttachBearerTokenAsync(createdCustomerUser.Email, customerInitialPassword);
+        Assert.True(customerFirstLogin.MustChangePassword);
+
+        var customerPasswordChangeResponse = await client.PutAsJsonAsync(
+            "/users/me/password",
+            new ChangeMyPasswordRequest(
+                CurrentPassword: customerInitialPassword,
+                NewPassword: "Customer.Active#123"));
+        HttpResponseAssertions.AssertStatus(customerPasswordChangeResponse, HttpStatusCode.NoContent);
+
+        var customerActiveLogin = await client.LoginAndAttachBearerTokenAsync(
+            createdCustomerUser.Email,
+            "Customer.Active#123");
+        Assert.False(customerActiveLogin.MustChangePassword);
+
+        var forbiddenActivationResponse = await client.PostAsJsonAsync(
+            $"/customers/{secondCustomer.Id}/portal-user",
+            new ActivateCustomerPortalUserRequest(new DateOnly(1993, 7, 11)));
+
+        HttpResponseAssertions.AssertStatus(forbiddenActivationResponse, HttpStatusCode.Forbidden);
+    }
+
     private static async Task<LoginResponse> AuthenticateCreatedUserAsActiveAsync(
         HttpClient client,
         string email,
