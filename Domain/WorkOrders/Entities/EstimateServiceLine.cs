@@ -18,12 +18,12 @@ public sealed class EstimateServiceLine : Entity<EstimateServiceLineId>
         EstimateServiceLineId id,
         EstimateId estimateId,
         ServiceId serviceId,
-        Description description,
+        Description descriptionSnapshot,
         Price unitPrice) : base(id)
     {
         EstimateId = EnsureValidEstimateId(estimateId);
         ServiceId = EnsureValidServiceId(serviceId);
-        DescriptionSnapshot = EnsureDescription(description);
+        DescriptionSnapshot = EnsureDescription(descriptionSnapshot);
         UnitPrice = EnsurePrice(unitPrice);
     }
 

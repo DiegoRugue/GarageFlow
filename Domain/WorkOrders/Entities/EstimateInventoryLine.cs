@@ -20,14 +20,14 @@ public sealed class EstimateInventoryLine : Entity<EstimateInventoryLineId>
         EstimateInventoryLineId id,
         EstimateId estimateId,
         InventoryItemId inventoryItemId,
-        Description description,
+        Description descriptionSnapshot,
         EstimateItemQuantity quantity,
         Price unitCost,
         Price unitPrice) : base(id)
     {
         EstimateId = EnsureValidEstimateId(estimateId);
         InventoryItemId = EnsureValidInventoryItemId(inventoryItemId);
-        DescriptionSnapshot = EnsureDescription(description);
+        DescriptionSnapshot = EnsureDescription(descriptionSnapshot);
         Quantity = EstimateItemQuantity.Create(quantity.Value);
         UnitCost = EnsurePrice(unitCost);
         UnitPrice = EnsurePrice(unitPrice);
