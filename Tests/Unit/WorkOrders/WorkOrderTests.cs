@@ -257,7 +257,8 @@ public class WorkOrderTests
 
         Assert.Equal(EstimateStatus.Pending, estimate.Status);
         Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
-        Assert.Single(workOrder.DomainEvents.OfType<EstimateSubmitted>());
+        var submittedEvent = Assert.Single(workOrder.DomainEvents.OfType<EstimateSubmitted>());
+        Assert.Equal(estimate.TotalAmount.Value, submittedEvent.TotalAmount);
     }
 
     [Fact]
@@ -590,5 +591,21 @@ public class WorkOrderTests
         Assert.Equal(EstimateStatus.Pending, pendingEstimate.Status);
         Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
         Assert.Equal(rejectedEventsBefore, workOrder.DomainEvents.OfType<EstimateRejected>().Count());
+    }
+
+    [Fact]
+    public void Estimate_MutatorMethods_ShouldNotBePublic()
+    {
+        var publicInstanceMethods = typeof(Estimate)
+            .GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.DeclaredOnly)
+            .Select(method => method.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.DoesNotContain("AddInventoryLine", publicInstanceMethods);
+        Assert.DoesNotContain("AddServiceLine", publicInstanceMethods);
+        Assert.DoesNotContain("Submit", publicInstanceMethods);
+        Assert.DoesNotContain("Approve", publicInstanceMethods);
+        Assert.DoesNotContain("Reject", publicInstanceMethods);
+        Assert.DoesNotContain("Cancel", publicInstanceMethods);
     }
 }

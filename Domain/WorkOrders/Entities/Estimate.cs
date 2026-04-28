@@ -32,7 +32,7 @@ public sealed class Estimate : Entity<EstimateId>
         return new Estimate(EstimateId.New(), workOrderId);
     }
 
-    public EstimateInventoryLine AddInventoryLine(
+    internal EstimateInventoryLine AddInventoryLine(
         InventoryItemId inventoryItemId,
         Description description,
         EstimateItemQuantity quantity,
@@ -55,7 +55,7 @@ public sealed class Estimate : Entity<EstimateId>
         return line;
     }
 
-    public EstimateServiceLine AddServiceLine(
+    internal EstimateServiceLine AddServiceLine(
         ServiceId serviceId,
         Description description,
         Price unitPrice)
@@ -74,7 +74,7 @@ public sealed class Estimate : Entity<EstimateId>
         return line;
     }
 
-    public void Submit()
+    internal void Submit()
     {
         EnsureEditable();
 
@@ -86,7 +86,7 @@ public sealed class Estimate : Entity<EstimateId>
         TransitionTo(EstimateStatus.Pending);
     }
 
-    public void Approve()
+    internal void Approve()
     {
         if (Status != EstimateStatus.Pending)
         {
@@ -96,7 +96,7 @@ public sealed class Estimate : Entity<EstimateId>
         TransitionTo(EstimateStatus.Approved);
     }
 
-    public void Reject()
+    internal void Reject()
     {
         if (Status != EstimateStatus.Pending)
         {
@@ -106,7 +106,7 @@ public sealed class Estimate : Entity<EstimateId>
         TransitionTo(EstimateStatus.Rejected);
     }
 
-    public void Cancel()
+    internal void Cancel()
     {
         if (Status != EstimateStatus.Draft)
         {

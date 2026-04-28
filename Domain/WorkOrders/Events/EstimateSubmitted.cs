@@ -8,5 +8,5 @@ public sealed record EstimateSubmitted(
     WorkOrderId WorkOrderId,
     EstimateId EstimateId,
     EstimateStatus Status,
-    decimal TotalPrice,
+    decimal TotalAmount,
     DateTime SubmittedAt) : DomainEvent;

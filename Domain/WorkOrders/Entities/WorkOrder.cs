@@ -130,7 +130,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             WorkOrderId: Id,
             EstimateId: estimate.Id,
             Status: estimate.Status,
-            TotalPrice: estimate.TotalAmount.Value,
+            TotalAmount: estimate.TotalAmount.Value,
             SubmittedAt: DateTime.UtcNow));
     }
 
