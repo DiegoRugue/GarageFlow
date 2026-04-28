@@ -11,11 +11,6 @@ public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
     public VehicleBrandId VehicleBrandId { get; private set; }
     public VehicleModelName Name { get; private set; }
 
-    private VehicleModel(VehicleModelId id) : base(id)
-    {
-        Name = null!;
-    }
-
     private VehicleModel(VehicleModelId id, VehicleBrandId vehicleBrandId, VehicleModelName name) : base(id)
     {
         VehicleBrandId = EnsureValidBrandId(vehicleBrandId);
@@ -69,5 +64,4 @@ public sealed class VehicleModel : Entity<VehicleModelId>, IAggregateRoot
 
         return vehicleBrandId;
     }
-
 }

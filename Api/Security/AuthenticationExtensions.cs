@@ -55,31 +55,29 @@ public static class AuthenticationExtensions
                 };
             });
 
-        builder.Services.AddAuthorization(options =>
-        {
-            options.AddPolicy(
-                SecurityPolicies.AdminOnly,
-                policy => policy.RequireRole(SecurityRoles.Admin));
+        var authorizationBuilder = builder.Services.AddAuthorizationBuilder();
+        authorizationBuilder.AddPolicy(
+            SecurityPolicies.AdminOnly,
+            policy => policy.RequireRole(SecurityRoles.Admin));
 
-            options.AddPolicy(
-                SecurityPolicies.ActiveUser,
-                policy => policy
-                    .RequireAuthenticatedUser()
-                    .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+        authorizationBuilder.AddPolicy(
+            SecurityPolicies.ActiveUser,
+            policy => policy
+                .RequireAuthenticatedUser()
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
 
-            options.AddPolicy(
-                SecurityPolicies.ActiveAdmin,
-                policy => policy
-                    .RequireRole(SecurityRoles.Admin)
-                    .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+        authorizationBuilder.AddPolicy(
+            SecurityPolicies.ActiveAdmin,
+            policy => policy
+                .RequireRole(SecurityRoles.Admin)
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
 
-            options.AddPolicy(
-                SecurityPolicies.ActiveAttendant,
-                policy => policy
-                    .RequireAuthenticatedUser()
-                    .RequireRole(SecurityRoles.Attendant)
-                    .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
-        });
+        authorizationBuilder.AddPolicy(
+            SecurityPolicies.ActiveAttendant,
+            policy => policy
+                .RequireAuthenticatedUser()
+                .RequireRole(SecurityRoles.Attendant)
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
 
         return builder;
     }

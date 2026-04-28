@@ -16,13 +16,6 @@ public sealed class User : Entity<UserId>, IAggregateRoot
     public string PasswordHash { get; private set; }
     public bool MustChangePassword { get; private set; }
 
-    private User(UserId id) : base(id)
-    {
-        FullName = null!;
-        Email = null!;
-        PasswordHash = null!;
-    }
-
     private User(
         UserId id,
         FullName fullName,

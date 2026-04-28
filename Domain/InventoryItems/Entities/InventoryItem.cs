@@ -17,14 +17,6 @@ public sealed class InventoryItem : Entity<InventoryItemId>, IAggregateRoot
     public Price Price { get; private set; }
     public InventoryItemStockQuantity StockQuantity { get; private set; }
 
-    private InventoryItem(InventoryItemId id) : base(id)
-    {
-        Name = null!;
-        Description = null!;
-        Cost = null!;
-        Price = null!;
-    }
-
     private InventoryItem(
         InventoryItemId id,
         InventoryItemName name,

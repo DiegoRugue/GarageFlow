@@ -16,11 +16,6 @@ public sealed class Vehicle : Entity<VehicleId>, IAggregateRoot
     public VehicleColorId VehicleColorId { get; private set; }
     public LicensePlate LicensePlate { get; private set; }
 
-    private Vehicle(VehicleId id) : base(id)
-    {
-        LicensePlate = null!;
-    }
-
     private Vehicle(
         VehicleId id,
         CustomerId customerId,

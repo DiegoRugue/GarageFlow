@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Globalization;
 using GarageFlow.Tests.Shared.Customers;
 
 namespace GarageFlow.Tests.Integration.Support.Seed;
@@ -45,7 +46,7 @@ public static class CustomerSeed
     {
         var sequence = Interlocked.Increment(ref _taxDocumentSequence);
         var firstNineDigits = sequence
-            .ToString("D9")
+            .ToString("D9", CultureInfo.InvariantCulture)
             .Select(character => character - '0')
             .ToArray();
 

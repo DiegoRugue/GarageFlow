@@ -48,11 +48,17 @@ csharp_style_expression_bodied_properties = when_on_single_line:suggestion
 csharp_style_expression_bodied_indexers = when_on_single_line:suggestion
 csharp_style_expression_bodied_accessors = when_on_single_line:suggestion
 
-dotnet_diagnostic.CA1062.severity = suggestion
+dotnet_diagnostic.CA1062.severity = none
 dotnet_diagnostic.CA1305.severity = suggestion
 dotnet_diagnostic.CA1508.severity = suggestion
 dotnet_diagnostic.CA1707.severity = suggestion
 dotnet_diagnostic.CA1716.severity = suggestion
+dotnet_diagnostic.IDE0037.severity = none
 dotnet_diagnostic.IDE0005.severity = suggestion
 dotnet_diagnostic.IDE0058.severity = none
 dotnet_diagnostic.IDE0161.severity = suggestion
+dotnet_diagnostic.IDE0270.severity = none
+
+[Tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1716.severity = none

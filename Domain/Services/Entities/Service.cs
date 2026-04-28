@@ -11,12 +11,6 @@ public sealed class Service : Entity<ServiceId>, IAggregateRoot
     public Description Description { get; private set; }
     public Price Price { get; private set; }
 
-    private Service(ServiceId id) : base(id)
-    {
-        Description = null!;
-        Price = null!;
-    }
-
     private Service(
         ServiceId id,
         Description description,

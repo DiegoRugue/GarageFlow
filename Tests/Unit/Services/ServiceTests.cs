@@ -32,7 +32,7 @@ public class ServiceTests
         var updatedDescription = Description.Create("Premium oil change");
         var updatedPrice = Price.Create(199.90m);
 
-        Thread.Sleep(10);
+        WaitUntilTimeAdvances(originalUpdatedAt);
         service.Update(updatedDescription, updatedPrice);
 
         var updatedEvent = Assert.Single(service.DomainEvents.OfType<ServiceUpdated>());
@@ -52,7 +52,7 @@ public class ServiceTests
             Price.Create(129.90m));
         var originalUpdatedAt = service.UpdatedAt;
 
-        Thread.Sleep(10);
+        WaitUntilTimeAdvances(originalUpdatedAt);
         service.Delete();
 
         var deletedEvent = Assert.Single(service.DomainEvents.OfType<ServiceDeleted>());
@@ -93,5 +93,13 @@ public class ServiceTests
         var exception = Assert.Throws<ValidationException>(() => Price.Create(120.999m));
 
         Assert.Equal("Service price cannot have more than 2 decimal places.", exception.Message);
+    }
+
+    private static void WaitUntilTimeAdvances(DateTime referenceUtc)
+    {
+        while (DateTime.UtcNow <= referenceUtc)
+        {
+            Thread.SpinWait(50);
+        }
     }
 }

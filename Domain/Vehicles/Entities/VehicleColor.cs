@@ -9,11 +9,6 @@ public sealed class VehicleColor : Entity<VehicleColorId>, IAggregateRoot
 {
     public VehicleColorName Name { get; private set; }
 
-    private VehicleColor(VehicleColorId id) : base(id)
-    {
-        Name = null!;
-    }
-
     private VehicleColor(VehicleColorId id, VehicleColorName name) : base(id)
     {
         Name = name;

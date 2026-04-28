@@ -13,14 +13,6 @@ public sealed class Customer : Entity<CustomerId>, IAggregateRoot
     public Email Email { get; private set; }
     public PhoneNumber PhoneNumber { get; private set; }
 
-    private Customer(CustomerId id) : base(id)
-    {
-        TaxDocument = null!;
-        FullName = null!;
-        Email = null!;
-        PhoneNumber = null!;
-    }
-
     private Customer(
         CustomerId id,
         TaxDocument taxDocument,

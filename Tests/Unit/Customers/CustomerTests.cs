@@ -39,7 +39,7 @@ public class CustomerTests
         var updatedEmail = Email.Create("john.updated@example.com");
         var updatedPhone = PhoneNumber.Create("11912345678");
 
-        Thread.Sleep(10);
+        WaitUntilTimeAdvances(originalUpdatedAt);
         customer.Update(updatedName, updatedEmail, updatedPhone);
 
         var updatedEvent = Assert.Single(customer.DomainEvents.OfType<CustomerUpdated>());
@@ -63,7 +63,7 @@ public class CustomerTests
             PhoneNumber.Create("11987654321"));
         var originalUpdatedAt = customer.UpdatedAt;
 
-        Thread.Sleep(10);
+        WaitUntilTimeAdvances(originalUpdatedAt);
         customer.Delete();
 
         var deletedEvent = Assert.Single(customer.DomainEvents.OfType<CustomerDeleted>());
@@ -78,5 +78,13 @@ public class CustomerTests
         var exception = Assert.Throws<ValidationException>(() => TaxDocument.Create("00.000.000/0000-00"));
 
         Assert.Equal("Invalid CNPJ.", exception.Message);
+    }
+
+    private static void WaitUntilTimeAdvances(DateTime referenceUtc)
+    {
+        while (DateTime.UtcNow <= referenceUtc)
+        {
+            Thread.SpinWait(50);
+        }
     }
 }

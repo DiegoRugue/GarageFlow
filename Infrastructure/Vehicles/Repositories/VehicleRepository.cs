@@ -88,8 +88,8 @@ public sealed class VehicleRepository(GarageFlowDbContext dbContext) : IVehicleR
         return from vehicle in _dbContext.Vehicles.AsNoTracking()
             join brand in _dbContext.VehicleBrands.AsNoTracking() on vehicle.VehicleBrandId equals brand.Id
             join model in _dbContext.VehicleModels.AsNoTracking()
-                on new { VehicleModelId = vehicle.VehicleModelId, VehicleBrandId = vehicle.VehicleBrandId }
-                equals new { VehicleModelId = model.Id, VehicleBrandId = model.VehicleBrandId }
+                on new { vehicle.VehicleModelId, vehicle.VehicleBrandId }
+                equals new { VehicleModelId = model.Id, model.VehicleBrandId }
             join color in _dbContext.VehicleColors.AsNoTracking() on vehicle.VehicleColorId equals color.Id
             select new VehicleDetailsReadModel(
                 vehicle.Id.Value,

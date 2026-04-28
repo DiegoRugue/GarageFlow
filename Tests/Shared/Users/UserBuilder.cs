@@ -10,7 +10,7 @@ public sealed class UserBuilder
     private string _email = "alex.attendant@example.com";
     private DateOnly _birthDate = new(1992, 7, 15);
     private UserRole _role = UserRole.Attendant;
-    private string _passwordHash = "hash-initial";
+    private string _passwordHash = Guid.NewGuid().ToString("N");
     private bool _mustChangePassword = true;
 
     public UserBuilder WithFullName(string fullName)

@@ -42,6 +42,4 @@ app.MapServiceEndpoints();
 app.MapVehicleEndpoints();
 app.MapInventoryItemEndpoints();
 
-app.Run();
-
-public partial class Program;
+await app.RunAsync();

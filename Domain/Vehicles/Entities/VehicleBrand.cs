@@ -9,11 +9,6 @@ public sealed class VehicleBrand : Entity<VehicleBrandId>, IAggregateRoot
 {
     public VehicleBrandName Name { get; private set; }
 
-    private VehicleBrand(VehicleBrandId id) : base(id)
-    {
-        Name = null!;
-    }
-
     private VehicleBrand(VehicleBrandId id, VehicleBrandName name) : base(id)
     {
         Name = name;

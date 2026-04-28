@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using GarageFlow.Tests.Integration.Support.Helpers;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Globalization;
 
 namespace GarageFlow.Tests.Integration.Support.Factories;
 
@@ -27,7 +28,7 @@ public sealed class GarageFlowWebApplicationFactory(string databaseName, bool di
                 ["Auth:Jwt:Issuer"] = IntegrationTestAuthSettings.JwtIssuer,
                 ["Auth:Jwt:Audience"] = IntegrationTestAuthSettings.JwtAudience,
                 ["Auth:Jwt:Key"] = IntegrationTestAuthSettings.JwtKey,
-                ["Auth:Jwt:ExpiresMinutes"] = IntegrationTestAuthSettings.JwtExpiresMinutes.ToString(),
+                ["Auth:Jwt:ExpiresMinutes"] = IntegrationTestAuthSettings.JwtExpiresMinutes.ToString(CultureInfo.InvariantCulture),
                 ["Auth:BootstrapAdmin:FullName"] = IntegrationTestAuthSettings.BootstrapAdminFullName,
                 ["Auth:BootstrapAdmin:Email"] = IntegrationTestAuthSettings.BootstrapAdminEmail,
                 ["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate,

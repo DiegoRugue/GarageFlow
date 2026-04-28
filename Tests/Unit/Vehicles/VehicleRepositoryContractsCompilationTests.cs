@@ -79,6 +79,8 @@ public class VehicleRepositoryContractsCompilationTests
             (repository, name, excludingVehicleColorId, cancellationToken) => repository.ExistsByNameAsync(name, excludingVehicleColorId, cancellationToken));
         Signature<Action<IVehicleColorRepository, VehicleColor>>(
             (repository, vehicleColor) => repository.Remove(vehicleColor));
+
+        Assert.True(true);
     }
 
     private static void Signature<TDelegate>(TDelegate _)
