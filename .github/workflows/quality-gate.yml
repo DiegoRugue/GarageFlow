@@ -15,6 +15,7 @@ jobs:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+      COVERAGE_THRESHOLD: "80"
 
     steps:
       - name: Checkout
@@ -59,19 +60,85 @@ jobs:
           /k:"${{ env.SONAR_PROJECT_KEY }}"
           /d:sonar.host.url="${{ env.SONAR_HOST_URL }}"
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
+          /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
           /d:sonar.qualitygate.wait=true
 
       - name: Build
         run: dotnet build GarageFlow.slnx --no-restore
 
       - name: Architecture Tests
-        run: dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj --no-build --filter "FullyQualifiedName~Architecture"
+        run: >
+          dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
+          --no-build
+          --filter "FullyQualifiedName~Architecture"
+          --collect:"XPlat Code Coverage;Format=opencover"
+          --results-directory TestResults/Architecture
 
       - name: Unit Tests
-        run: dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj --no-build
+        run: >
+          dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
+          --no-build
+          --collect:"XPlat Code Coverage;Format=opencover"
+          --results-directory TestResults/Unit
 
       - name: Integration Tests
-        run: dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj --no-build -- RunConfiguration.MaxCpuCount=1
+        run: >
+          dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj
+          --no-build
+          --collect:"XPlat Code Coverage;Format=opencover"
+          --results-directory TestResults/Integration
+          --
+          RunConfiguration.MaxCpuCount=1
+
+      - name: Validate Coverage Threshold (80%)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+
+          threshold = float(os.environ["COVERAGE_THRESHOLD"])
+          report_files = glob.glob("TestResults/**/coverage.opencover.xml", recursive=True)
+          if not report_files:
+              raise SystemExit("No OpenCover reports found under TestResults/**/coverage.opencover.xml")
+
+          covered_points = set()
+          total_points = set()
+
+          for report_path in report_files:
+              root = ET.parse(report_path).getroot()
+              for module in root.findall(".//Module"):
+                  file_by_id = {
+                      file_node.attrib.get("uid", ""): file_node.attrib.get("fullPath", "")
+                      for file_node in module.findall("./Files/File")
+                  }
+
+                  for sequence_point in module.findall(".//SequencePoint"):
+                      file_id = sequence_point.attrib.get("fileid", "")
+                      key = (
+                          file_by_id.get(file_id, file_id),
+                          sequence_point.attrib.get("sl", ""),
+                          sequence_point.attrib.get("sc", ""),
+                          sequence_point.attrib.get("el", ""),
+                          sequence_point.attrib.get("ec", ""),
+                      )
+                      total_points.add(key)
+
+                      if int(sequence_point.attrib.get("vc", "0")) > 0:
+                          covered_points.add(key)
+
+          total = len(total_points)
+          covered = len(covered_points)
+          coverage = (covered / total * 100) if total else 0.0
+
+          print(f"Coverage total: {coverage:.2f}% ({covered}/{total} sequence points)")
+
+          if coverage < threshold:
+              raise SystemExit(f"Coverage {coverage:.2f}% is below threshold {threshold:.2f}%")
+
+          print(f"Coverage check passed: {coverage:.2f}% >= {threshold:.2f}%")
+          PY
 
       - name: SonarQube End
         if: always() && steps.sonar-config.outputs.enabled == 'true'
