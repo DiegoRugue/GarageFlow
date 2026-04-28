@@ -99,14 +99,13 @@ public class VehicleColorHandlersTests
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnNull_WhenVehicleColorDoesNotExist()
+    public async Task Handle_ShouldThrowNotFoundException_WhenVehicleColorDoesNotExist()
     {
         var repositoryMock = CreateVehicleColorRepositoryMock();
         var handler = new GetVehicleColorByIdHandler(repositoryMock.Object);
 
-        var result = await handler.Handle(new GetVehicleColorByIdQuery(Guid.NewGuid()), CancellationToken.None);
-
-        Assert.Null(result);
+        await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(new GetVehicleColorByIdQuery(Guid.NewGuid()), CancellationToken.None));
     }
 
     [Fact]

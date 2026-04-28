@@ -2,6 +2,7 @@ using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
+using GarageFlow.Domain.Users.Events;
 using GarageFlow.Domain.Users.ValueObjects;
 using GarageFlow.Tests.Shared.Users;
 
@@ -89,5 +90,58 @@ public class UserDomainTests
 
         Assert.False(user.MustChangePassword);
         Assert.Equal("hash-updated", user.PasswordHash);
+    }
+
+    [Fact]
+    public void Create_ShouldRaiseUserCreatedDomainEvent()
+    {
+        var user = User.Create(
+            fullName: FullName.Create("User Event"),
+            email: Email.Create("user.event@example.com"),
+            birthDate: new DateOnly(1990, 2, 3),
+            role: UserRole.Attendant,
+            passwordHash: "hash-password");
+
+        var domainEvent = Assert.Single(user.DomainEvents);
+        var userCreated = Assert.IsType<UserCreated>(domainEvent);
+
+        Assert.Equal(user.Id, userCreated.UserId);
+        Assert.Equal(user.Email.Value, userCreated.Email);
+    }
+
+    [Fact]
+    public void UpdateProfile_ShouldRaiseUserProfileUpdatedDomainEvent()
+    {
+        var user = new UserBuilder().Build();
+        user.ClearDomainEvents();
+
+        user.UpdateProfile(
+            FullName.Create("Updated User"),
+            Email.Create("updated.user@example.com"),
+            new DateOnly(1991, 1, 2));
+
+        var domainEvent = Assert.Single(user.DomainEvents);
+        var profileUpdated = Assert.IsType<UserProfileUpdated>(domainEvent);
+
+        Assert.Equal(user.Id, profileUpdated.UserId);
+        Assert.Equal("updated.user@example.com", profileUpdated.Email);
+    }
+
+    [Fact]
+    public void ChangePassword_ShouldRaiseUserPasswordChangedDomainEvent()
+    {
+        var user = new UserBuilder()
+            .WithPasswordHash("hash-initial")
+            .WithMustChangePassword(true)
+            .Build();
+        user.ClearDomainEvents();
+
+        user.ChangePassword("hash-updated");
+
+        var domainEvent = Assert.Single(user.DomainEvents);
+        var passwordChanged = Assert.IsType<UserPasswordChanged>(domainEvent);
+
+        Assert.Equal(user.Id, passwordChanged.UserId);
+        Assert.False(passwordChanged.MustChangePassword);
     }
 }

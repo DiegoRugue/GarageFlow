@@ -102,16 +102,15 @@ public class VehicleBrandHandlersTests
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnNull_WhenVehicleBrandDoesNotExist()
+    public async Task Handle_ShouldThrowNotFoundException_WhenVehicleBrandDoesNotExist()
     {
         var repositoryMock = CreateVehicleBrandRepositoryMock();
 
         var handler = new GetVehicleBrandByIdHandler(repositoryMock.Object);
         var query = new GetVehicleBrandByIdQuery(Guid.NewGuid());
 
-        var result = await handler.Handle(query, CancellationToken.None);
-
-        Assert.Null(result);
+        await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(query, CancellationToken.None));
     }
 
     [Fact]

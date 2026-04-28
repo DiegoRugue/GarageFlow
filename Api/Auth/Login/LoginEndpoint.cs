@@ -1,5 +1,4 @@
 using GarageFlow.Application.Auth.Login;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using Mediator;
 
 namespace GarageFlow.Api.Auth.Login;
@@ -30,18 +29,11 @@ public static class LoginEndpoint
             Email: request.Email,
             Password: request.Password);
 
-        try
-        {
-            var result = await mediator.Send(command, cancellationToken);
-            var response = new LoginResponse(
-                Token: result.Token,
-                MustChangePassword: result.MustChangePassword);
+        var result = await mediator.Send(command, cancellationToken);
+        var response = new LoginResponse(
+            Token: result.Token,
+            MustChangePassword: result.MustChangePassword);
 
-            return Results.Ok(response);
-        }
-        catch (BusinessRuleViolationException exception)
-        {
-            throw new UnauthorizedAccessException(exception.Message);
-        }
+        return Results.Ok(response);
     }
 }

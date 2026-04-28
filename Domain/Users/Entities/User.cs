@@ -3,6 +3,7 @@ using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.Interfaces;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Users.Enums;
+using GarageFlow.Domain.Users.Events;
 using GarageFlow.Domain.Users.ValueObjects;
 
 namespace GarageFlow.Domain.Users.Entities;
@@ -55,7 +56,7 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         UserRole role,
         string passwordHash)
     {
-        return new User(
+        var user = new User(
             id: UserId.New(),
             fullName: fullName,
             email: email,
@@ -63,6 +64,17 @@ public sealed class User : Entity<UserId>, IAggregateRoot
             role: role,
             passwordHash: passwordHash,
             mustChangePassword: true);
+
+        user.RaiseDomainEvent(new UserCreated(
+            UserId: user.Id,
+            FullName: user.FullName.Value,
+            Email: user.Email.Value,
+            BirthDate: user.BirthDate.Value,
+            Role: user.Role,
+            MustChangePassword: user.MustChangePassword,
+            CreatedAt: user.CreatedAt));
+
+        return user;
     }
 
     public void UpdateProfile(FullName fullName, Email email, DateOnly birthDate)
@@ -76,6 +88,15 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         Email = NormalizeEmail(email);
         BirthDate = EnsureValidBirthDate(birthDate);
         UpdatedAt = DateTime.UtcNow;
+
+        RaiseDomainEvent(new UserProfileUpdated(
+            UserId: Id,
+            FullName: FullName.Value,
+            Email: Email.Value,
+            BirthDate: BirthDate.Value,
+            Role: Role,
+            MustChangePassword: MustChangePassword,
+            UpdatedAt: UpdatedAt));
     }
 
     public void ChangePassword(string newPasswordHash)
@@ -83,6 +104,11 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         PasswordHash = EnsurePasswordHash(newPasswordHash);
         MustChangePassword = false;
         UpdatedAt = DateTime.UtcNow;
+
+        RaiseDomainEvent(new UserPasswordChanged(
+            UserId: Id,
+            MustChangePassword: MustChangePassword,
+            UpdatedAt: UpdatedAt));
     }
 
     public static string GenerateInitialPassword(FullName fullName, DateOnly birthDate)

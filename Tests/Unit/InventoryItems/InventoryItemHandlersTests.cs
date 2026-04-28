@@ -168,14 +168,13 @@ public class InventoryItemHandlersTests
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnNull_WhenInventoryItemDoesNotExist()
+    public async Task Handle_ShouldThrowNotFoundException_WhenInventoryItemDoesNotExist()
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var handler = new GetInventoryItemByIdHandler(repositoryMock.Object);
 
-        var result = await handler.Handle(new GetInventoryItemByIdQuery(Guid.NewGuid()), CancellationToken.None);
-
-        Assert.Null(result);
+        await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(new GetInventoryItemByIdQuery(Guid.NewGuid()), CancellationToken.None));
     }
 
     [Fact]

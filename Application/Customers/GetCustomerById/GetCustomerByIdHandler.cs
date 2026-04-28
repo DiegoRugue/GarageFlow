@@ -1,3 +1,4 @@
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.Domain.Customers.Repositories;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Repositories;
@@ -7,19 +8,19 @@ namespace GarageFlow.Application.Customers.GetCustomerById;
 
 public sealed class GetCustomerByIdHandler(
     ICustomerRepository customerRepository,
-    IVehicleRepository vehicleRepository) : IRequestHandler<GetCustomerByIdQuery, CustomerDto?>
+    IVehicleRepository vehicleRepository) : IRequestHandler<GetCustomerByIdQuery, CustomerDto>
 {
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
 
-    public async ValueTask<CustomerDto?> Handle(GetCustomerByIdQuery request, CancellationToken cancellationToken)
+    public async ValueTask<CustomerDto> Handle(GetCustomerByIdQuery request, CancellationToken cancellationToken)
     {
         var customerId = CustomerId.From(request.Id);
         var customer = await _customerRepository.GetByIdAsync(customerId, cancellationToken);
 
         if (customer is null)
         {
-            return null;
+            throw new NotFoundException($"Customer with ID '{request.Id}' was not found.");
         }
 
         var vehicleDtos = (await _vehicleRepository.ListDetailsByCustomerIdAsync(customerId, cancellationToken))
