@@ -19,6 +19,22 @@ public sealed class InventoryItemRepository(GarageFlowDbContext dbContext) : IIn
             cancellationToken);
     }
 
+    public async Task<InventoryItem?> GetByIdForStockReservationAsync(
+        InventoryItemId id,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_dbContext.Database.IsRelational() || !_dbContext.Database.IsNpgsql())
+        {
+            return await GetByIdAsync(id, cancellationToken);
+        }
+
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "InventoryItems" WHERE "Id" = {id.Value} FOR UPDATE""",
+            cancellationToken);
+
+        return await GetByIdAsync(id, cancellationToken);
+    }
+
     public async Task<(IReadOnlyList<InventoryItem> Items, int TotalCount)> ListAsync(
         int page,
         int pageSize,

@@ -19,27 +19,27 @@ public sealed class AddEstimateInventoryItemHandler(
 
     public async ValueTask<AddEstimateInventoryItemResult> Handle(AddEstimateInventoryItemCommand request, CancellationToken cancellationToken)
     {
+        var workOrderId = WorkOrderId.From(request.WorkOrderId);
+        var estimateId = EstimateId.From(request.EstimateId);
+        var inventoryItemId = InventoryItemId.From(request.InventoryItemId);
         var quantity = EstimateItemQuantity.Create(request.Quantity);
 
-        var workOrderId = WorkOrderId.From(request.WorkOrderId);
         var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
         if (workOrder is null)
         {
             throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
         }
 
-        var inventoryItemId = InventoryItemId.From(request.InventoryItemId);
-        var inventoryItem = await _inventoryItemRepository.GetByIdAsync(inventoryItemId, cancellationToken);
-        if (inventoryItem is null)
-        {
-            throw new NotFoundException($"Inventory item with ID '{request.InventoryItemId}' was not found.");
-        }
-
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            var estimateId = EstimateId.From(request.EstimateId);
+            var inventoryItem = await _inventoryItemRepository.GetByIdForStockReservationAsync(inventoryItemId, cancellationToken);
+            if (inventoryItem is null)
+            {
+                throw new NotFoundException($"Inventory item with ID '{request.InventoryItemId}' was not found.");
+            }
+
             inventoryItem.DecreaseStock(quantity.Value);
             workOrder.AddInventoryLine(
                 estimateId,
