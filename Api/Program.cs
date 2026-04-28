@@ -6,6 +6,7 @@ using GarageFlow.Api.Security;
 using GarageFlow.Api.Services;
 using GarageFlow.Api.Users;
 using GarageFlow.Api.Vehicles;
+using GarageFlow.Api.WorkOrders;
 using GarageFlow.Infrastructure.DataAccess;
 using Scalar.AspNetCore;
 
@@ -41,5 +42,6 @@ app.MapCustomerEndpoints();
 app.MapServiceEndpoints();
 app.MapVehicleEndpoints();
 app.MapInventoryItemEndpoints();
+app.MapWorkOrderEndpoints();
 
 await app.RunAsync();

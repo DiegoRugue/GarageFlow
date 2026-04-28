@@ -6,7 +6,9 @@ using GarageFlow.Application.WorkOrders.CompleteWorkOrder;
 using GarageFlow.Application.WorkOrders.CreateEstimate;
 using GarageFlow.Application.WorkOrders.CreateWorkOrder;
 using GarageFlow.Application.WorkOrders.DeliverWorkOrder;
+using GarageFlow.Application.WorkOrders.GetWorkOrderById;
 using GarageFlow.Application.WorkOrders.GetMyWorkOrderById;
+using GarageFlow.Application.WorkOrders.ListWorkOrders;
 using GarageFlow.Application.WorkOrders.ListMyWorkOrders;
 using GarageFlow.Application.WorkOrders.RejectMyEstimate;
 using GarageFlow.Application.WorkOrders.StartDiagnosis;
@@ -740,14 +742,130 @@ public class WorkOrderHandlersTests
         unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task GetWorkOrderById_ShouldReturnMappedDetails_WhenWorkOrderExists()
+    {
+        var customerId = Guid.NewGuid();
+        var workOrderId = Guid.NewGuid();
+        var estimateId = Guid.NewGuid();
+        var details = CreateWorkOrderDetailsReadModel(
+            workOrderId,
+            customerId,
+            estimates:
+            [
+                new WorkOrderEstimateReadModel(
+                    Id: estimateId,
+                    WorkOrderId: workOrderId,
+                    Status: "Pending",
+                    TotalAmount: 420m,
+                    CreatedAt: DateTime.UtcNow,
+                    UpdatedAt: DateTime.UtcNow,
+                    InventoryLines:
+                    [
+                        new WorkOrderInventoryLineReadModel(
+                            Id: Guid.NewGuid(),
+                            EstimateId: estimateId,
+                            InventoryItemId: Guid.NewGuid(),
+                            DescriptionSnapshot: "Ignition coil",
+                            Quantity: 2,
+                            UnitCost: 80m,
+                            UnitPrice: 120m,
+                            TotalPrice: 240m)
+                    ],
+                    ServiceLines:
+                    [
+                        new WorkOrderServiceLineReadModel(
+                            Id: Guid.NewGuid(),
+                            EstimateId: estimateId,
+                            ServiceId: Guid.NewGuid(),
+                            DescriptionSnapshot: "Electrical diagnosis",
+                            UnitPrice: 180m,
+                            TotalPrice: 180m)
+                    ])
+            ]);
+
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(detailsById: [details]);
+        var handler = new GetWorkOrderByIdHandler(workOrderRepositoryMock.Object);
+
+        var result = await handler.Handle(new GetWorkOrderByIdQuery(workOrderId), CancellationToken.None);
+
+        Assert.Equal(workOrderId, result.Id);
+        Assert.Equal("WaitingApproval", result.Status);
+        var estimate = Assert.Single(result.Estimates);
+        var inventoryLine = Assert.Single(estimate.InventoryLines);
+        Assert.Equal(80m, inventoryLine.UnitCost);
+    }
+
+    [Fact]
+    public async Task GetWorkOrderById_ShouldThrowNotFoundException_WhenWorkOrderDoesNotExist()
+    {
+        var workOrderId = Guid.NewGuid();
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var handler = new GetWorkOrderByIdHandler(workOrderRepositoryMock.Object);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(new GetWorkOrderByIdQuery(workOrderId), CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrderId}' was not found.", exception.Message);
+    }
+
+    [Fact]
+    public async Task ListWorkOrders_ShouldReturnMappedPage_WhenPageRequestIsValid()
+    {
+        var customerId = Guid.NewGuid();
+        var detailsList = Enumerable.Range(0, 6)
+            .Select(index => CreateWorkOrderDetailsReadModel(
+                id: Guid.NewGuid(),
+                customerId: index % 2 == 0 ? customerId : Guid.NewGuid()))
+            .ToList();
+        var expectedWorkOrderId = detailsList[4].Id;
+
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(detailsList: detailsList);
+        var handler = new ListWorkOrdersHandler(workOrderRepositoryMock.Object);
+
+        var result = await handler.Handle(
+            new ListWorkOrdersQuery(Page: 2, PageSize: 2, CustomerId: customerId),
+            CancellationToken.None);
+
+        Assert.Single(result.Items);
+        Assert.Equal(expectedWorkOrderId, result.Items[0].Id);
+        Assert.Equal(3, result.TotalCount);
+        Assert.Equal(2, result.Page);
+        Assert.Equal(2, result.PageSize);
+        workOrderRepositoryMock.Verify(
+            x => x.ListDetailsAsync(2, 2, It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ListWorkOrders_ShouldThrowValidationException_WhenPageIsInvalid()
+    {
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var handler = new ListWorkOrdersHandler(workOrderRepositoryMock.Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            async () => await handler.Handle(
+                new ListWorkOrdersQuery(Page: 0, PageSize: 20),
+                CancellationToken.None));
+
+        Assert.Equal("Page must be greater than or equal to 1. Received: 0.", exception.Message);
+        workOrderRepositoryMock.Verify(
+            x => x.ListDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static Mock<IWorkOrderRepository> CreateWorkOrderRepositoryMock(
         List<WorkOrder>? initialWorkOrders = null,
+        List<WorkOrderDetailsReadModel>? detailsById = null,
+        List<WorkOrderDetailsReadModel>? detailsList = null,
         List<WorkOrderDetailsReadModel>? customerDetailsById = null,
         List<WorkOrderDetailsReadModel>? customerDetailsList = null)
     {
         var workOrders = initialWorkOrders ?? [];
-        var detailsById = customerDetailsById ?? [];
-        var detailsList = customerDetailsList ?? [];
+        var staffDetailsById = detailsById ?? [];
+        var staffDetailsList = detailsList ?? [];
+        var customerDetailsByIdList = customerDetailsById ?? [];
+        var customerDetailsListPage = customerDetailsList ?? [];
         var repositoryMock = new Mock<IWorkOrderRepository>();
 
         repositoryMock
@@ -755,12 +873,42 @@ public class WorkOrderHandlersTests
             .ReturnsAsync((WorkOrderId id, CancellationToken _) => workOrders.SingleOrDefault(workOrder => workOrder.Id == id));
 
         repositoryMock
+            .Setup(x => x.GetDetailsByIdAsync(
+                It.IsAny<WorkOrderId>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WorkOrderId id, CancellationToken _) =>
+                staffDetailsById.SingleOrDefault(item => item.Id == id.Value));
+
+        repositoryMock
             .Setup(x => x.GetCustomerDetailsByIdAsync(
                 It.IsAny<WorkOrderId>(),
                 It.IsAny<CustomerId>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((WorkOrderId id, CustomerId customerId, CancellationToken _) =>
-                detailsById.SingleOrDefault(item => item.Id == id.Value && item.CustomerId == customerId.Value));
+                customerDetailsByIdList.SingleOrDefault(item => item.Id == id.Value && item.CustomerId == customerId.Value));
+
+        repositoryMock
+            .Setup(x => x.ListDetailsAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<CustomerId?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int page, int pageSize, CustomerId? customerId, CancellationToken _) =>
+            {
+                var filtered = staffDetailsList.AsEnumerable();
+                if (customerId is not null)
+                {
+                    filtered = filtered.Where(item => item.CustomerId == customerId.Value.Value);
+                }
+
+                var pageItems = filtered
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                var totalCount = filtered.Count();
+                return ((IReadOnlyList<WorkOrderDetailsReadModel>)pageItems, totalCount);
+            });
 
         repositoryMock
             .Setup(x => x.ListCustomerDetailsAsync(
@@ -770,13 +918,13 @@ public class WorkOrderHandlersTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((int page, int pageSize, CustomerId customerId, CancellationToken _) =>
             {
-                var items = detailsList
+                var items = customerDetailsListPage
                     .Where(item => item.CustomerId == customerId.Value)
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
                     .ToList();
 
-                var totalCount = detailsList.Count(item => item.CustomerId == customerId.Value);
+                var totalCount = customerDetailsListPage.Count(item => item.CustomerId == customerId.Value);
                 return ((IReadOnlyList<WorkOrderDetailsReadModel>)items, totalCount);
             });
 

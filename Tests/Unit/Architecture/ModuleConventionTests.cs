@@ -5,6 +5,7 @@ public class ModuleConventionTests
     private static readonly string[] BusinessModules =
     [
         "Customers",
+        "WorkOrders",
         "Services",
         "Vehicles",
         "InventoryItems",
