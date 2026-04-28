@@ -118,9 +118,10 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public void SubmitEstimate(EstimateId estimateId)
     {
-        EnsureStatusAllowsEstimateSubmission();
-
         var estimate = GetEstimateOrThrow(estimateId);
+        EnsureStatusAllowsEstimateSubmission();
+        EnsureEstimateCanBeSubmitted(estimate);
+        AdvanceStatusForEstimateSubmission();
         estimate.Submit();
 
         UpdatedAt = DateTime.UtcNow;
@@ -248,6 +249,29 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Finalized work orders cannot be changed.");
         }
 
+        if (Status is WorkOrderStatus.Created or WorkOrderStatus.Diagnosing or WorkOrderStatus.WaitingApproval)
+        {
+            return;
+        }
+
+        throw new BusinessRuleViolationException($"Work order status '{Status}' does not allow estimate submission.");
+    }
+
+    private static void EnsureEstimateCanBeSubmitted(Estimate estimate)
+    {
+        if (estimate.Status != EstimateStatus.Draft)
+        {
+            throw new BusinessRuleViolationException("Only draft estimates can be edited.");
+        }
+
+        if (estimate.InventoryLines.Count == 0 && estimate.ServiceLines.Count == 0)
+        {
+            throw new BusinessRuleViolationException("Estimate must contain at least one line item before submission.");
+        }
+    }
+
+    private void AdvanceStatusForEstimateSubmission()
+    {
         if (Status == WorkOrderStatus.Created)
         {
             TransitionTo(WorkOrderStatus.Diagnosing);
@@ -258,15 +282,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         if (Status == WorkOrderStatus.Diagnosing)
         {
             TransitionTo(WorkOrderStatus.WaitingApproval);
-            return;
         }
-
-        if (Status == WorkOrderStatus.WaitingApproval)
-        {
-            return;
-        }
-
-        throw new BusinessRuleViolationException($"Work order status '{Status}' does not allow estimate submission.");
     }
 
     private void TransitionTo(WorkOrderStatus newStatus)

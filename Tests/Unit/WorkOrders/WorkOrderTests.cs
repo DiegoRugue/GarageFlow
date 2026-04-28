@@ -33,10 +33,16 @@ public class WorkOrderTests
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var estimate = workOrder.CreateEstimate();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
 
         Assert.Equal("Estimate must contain at least one line item before submission.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
+        Assert.Equal(EstimateStatus.Draft, estimate.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
     }
 
     [Fact]
@@ -422,6 +428,57 @@ public class WorkOrderTests
         Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
         Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowNotFoundException_WhenEstimateIsMissingOnCreated_AndKeepStatusUnchanged()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var missingEstimateId = EstimateId.New();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
+
+        var exception = Assert.Throws<NotFoundException>(() => workOrder.SubmitEstimate(missingEstimateId));
+
+        Assert.Equal($"Estimate with ID '{missingEstimateId.Value}' was not found.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowNotFoundException_WhenEstimateIsMissingOnDiagnosing_AndKeepStatusUnchanged()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        workOrder.StartDiagnosis();
+        var missingEstimateId = EstimateId.New();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
+
+        var exception = Assert.Throws<NotFoundException>(() => workOrder.SubmitEstimate(missingEstimateId));
+
+        Assert.Equal($"Estimate with ID '{missingEstimateId.Value}' was not found.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Diagnosing, workOrder.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
+        Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenEstimateIsEmptyOnDiagnosing_AndKeepStatusUnchanged()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        workOrder.StartDiagnosis();
+        var estimate = workOrder.CreateEstimate();
+        var statusChangedEventsBefore = workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count();
+        var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
+
+        Assert.Equal("Estimate must contain at least one line item before submission.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Diagnosing, workOrder.Status);
+        Assert.Equal(EstimateStatus.Draft, estimate.Status);
+        Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
         Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
     }
 }
