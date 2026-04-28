@@ -85,6 +85,74 @@ public class InventoryItemTests
     }
 
     [Fact]
+    public void DecreaseStock_ShouldReduceStock_WhenQuantityIsAvailable()
+    {
+        var item = new InventoryItemBuilder().WithStockQuantity(10).Build();
+
+        item.DecreaseStock(4);
+
+        var stockUpdatedEvent = Assert.Single(item.DomainEvents.OfType<InventoryItemStockUpdated>());
+        Assert.Equal(item.Id, stockUpdatedEvent.InventoryItemId);
+        Assert.Equal(10, stockUpdatedEvent.PreviousStockQuantity);
+        Assert.Equal(6, stockUpdatedEvent.NewStockQuantity);
+        Assert.Equal(6, item.StockQuantity.Value);
+    }
+
+    [Fact]
+    public void DecreaseStock_ShouldThrowBusinessRuleViolationException_WhenStockIsInsufficient()
+    {
+        var item = new InventoryItemBuilder().WithStockQuantity(3).Build();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => item.DecreaseStock(4));
+
+        Assert.Equal("Inventory item stock is insufficient.", exception.Message);
+        Assert.Equal(3, item.StockQuantity.Value);
+        Assert.Empty(item.DomainEvents.OfType<InventoryItemStockUpdated>());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void DecreaseStock_ShouldThrowValidationException_WhenQuantityIsNotPositive(int quantity)
+    {
+        var item = new InventoryItemBuilder().WithStockQuantity(10).Build();
+
+        var exception = Assert.Throws<ValidationException>(() => item.DecreaseStock(quantity));
+
+        Assert.Equal("Inventory stock decrease quantity must be greater than zero.", exception.Message);
+        Assert.Equal(10, item.StockQuantity.Value);
+        Assert.Empty(item.DomainEvents.OfType<InventoryItemStockUpdated>());
+    }
+
+    [Fact]
+    public void IncreaseStock_ShouldRestoreStock_WhenQuantityIsPositive()
+    {
+        var item = new InventoryItemBuilder().WithStockQuantity(10).Build();
+
+        item.IncreaseStock(5);
+
+        var stockUpdatedEvent = Assert.Single(item.DomainEvents.OfType<InventoryItemStockUpdated>());
+        Assert.Equal(item.Id, stockUpdatedEvent.InventoryItemId);
+        Assert.Equal(10, stockUpdatedEvent.PreviousStockQuantity);
+        Assert.Equal(15, stockUpdatedEvent.NewStockQuantity);
+        Assert.Equal(15, item.StockQuantity.Value);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void IncreaseStock_ShouldThrowValidationException_WhenQuantityIsNotPositive(int quantity)
+    {
+        var item = new InventoryItemBuilder().WithStockQuantity(10).Build();
+
+        var exception = Assert.Throws<ValidationException>(() => item.IncreaseStock(quantity));
+
+        Assert.Equal("Inventory stock increase quantity must be greater than zero.", exception.Message);
+        Assert.Equal(10, item.StockQuantity.Value);
+        Assert.Empty(item.DomainEvents.OfType<InventoryItemStockUpdated>());
+    }
+
+    [Fact]
     public void Create_ShouldThrowValidationException_WhenDescriptionIsNull()
     {
         var cost = Price.Create(10m);

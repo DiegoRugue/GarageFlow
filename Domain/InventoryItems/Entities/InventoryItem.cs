@@ -108,6 +108,31 @@ public sealed class InventoryItem : Entity<InventoryItemId>, IAggregateRoot
             NewStockQuantity: validatedStockQuantity.Value));
     }
 
+    public void DecreaseStock(int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new ValidationException("Inventory stock decrease quantity must be greater than zero.");
+        }
+
+        if (StockQuantity.Value < quantity)
+        {
+            throw new BusinessRuleViolationException("Inventory item stock is insufficient.");
+        }
+
+        SetStockQuantity(InventoryItemStockQuantity.Create(StockQuantity.Value - quantity));
+    }
+
+    public void IncreaseStock(int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new ValidationException("Inventory stock increase quantity must be greater than zero.");
+        }
+
+        SetStockQuantity(InventoryItemStockQuantity.Create(StockQuantity.Value + quantity));
+    }
+
     public void Delete()
     {
         UpdatedAt = DateTime.UtcNow;
