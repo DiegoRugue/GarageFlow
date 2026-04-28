@@ -3,5 +3,6 @@ namespace GarageFlow.Domain.Users.Enums;
 public enum UserRole
 {
     Admin = 1,
-    Attendant = 2
+    Attendant = 2,
+    Customer = 3
 }

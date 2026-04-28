@@ -1,4 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 
@@ -12,6 +13,7 @@ public sealed class UserBuilder
     private UserRole _role = UserRole.Attendant;
     private string _passwordHash = Guid.NewGuid().ToString("N");
     private bool _mustChangePassword = true;
+    private CustomerId? _customerId;
 
     public UserBuilder WithFullName(string fullName)
     {
@@ -49,6 +51,12 @@ public sealed class UserBuilder
         return this;
     }
 
+    public UserBuilder WithCustomerId(CustomerId customerId)
+    {
+        _customerId = customerId;
+        return this;
+    }
+
     public User Build()
     {
         var user = User.Create(
@@ -56,7 +64,8 @@ public sealed class UserBuilder
             email: Email.Create(_email),
             birthDate: _birthDate,
             role: _role,
-            passwordHash: _passwordHash);
+            passwordHash: _passwordHash,
+            customerId: _customerId);
 
         if (!_mustChangePassword)
         {
