@@ -49,40 +49,36 @@ internal static class WorkOrderDetailsMapper
 
     private static WorkOrderEstimateDto MapEstimate(WorkOrderEstimateReadModel estimate)
     {
-        return MapEstimate(
-            estimate,
-            MapInventoryLine,
-            MapServiceLine,
-            static (id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines) =>
-                new WorkOrderEstimateDto(id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines));
+        var shape = GetEstimateShape(estimate);
+
+        return new WorkOrderEstimateDto(
+            shape.Id,
+            shape.WorkOrderId,
+            shape.Status,
+            shape.TotalAmount,
+            shape.CreatedAt,
+            shape.UpdatedAt,
+            estimate.InventoryLines.Select(MapInventoryLine).ToList(),
+            estimate.ServiceLines.Select(MapServiceLine).ToList());
     }
 
     private static CustomerWorkOrderEstimateDto MapCustomerEstimate(WorkOrderEstimateReadModel estimate)
     {
-        return MapEstimate(
-            estimate,
-            MapCustomerInventoryLine,
-            MapCustomerServiceLine,
-            static (id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines) =>
-                new CustomerWorkOrderEstimateDto(id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines));
+        var shape = GetEstimateShape(estimate);
+
+        return new CustomerWorkOrderEstimateDto(
+            shape.Id,
+            shape.WorkOrderId,
+            shape.Status,
+            shape.TotalAmount,
+            shape.CreatedAt,
+            shape.UpdatedAt,
+            estimate.InventoryLines.Select(MapCustomerInventoryLine).ToList(),
+            estimate.ServiceLines.Select(MapCustomerServiceLine).ToList());
     }
 
-    private static TEstimate MapEstimate<TEstimate, TInventoryLine, TServiceLine>(
-        WorkOrderEstimateReadModel estimate,
-        Func<WorkOrderInventoryLineReadModel, TInventoryLine> mapInventoryLine,
-        Func<WorkOrderServiceLineReadModel, TServiceLine> mapServiceLine,
-        Func<Guid, Guid, string, decimal, DateTime, DateTime, IReadOnlyList<TInventoryLine>, IReadOnlyList<TServiceLine>, TEstimate> createEstimate)
-    {
-        return createEstimate(
-            estimate.Id,
-            estimate.WorkOrderId,
-            estimate.Status,
-            estimate.TotalAmount,
-            estimate.CreatedAt,
-            estimate.UpdatedAt,
-            estimate.InventoryLines.Select(mapInventoryLine).ToList(),
-            estimate.ServiceLines.Select(mapServiceLine).ToList());
-    }
+    private static EstimateShape GetEstimateShape(WorkOrderEstimateReadModel estimate) =>
+        new(estimate.Id, estimate.WorkOrderId, estimate.Status, estimate.TotalAmount, estimate.CreatedAt, estimate.UpdatedAt);
 
     private static WorkOrderInventoryLineDto MapInventoryLine(WorkOrderInventoryLineReadModel line)
     {
@@ -130,4 +126,12 @@ internal static class WorkOrderDetailsMapper
             line.UnitPrice,
             line.TotalPrice);
     }
+
+    private readonly record struct EstimateShape(
+        Guid Id,
+        Guid WorkOrderId,
+        string Status,
+        decimal TotalAmount,
+        DateTime CreatedAt,
+        DateTime UpdatedAt);
 }

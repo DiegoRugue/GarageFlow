@@ -81,7 +81,9 @@ public class AuthenticationExtensionsTests
             jwtKey: "__set_me_jwt_key__",
             bootstrapAdminPassword: "changeme");
 
-        builder.AddGarageFlowAuthentication();
+        var result = builder.AddGarageFlowAuthentication();
+
+        Assert.Same(builder, result);
     }
 
     private static WebApplicationBuilder CreateBuilder(

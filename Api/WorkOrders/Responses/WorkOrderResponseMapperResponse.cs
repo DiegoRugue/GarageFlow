@@ -46,39 +46,32 @@ internal static class WorkOrderResponseMapper
 
     private static WorkOrderEstimateResponse MapEstimate(WorkOrderEstimateDto estimate)
     {
-        return CreateEstimateResponse(
-            GetEstimateShape(estimate),
+        var shape = GetEstimateShape(estimate);
+
+        return new WorkOrderEstimateResponse(
+            shape.Id,
+            shape.WorkOrderId,
+            shape.Status,
+            shape.TotalAmount,
+            shape.CreatedAt,
+            shape.UpdatedAt,
             estimate.InventoryLines.Select(MapInventoryLine).ToList(),
-            estimate.ServiceLines.Select(MapServiceLine).ToList(),
-            static (id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines) =>
-                new WorkOrderEstimateResponse(id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines));
+            estimate.ServiceLines.Select(MapServiceLine).ToList());
     }
 
     private static CustomerWorkOrderEstimateResponse MapCustomerEstimate(CustomerWorkOrderEstimateDto estimate)
     {
-        return CreateEstimateResponse(
-            GetEstimateShape(estimate),
-            estimate.InventoryLines.Select(MapCustomerInventoryLine).ToList(),
-            estimate.ServiceLines.Select(MapCustomerServiceLine).ToList(),
-            static (id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines) =>
-                new CustomerWorkOrderEstimateResponse(id, workOrderId, status, totalAmount, createdAt, updatedAt, inventoryLines, serviceLines));
-    }
+        var shape = GetEstimateShape(estimate);
 
-    private static TResponse CreateEstimateResponse<TInventoryLine, TServiceLine, TResponse>(
-        EstimateShape estimate,
-        IReadOnlyList<TInventoryLine> inventoryLines,
-        IReadOnlyList<TServiceLine> serviceLines,
-        Func<Guid, Guid, string, decimal, DateTime, DateTime, IReadOnlyList<TInventoryLine>, IReadOnlyList<TServiceLine>, TResponse> createResponse)
-    {
-        return createResponse(
-            estimate.Id,
-            estimate.WorkOrderId,
-            estimate.Status,
-            estimate.TotalAmount,
-            estimate.CreatedAt,
-            estimate.UpdatedAt,
-            inventoryLines,
-            serviceLines);
+        return new CustomerWorkOrderEstimateResponse(
+            shape.Id,
+            shape.WorkOrderId,
+            shape.Status,
+            shape.TotalAmount,
+            shape.CreatedAt,
+            shape.UpdatedAt,
+            estimate.InventoryLines.Select(MapCustomerInventoryLine).ToList(),
+            estimate.ServiceLines.Select(MapCustomerServiceLine).ToList());
     }
 
     private static EstimateShape GetEstimateShape(WorkOrderEstimateDto estimate) =>
