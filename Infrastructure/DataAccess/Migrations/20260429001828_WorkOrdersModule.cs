@@ -6,10 +6,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GarageFlow.Infrastructure.DataAccess.Migrations
 {
     /// <inheritdoc />
-    public partial class WorkOrdersModule : Migration
-    {
-        /// <inheritdoc />
-        protected override void Up(MigrationBuilder migrationBuilder)
+public partial class WorkOrdersModule : Migration
+{
+    private static readonly string[] WorkOrderStatusIndexColumns = ["WorkOrderId", "Status"];
+
+    /// <inheritdoc />
+    protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<Guid>(
                 name: "CustomerId",
@@ -114,10 +116,10 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                 table: "WorkOrderEstimateInventoryLines",
                 column: "EstimateId");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_WorkOrderEstimates_WorkOrderId_Status",
-                table: "WorkOrderEstimates",
-                columns: new[] { "WorkOrderId", "Status" });
+        migrationBuilder.CreateIndex(
+            name: "IX_WorkOrderEstimates_WorkOrderId_Status",
+            table: "WorkOrderEstimates",
+            columns: WorkOrderStatusIndexColumns);
 
             migrationBuilder.CreateIndex(
                 name: "IX_WorkOrderEstimateServiceLines_EstimateId",
