@@ -28,57 +28,8 @@ public static class GetWorkOrderByIdEndpoint
         CancellationToken cancellationToken)
     {
         var result = await mediator.Send(new GetWorkOrderByIdQuery(id), cancellationToken);
-        var response = MapDetails(result);
+        var response = WorkOrderResponseMapper.MapDetails(result);
 
         return Results.Ok(response);
-    }
-
-    private static WorkOrderDetailsResponse MapDetails(WorkOrderDetailsDto details)
-    {
-        return new WorkOrderDetailsResponse(
-            Id: details.Id,
-            CustomerId: details.CustomerId,
-            VehicleId: details.VehicleId,
-            Status: details.Status,
-            CreatedAt: details.CreatedAt,
-            UpdatedAt: details.UpdatedAt,
-            Estimates: details.Estimates.Select(MapEstimate).ToList());
-    }
-
-    private static WorkOrderEstimateResponse MapEstimate(WorkOrderEstimateDto estimate)
-    {
-        return new WorkOrderEstimateResponse(
-            Id: estimate.Id,
-            WorkOrderId: estimate.WorkOrderId,
-            Status: estimate.Status,
-            TotalAmount: estimate.TotalAmount,
-            CreatedAt: estimate.CreatedAt,
-            UpdatedAt: estimate.UpdatedAt,
-            InventoryLines: estimate.InventoryLines.Select(MapInventoryLine).ToList(),
-            ServiceLines: estimate.ServiceLines.Select(MapServiceLine).ToList());
-    }
-
-    private static WorkOrderInventoryLineResponse MapInventoryLine(WorkOrderInventoryLineDto line)
-    {
-        return new WorkOrderInventoryLineResponse(
-            Id: line.Id,
-            EstimateId: line.EstimateId,
-            InventoryItemId: line.InventoryItemId,
-            Description: line.Description,
-            Quantity: line.Quantity,
-            UnitCost: line.UnitCost,
-            UnitPrice: line.UnitPrice,
-            TotalPrice: line.TotalPrice);
-    }
-
-    private static WorkOrderServiceLineResponse MapServiceLine(WorkOrderServiceLineDto line)
-    {
-        return new WorkOrderServiceLineResponse(
-            Id: line.Id,
-            EstimateId: line.EstimateId,
-            ServiceId: line.ServiceId,
-            Description: line.Description,
-            UnitPrice: line.UnitPrice,
-            TotalPrice: line.TotalPrice);
     }
 }

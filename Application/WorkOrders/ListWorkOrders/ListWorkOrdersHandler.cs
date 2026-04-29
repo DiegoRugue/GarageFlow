@@ -38,58 +38,9 @@ public sealed class ListWorkOrdersHandler(
             cancellationToken);
 
         return new ListWorkOrdersResult(
-            Items: items.Select(MapDetails).ToList(),
+            Items: items.Select(WorkOrderDetailsMapper.MapDetails).ToList(),
             TotalCount: totalCount,
             Page: request.Page,
             PageSize: request.PageSize);
-    }
-
-    private static WorkOrderDetailsDto MapDetails(WorkOrderDetailsReadModel workOrder)
-    {
-        return new WorkOrderDetailsDto(
-            Id: workOrder.Id,
-            CustomerId: workOrder.CustomerId,
-            VehicleId: workOrder.VehicleId,
-            Status: workOrder.Status,
-            CreatedAt: workOrder.CreatedAt,
-            UpdatedAt: workOrder.UpdatedAt,
-            Estimates: workOrder.Estimates.Select(MapEstimate).ToList());
-    }
-
-    private static WorkOrderEstimateDto MapEstimate(WorkOrderEstimateReadModel estimate)
-    {
-        return new WorkOrderEstimateDto(
-            Id: estimate.Id,
-            WorkOrderId: estimate.WorkOrderId,
-            Status: estimate.Status,
-            TotalAmount: estimate.TotalAmount,
-            CreatedAt: estimate.CreatedAt,
-            UpdatedAt: estimate.UpdatedAt,
-            InventoryLines: estimate.InventoryLines.Select(MapInventoryLine).ToList(),
-            ServiceLines: estimate.ServiceLines.Select(MapServiceLine).ToList());
-    }
-
-    private static WorkOrderInventoryLineDto MapInventoryLine(WorkOrderInventoryLineReadModel line)
-    {
-        return new WorkOrderInventoryLineDto(
-            Id: line.Id,
-            EstimateId: line.EstimateId,
-            InventoryItemId: line.InventoryItemId,
-            Description: line.DescriptionSnapshot,
-            Quantity: line.Quantity,
-            UnitCost: line.UnitCost,
-            UnitPrice: line.UnitPrice,
-            TotalPrice: line.TotalPrice);
-    }
-
-    private static WorkOrderServiceLineDto MapServiceLine(WorkOrderServiceLineReadModel line)
-    {
-        return new WorkOrderServiceLineDto(
-            Id: line.Id,
-            EstimateId: line.EstimateId,
-            ServiceId: line.ServiceId,
-            Description: line.DescriptionSnapshot,
-            UnitPrice: line.UnitPrice,
-            TotalPrice: line.TotalPrice);
     }
 }

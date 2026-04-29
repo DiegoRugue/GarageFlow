@@ -27,7 +27,7 @@ public sealed class WorkOrderRepositoryQueryTests
 
         Assert.NotNull(method);
 
-        var query = Assert.IsAssignableFrom<IQueryable<WorkOrder>>(method!.Invoke(repository, null));
+        var query = Assert.IsType<IQueryable<WorkOrder>>(method!.Invoke(repository, null), exactMatch: false);
 
         Assert.True(ContainsAsSplitQueryCall(query.Expression));
     }

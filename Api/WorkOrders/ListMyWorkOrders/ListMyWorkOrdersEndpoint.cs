@@ -35,59 +35,11 @@ public static class ListMyWorkOrdersEndpoint
         var result = await mediator.Send(new ListMyWorkOrdersQuery(userId, page, pageSize), cancellationToken);
 
         var response = new ListMyWorkOrdersResponse(
-            Items: result.Items.Select(MapDetails).ToList(),
+            Items: result.Items.Select(WorkOrderResponseMapper.MapDetails).ToList(),
             TotalCount: result.TotalCount,
             Page: result.Page,
             PageSize: result.PageSize);
 
         return Results.Ok(response);
-    }
-
-    private static CustomerWorkOrderDetailsResponse MapDetails(CustomerWorkOrderDetailsDto details)
-    {
-        return new CustomerWorkOrderDetailsResponse(
-            Id: details.Id,
-            CustomerId: details.CustomerId,
-            VehicleId: details.VehicleId,
-            Status: details.Status,
-            CreatedAt: details.CreatedAt,
-            UpdatedAt: details.UpdatedAt,
-            Estimates: details.Estimates.Select(MapEstimate).ToList());
-    }
-
-    private static CustomerWorkOrderEstimateResponse MapEstimate(CustomerWorkOrderEstimateDto estimate)
-    {
-        return new CustomerWorkOrderEstimateResponse(
-            Id: estimate.Id,
-            WorkOrderId: estimate.WorkOrderId,
-            Status: estimate.Status,
-            TotalAmount: estimate.TotalAmount,
-            CreatedAt: estimate.CreatedAt,
-            UpdatedAt: estimate.UpdatedAt,
-            InventoryLines: estimate.InventoryLines.Select(MapInventoryLine).ToList(),
-            ServiceLines: estimate.ServiceLines.Select(MapServiceLine).ToList());
-    }
-
-    private static CustomerWorkOrderInventoryLineResponse MapInventoryLine(CustomerWorkOrderInventoryLineDto line)
-    {
-        return new CustomerWorkOrderInventoryLineResponse(
-            Id: line.Id,
-            EstimateId: line.EstimateId,
-            InventoryItemId: line.InventoryItemId,
-            Description: line.Description,
-            Quantity: line.Quantity,
-            UnitPrice: line.UnitPrice,
-            TotalPrice: line.TotalPrice);
-    }
-
-    private static CustomerWorkOrderServiceLineResponse MapServiceLine(CustomerWorkOrderServiceLineDto line)
-    {
-        return new CustomerWorkOrderServiceLineResponse(
-            Id: line.Id,
-            EstimateId: line.EstimateId,
-            ServiceId: line.ServiceId,
-            Description: line.Description,
-            UnitPrice: line.UnitPrice,
-            TotalPrice: line.TotalPrice);
     }
 }

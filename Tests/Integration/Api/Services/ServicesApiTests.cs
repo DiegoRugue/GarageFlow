@@ -87,6 +87,52 @@ public class ServicesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
     }
 
     [Fact]
+    public async Task GetServiceById_ShouldReturn200_WhenServiceExists()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var serviceId = await CreateServiceIdAsync(
+            client,
+            new ServiceBuilder()
+                .WithDescription("Diagnostic scanner")
+                .WithPrice(149.90m));
+
+        var response = await client.GetAsync($"/services/{serviceId}");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<ServiceResponse>(response);
+        Assert.Equal(serviceId, payload.Id);
+        Assert.Equal("Diagnostic scanner", payload.Description);
+        Assert.Equal(149.90m, payload.Price);
+        Assert.NotEqual(default, payload.CreatedAt);
+    }
+
+    [Fact]
+    public async Task ListServices_ShouldReturn200_WithPagination()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var firstServiceId = await CreateServiceIdAsync(
+            client,
+            new ServiceBuilder()
+                .WithDescription("Brake cleaning")
+                .WithPrice(69.90m));
+        var secondServiceId = await CreateServiceIdAsync(
+            client,
+            new ServiceBuilder()
+                .WithDescription("Suspension inspection")
+                .WithPrice(89.90m));
+
+        var response = await client.GetAsync("/services?page=1&pageSize=10");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<ListServicesResponse>(response);
+        Assert.Equal(1, payload.Page);
+        Assert.Equal(10, payload.PageSize);
+        Assert.True(payload.TotalCount >= 2);
+        Assert.Contains(payload.Items, item => item.Id == firstServiceId);
+        Assert.Contains(payload.Items, item => item.Id == secondServiceId);
+    }
+
+    [Fact]
     public async Task PutService_ShouldReturn200_WhenServiceExists()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();

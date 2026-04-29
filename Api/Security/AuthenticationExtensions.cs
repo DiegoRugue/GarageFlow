@@ -7,6 +7,8 @@ namespace GarageFlow.Api.Security;
 
 public static class AuthenticationExtensions
 {
+    private const string MustChangePasswordFalseValue = "false";
+
     public static WebApplicationBuilder AddGarageFlowAuthentication(this WebApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -64,34 +66,34 @@ public static class AuthenticationExtensions
             SecurityPolicies.ActiveUser,
             policy => policy
                 .RequireAuthenticatedUser()
-                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, MustChangePasswordFalseValue));
 
         authorizationBuilder.AddPolicy(
             SecurityPolicies.ActiveAdmin,
             policy => policy
                 .RequireRole(SecurityRoles.Admin)
-                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, MustChangePasswordFalseValue));
 
         authorizationBuilder.AddPolicy(
             SecurityPolicies.ActiveAttendant,
             policy => policy
                 .RequireAuthenticatedUser()
                 .RequireRole(SecurityRoles.Attendant)
-                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, MustChangePasswordFalseValue));
 
         authorizationBuilder.AddPolicy(
             SecurityPolicies.ActiveCustomer,
             policy => policy
                 .RequireAuthenticatedUser()
                 .RequireRole(SecurityRoles.Customer)
-                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, MustChangePasswordFalseValue));
 
         authorizationBuilder.AddPolicy(
             SecurityPolicies.ActiveStaff,
             policy => policy
                 .RequireAuthenticatedUser()
                 .RequireRole(SecurityRoles.Admin, SecurityRoles.Attendant)
-                .RequireClaim(SecurityClaimTypes.MustChangePassword, "false"));
+                .RequireClaim(SecurityClaimTypes.MustChangePassword, MustChangePasswordFalseValue));
 
         return builder;
     }
