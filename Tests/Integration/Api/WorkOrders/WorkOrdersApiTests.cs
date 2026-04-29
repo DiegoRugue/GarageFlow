@@ -298,6 +298,12 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             content: null);
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.NotFound);
+
+        var targetDetailsResponse = await staffClient.GetAsync($"/work-orders/{secondWorkOrder.Id}");
+        HttpResponseAssertions.AssertStatus(targetDetailsResponse, HttpStatusCode.OK);
+        var targetDetails = await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(targetDetailsResponse);
+        Assert.Equal("WaitingApproval", targetDetails.Status);
+        Assert.Contains(targetDetails.Estimates, estimate => estimate.Id == secondEstimate.Id && estimate.Status == "Pending");
     }
 
     [Fact]
@@ -395,6 +401,21 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var listResponse = await customerClient.GetAsync("/me/work-orders?page=1&pageSize=20");
         HttpResponseAssertions.AssertStatus(listResponse, HttpStatusCode.OK);
         var listBody = await listResponse.Content.ReadAsStringAsync();
+
+        using var listJson = JsonDocument.Parse(listBody);
+        var listItems = listJson.RootElement.GetProperty("items");
+        var matchingWorkOrder = listItems
+            .EnumerateArray()
+            .Single(item => item.GetProperty("id").GetGuid() == createdWorkOrder.Id);
+        var matchingEstimate = matchingWorkOrder
+            .GetProperty("estimates")
+            .EnumerateArray()
+            .Single(item => item.GetProperty("id").GetGuid() == createdEstimate.Id);
+        _ = matchingEstimate
+            .GetProperty("inventoryLines")
+            .EnumerateArray()
+            .Single(item => item.GetProperty("inventoryItemId").GetGuid() == inventoryItem.Id);
+
         AssertDoesNotExposeCostFields(listBody);
 
         var detailsResponse = await customerClient.GetAsync($"/me/work-orders/{createdWorkOrder.Id}");
