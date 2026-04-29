@@ -149,10 +149,17 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             customerUser.BirthDate,
             "Customer.UnitCost.Active#123");
 
-        var response = await customerClient.GetAsync($"/me/work-orders/{createdWorkOrder.Id}");
-        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        var listResponse = await customerClient.GetAsync("/me/work-orders?page=1&pageSize=20");
+        HttpResponseAssertions.AssertStatus(listResponse, HttpStatusCode.OK);
+        var listBody = await listResponse.Content.ReadAsStringAsync();
+        AssertDoesNotExposeCostFields(listBody);
 
-        await using var bodyStream = await response.Content.ReadAsStreamAsync();
+        var detailsResponse = await customerClient.GetAsync($"/me/work-orders/{createdWorkOrder.Id}");
+        HttpResponseAssertions.AssertStatus(detailsResponse, HttpStatusCode.OK);
+        var detailsBody = await detailsResponse.Content.ReadAsStringAsync();
+        AssertDoesNotExposeCostFields(detailsBody);
+
+        await using var bodyStream = await detailsResponse.Content.ReadAsStreamAsync();
         using var json = await JsonDocument.ParseAsync(bodyStream);
         var inventoryLine = json.RootElement
             .GetProperty("estimates")[0]
@@ -242,6 +249,13 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var response = await client.PostAsJsonAsync("/inventory-items", request);
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Created);
         return await HttpResponseAssertions.ReadRequiredJsonAsync<InventoryItemResponse>(response);
+    }
+
+    private static void AssertDoesNotExposeCostFields(string body)
+    {
+        Assert.DoesNotContain("unitCost", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("totalCost", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"cost\"", body, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record CreateWorkOrderResponse(
