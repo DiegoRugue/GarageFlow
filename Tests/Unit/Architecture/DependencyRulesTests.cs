@@ -1,6 +1,6 @@
-using NetArchTest.Rules;
 using System.Reflection;
 using System.Runtime.Loader;
+using NetArchTest.Rules;
 
 namespace GarageFlow.Tests.Unit.Architecture;
 

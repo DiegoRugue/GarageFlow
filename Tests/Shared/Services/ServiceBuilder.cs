@@ -1,5 +1,5 @@
-using GarageFlow.Domain.Services.Entities;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Services.Entities;
 
 namespace GarageFlow.Tests.Shared.Services;
 

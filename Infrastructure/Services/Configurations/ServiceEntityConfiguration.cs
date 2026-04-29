@@ -1,6 +1,6 @@
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.ValueObjects;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

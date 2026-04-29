@@ -1,6 +1,6 @@
 using GarageFlow.BuildingBlocks.Domain.Entities;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Domain.Interfaces;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Services.Events;
 using GarageFlow.Domain.Services.ValueObjects;
 

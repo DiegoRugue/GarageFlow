@@ -86,23 +86,23 @@ public sealed class VehicleRepository(GarageFlowDbContext dbContext) : IVehicleR
     private IQueryable<VehicleDetailsReadModel> CreateVehicleDetailsQuery()
     {
         return from vehicle in _dbContext.Vehicles.AsNoTracking()
-            join brand in _dbContext.VehicleBrands.AsNoTracking() on vehicle.VehicleBrandId equals brand.Id
-            join model in _dbContext.VehicleModels.AsNoTracking()
-                on new { vehicle.VehicleModelId, vehicle.VehicleBrandId }
-                equals new { VehicleModelId = model.Id, model.VehicleBrandId }
-            join color in _dbContext.VehicleColors.AsNoTracking() on vehicle.VehicleColorId equals color.Id
-            select new VehicleDetailsReadModel(
-                vehicle.Id.Value,
-                vehicle.CustomerId.Value,
-                vehicle.Year.Value,
-                vehicle.VehicleBrandId.Value,
-                EF.Property<string>(brand, nameof(VehicleBrand.Name)),
-                vehicle.VehicleModelId.Value,
-                EF.Property<string>(model, nameof(VehicleModel.Name)),
-                vehicle.VehicleColorId.Value,
-                EF.Property<string>(color, nameof(VehicleColor.Name)),
-                vehicle.LicensePlate.Value,
-                vehicle.CreatedAt);
+               join brand in _dbContext.VehicleBrands.AsNoTracking() on vehicle.VehicleBrandId equals brand.Id
+               join model in _dbContext.VehicleModels.AsNoTracking()
+                   on new { vehicle.VehicleModelId, vehicle.VehicleBrandId }
+                   equals new { VehicleModelId = model.Id, model.VehicleBrandId }
+               join color in _dbContext.VehicleColors.AsNoTracking() on vehicle.VehicleColorId equals color.Id
+               select new VehicleDetailsReadModel(
+                   vehicle.Id.Value,
+                   vehicle.CustomerId.Value,
+                   vehicle.Year.Value,
+                   vehicle.VehicleBrandId.Value,
+                   EF.Property<string>(brand, nameof(VehicleBrand.Name)),
+                   vehicle.VehicleModelId.Value,
+                   EF.Property<string>(model, nameof(VehicleModel.Name)),
+                   vehicle.VehicleColorId.Value,
+                   EF.Property<string>(color, nameof(VehicleColor.Name)),
+                   vehicle.LicensePlate.Value,
+                   vehicle.CreatedAt);
     }
 
     public Task AddAsync(Vehicle vehicle, CancellationToken cancellationToken = default)

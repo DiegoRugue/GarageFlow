@@ -1,12 +1,12 @@
-using Microsoft.AspNetCore.Hosting;
+using System.Globalization;
+using System.Text;
+using GarageFlow.Tests.Integration.Support.Helpers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using GarageFlow.Tests.Integration.Support.Helpers;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using System.Globalization;
 
 namespace GarageFlow.Tests.Integration.Support.Factories;
 

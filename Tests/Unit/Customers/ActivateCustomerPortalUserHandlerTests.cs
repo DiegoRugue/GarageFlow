@@ -1,5 +1,5 @@
-using GarageFlow.Application.Customers.ActivateCustomerPortalUser;
 using GarageFlow.Application.Auth.Abstractions;
+using GarageFlow.Application.Customers.ActivateCustomerPortalUser;
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Persistence;

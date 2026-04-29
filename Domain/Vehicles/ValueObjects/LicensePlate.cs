@@ -1,6 +1,6 @@
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using System.Text;
 using System.Text.RegularExpressions;
+using GarageFlow.BuildingBlocks.Domain.Exceptions;
 
 namespace GarageFlow.Domain.Vehicles.ValueObjects;
 
