@@ -8,12 +8,14 @@ using GarageFlow.Tests.Integration.Api.Customers.Contracts;
 using GarageFlow.Tests.Integration.Api.InventoryItems.Contracts;
 using GarageFlow.Tests.Integration.Api.Users.Contracts;
 using GarageFlow.Tests.Integration.Api.Vehicles.Contracts;
+using GarageFlow.Tests.Integration.Api.WorkOrders.Contracts;
 using GarageFlow.Tests.Integration.Support.Fixtures;
 using GarageFlow.Tests.Integration.Support.Helpers;
 using GarageFlow.Tests.Integration.Support.Seed;
 using GarageFlow.Tests.Shared.InventoryItems;
 using GarageFlow.Tests.Shared.Users;
 using GarageFlow.Tests.Shared.Vehicles;
+using GarageFlow.Tests.Shared.WorkOrders;
 
 namespace GarageFlow.Tests.Integration.Api.WorkOrders;
 
@@ -99,7 +101,7 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
 
         var myListResponse = await customerClient.GetAsync("/me/work-orders?page=1&pageSize=20");
         HttpResponseAssertions.AssertStatus(myListResponse, HttpStatusCode.OK);
-        var myListPayload = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<WorkOrderDetailsResponse>>(myListResponse);
+        var myListPayload = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<CustomerWorkOrderDetailsResponse>>(myListResponse);
         Assert.Contains(myListPayload.Items, item => item.Id == created.Id);
 
         var staffRouteResponse = await customerClient.GetAsync("/work-orders?page=1&pageSize=20");
@@ -242,8 +244,6 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         return await HttpResponseAssertions.ReadRequiredJsonAsync<InventoryItemResponse>(response);
     }
 
-    private sealed record CreateWorkOrderRequest(Guid CustomerId, Guid VehicleId);
-
     private sealed record CreateWorkOrderResponse(
         Guid Id,
         Guid CustomerId,
@@ -257,14 +257,4 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         string Status,
         decimal TotalAmount,
         DateTime CreatedAt);
-
-    private sealed record AddEstimateInventoryItemRequest(Guid InventoryItemId, int Quantity);
-
-    private sealed record WorkOrderDetailsResponse(
-        Guid Id,
-        Guid CustomerId,
-        Guid VehicleId,
-        string Status,
-        DateTime CreatedAt,
-        DateTime UpdatedAt);
 }
