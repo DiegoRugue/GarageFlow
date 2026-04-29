@@ -35,7 +35,7 @@ public sealed class ApproveMyEstimateHandler(
 
         try
         {
-            var workOrder = await _workOrderRepository.GetByIdForEstimateApprovalAsync(workOrderId, cancellationToken);
+            var workOrder = await _workOrderRepository.GetByIdForEstimateMutationAsync(workOrderId, cancellationToken);
             if (workOrder is null)
             {
                 throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");

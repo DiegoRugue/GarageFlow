@@ -16,16 +16,16 @@ public sealed class CreateEstimateHandler(
     public async ValueTask<CreateEstimateResult> Handle(CreateEstimateCommand request, CancellationToken cancellationToken)
     {
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
-        var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
-        if (workOrder is null)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
-
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try
         {
+            var workOrder = await _workOrderRepository.GetByIdForEstimateMutationAsync(workOrderId, cancellationToken);
+            if (workOrder is null)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
             var estimate = workOrder.CreateEstimate();
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 

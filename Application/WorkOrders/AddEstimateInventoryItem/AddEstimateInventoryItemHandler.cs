@@ -24,23 +24,24 @@ public sealed class AddEstimateInventoryItemHandler(
         var inventoryItemId = InventoryItemId.From(request.InventoryItemId);
         var quantity = EstimateItemQuantity.Create(request.Quantity);
 
-        var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
-        if (workOrder is null)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
-
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try
         {
+            var workOrder = await _workOrderRepository.GetByIdForEstimateMutationAsync(workOrderId, cancellationToken);
+            if (workOrder is null)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
+            workOrder.EnsureEstimateCanBeEdited(estimateId);
+
             var inventoryItem = await _inventoryItemRepository.GetByIdForStockReservationAsync(inventoryItemId, cancellationToken);
             if (inventoryItem is null)
             {
                 throw new NotFoundException($"Inventory item with ID '{request.InventoryItemId}' was not found.");
             }
 
-            workOrder.EnsureEstimateCanBeEdited(estimateId);
             inventoryItem.DecreaseStock(quantity.Value);
             workOrder.AddInventoryLine(
                 estimateId,

@@ -17,7 +17,7 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
             .FirstOrDefaultAsync(workOrder => workOrder.Id == id, cancellationToken);
     }
 
-    public async Task<WorkOrder?> GetByIdForEstimateApprovalAsync(WorkOrderId id, CancellationToken cancellationToken = default)
+    public async Task<WorkOrder?> GetByIdForEstimateMutationAsync(WorkOrderId id, CancellationToken cancellationToken = default)
     {
         if (!_dbContext.Database.IsRelational() || !_dbContext.Database.IsNpgsql())
         {

@@ -34,25 +34,25 @@ public sealed class RejectMyEstimateHandler(
 
         var customerId = GetRequiredCustomerId(user);
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
-        var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
-        if (workOrder is null)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
-
-        if (workOrder.CustomerId != customerId)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
-
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try
         {
+            var workOrder = await _workOrderRepository.GetByIdForEstimateMutationAsync(workOrderId, cancellationToken);
+            if (workOrder is null)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
+            if (workOrder.CustomerId != customerId)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
             var rejectedEstimate = workOrder.RejectEstimate(EstimateId.From(request.EstimateId));
             foreach (var line in rejectedEstimate.InventoryLines)
             {
-                var inventoryItem = await _inventoryItemRepository.GetByIdAsync(line.InventoryItemId, cancellationToken);
+                var inventoryItem = await _inventoryItemRepository.GetByIdForStockReservationAsync(line.InventoryItemId, cancellationToken);
                 if (inventoryItem is null)
                 {
                     throw new NotFoundException($"Inventory item with ID '{line.InventoryItemId.Value}' was not found.");

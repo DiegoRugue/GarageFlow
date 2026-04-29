@@ -20,24 +20,26 @@ public sealed class AddEstimateServiceHandler(
     public async ValueTask<AddEstimateServiceResult> Handle(AddEstimateServiceCommand request, CancellationToken cancellationToken)
     {
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
-        var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
-        if (workOrder is null)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
-
+        var estimateId = EstimateId.From(request.EstimateId);
         var serviceId = ServiceId.From(request.ServiceId);
-        var service = await _serviceRepository.GetByIdAsync(serviceId, cancellationToken);
-        if (service is null)
-        {
-            throw new NotFoundException($"Service with ID '{request.ServiceId}' was not found.");
-        }
-
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            var estimateId = EstimateId.From(request.EstimateId);
+            var workOrder = await _workOrderRepository.GetByIdForEstimateMutationAsync(workOrderId, cancellationToken);
+            if (workOrder is null)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
+            workOrder.EnsureEstimateCanBeEdited(estimateId);
+
+            var service = await _serviceRepository.GetByIdAsync(serviceId, cancellationToken);
+            if (service is null)
+            {
+                throw new NotFoundException($"Service with ID '{request.ServiceId}' was not found.");
+            }
+
             workOrder.AddServiceLine(
                 estimateId,
                 service.Id,
