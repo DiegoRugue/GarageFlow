@@ -466,6 +466,43 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
+    public async Task SubmitEstimate_ShouldBeginTransactionBeforeLoadingWorkOrderForEstimateMutation()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var sequence = new MockSequence();
+
+        unitOfWorkMock
+            .InSequence(sequence)
+            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        workOrderRepositoryMock
+            .InSequence(sequence)
+            .Setup(x => x.GetByIdForEstimateMutationAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workOrder);
+
+        unitOfWorkMock
+            .InSequence(sequence)
+            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var handler = new SubmitEstimateHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+
+        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
+
+        workOrderRepositoryMock.Verify(
+            x => x.GetByIdForEstimateMutationAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        workOrderRepositoryMock.Verify(
+            x => x.GetByIdAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task StartDiagnosis_ShouldTransitionToDiagnosing_WhenWorkOrderIsCreated()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
