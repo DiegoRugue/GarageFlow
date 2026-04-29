@@ -8,6 +8,8 @@ public interface IWorkOrderRepository
 {
     Task<WorkOrder?> GetByIdAsync(WorkOrderId id, CancellationToken cancellationToken = default);
 
+    Task<WorkOrder?> GetByIdForEstimateApprovalAsync(WorkOrderId id, CancellationToken cancellationToken = default);
+
     Task<WorkOrderDetailsReadModel?> GetDetailsByIdAsync(
         WorkOrderId id,
         CancellationToken cancellationToken = default);

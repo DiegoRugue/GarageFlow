@@ -48,7 +48,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public Estimate CreateEstimate()
     {
-        EnsureNotFinalizedForContentChanges();
+        EnsureWorkOrderAllowsEstimateContentChanges();
 
         var estimate = Estimate.Create(Id);
         _estimates.Add(estimate);
@@ -63,6 +63,11 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         return estimate;
     }
 
+    public void EnsureEstimateCanBeEdited(EstimateId estimateId)
+    {
+        _ = GetEditableEstimateOrThrow(estimateId);
+    }
+
     public void AddInventoryLine(
         EstimateId estimateId,
         InventoryItemId inventoryItemId,
@@ -71,9 +76,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         Price unitCost,
         Price unitPrice)
     {
-        EnsureNotFinalizedForContentChanges();
-
-        var estimate = GetEstimateOrThrow(estimateId);
+        var estimate = GetEditableEstimateOrThrow(estimateId);
         var line = estimate.AddInventoryLine(
             inventoryItemId,
             description,
@@ -100,9 +103,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         Description description,
         Price unitPrice)
     {
-        EnsureNotFinalizedForContentChanges();
-
-        var estimate = GetEstimateOrThrow(estimateId);
+        var estimate = GetEditableEstimateOrThrow(estimateId);
         var line = estimate.AddServiceLine(serviceId, description, unitPrice);
 
         UpdatedAt = DateTime.UtcNow;
@@ -232,6 +233,32 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         }
 
         return estimate;
+    }
+
+    private Estimate GetEditableEstimateOrThrow(EstimateId estimateId)
+    {
+        EnsureWorkOrderAllowsEstimateContentChanges();
+
+        var estimate = GetEstimateOrThrow(estimateId);
+        if (estimate.Status != EstimateStatus.Draft)
+        {
+            throw new BusinessRuleViolationException("Only draft estimates can be edited.");
+        }
+
+        return estimate;
+    }
+
+    private void EnsureWorkOrderAllowsEstimateContentChanges()
+    {
+        if (Status is WorkOrderStatus.Completed or WorkOrderStatus.Delivered or WorkOrderStatus.Cancelled)
+        {
+            throw new BusinessRuleViolationException("Finalized work orders cannot be changed.");
+        }
+
+        if (Status is WorkOrderStatus.Approved or WorkOrderStatus.InProgress)
+        {
+            throw new BusinessRuleViolationException("Approved or in-progress work orders cannot be changed.");
+        }
     }
 
     private void EnsureNotFinalizedForContentChanges()

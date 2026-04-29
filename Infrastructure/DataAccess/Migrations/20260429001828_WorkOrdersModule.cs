@@ -134,6 +134,13 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                 columns: WorkOrderStatusIndexColumns);
 
             migrationBuilder.CreateIndex(
+                name: "UX_WorkOrderEstimates_WorkOrderId_Approved",
+                table: "WorkOrderEstimates",
+                column: "WorkOrderId",
+                unique: true,
+                filter: "\"Status\" = 'Approved'");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_WorkOrderEstimateServiceLines_EstimateId",
                 table: "WorkOrderEstimateServiceLines",
                 column: "EstimateId");

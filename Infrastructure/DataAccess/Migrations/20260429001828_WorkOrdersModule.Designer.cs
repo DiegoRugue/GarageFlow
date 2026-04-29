@@ -328,6 +328,11 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
 
                     b.HasIndex("WorkOrderId", "Status");
 
+                    b.HasIndex("WorkOrderId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Approved'")
+                        .HasDatabaseName("UX_WorkOrderEstimates_WorkOrderId_Approved");
+
                     b.ToTable("WorkOrderEstimates", (string)null);
                 });
 

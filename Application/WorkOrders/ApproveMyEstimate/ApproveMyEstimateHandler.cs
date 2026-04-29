@@ -31,21 +31,21 @@ public sealed class ApproveMyEstimateHandler(
 
         var customerId = GetRequiredCustomerId(user);
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
-        var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
-        if (workOrder is null)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
-
-        if (workOrder.CustomerId != customerId)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
-
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try
         {
+            var workOrder = await _workOrderRepository.GetByIdForEstimateApprovalAsync(workOrderId, cancellationToken);
+            if (workOrder is null)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
+            if (workOrder.CustomerId != customerId)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
             workOrder.ApproveEstimate(EstimateId.From(request.EstimateId));
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
             return Unit.Value;

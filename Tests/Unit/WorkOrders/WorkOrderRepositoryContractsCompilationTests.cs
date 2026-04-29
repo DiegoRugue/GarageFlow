@@ -12,6 +12,8 @@ public class WorkOrderRepositoryContractsCompilationTests
     {
         Signature<Func<IWorkOrderRepository, WorkOrderId, CancellationToken, Task<WorkOrder?>>>(
             (repository, id, cancellationToken) => repository.GetByIdAsync(id, cancellationToken));
+        Signature<Func<IWorkOrderRepository, WorkOrderId, CancellationToken, Task<WorkOrder?>>>(
+            (repository, id, cancellationToken) => repository.GetByIdForEstimateApprovalAsync(id, cancellationToken));
         Signature<Func<IWorkOrderRepository, WorkOrderId, CancellationToken, Task<WorkOrderDetailsReadModel?>>>(
             (repository, id, cancellationToken) => repository.GetDetailsByIdAsync(id, cancellationToken));
         Signature<Func<IWorkOrderRepository, WorkOrderId, CustomerId, CancellationToken, Task<WorkOrderDetailsReadModel?>>>(

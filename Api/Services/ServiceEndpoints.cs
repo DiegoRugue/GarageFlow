@@ -12,7 +12,7 @@ public static class ServiceEndpoints
     public static IEndpointRouteBuilder MapServiceEndpoints(this IEndpointRouteBuilder app)
     {
         var protectedServiceRoutes = app.MapGroup(string.Empty)
-            .RequireAuthorization(SecurityPolicies.ActiveUser);
+            .RequireAuthorization(SecurityPolicies.ActiveStaff);
 
         protectedServiceRoutes.MapCreateServiceEndpoint();
         protectedServiceRoutes.MapGetServiceByIdEndpoint();
@@ -22,4 +22,3 @@ public static class ServiceEndpoints
         return app;
     }
 }
-

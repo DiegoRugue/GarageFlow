@@ -17,6 +17,20 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
             .FirstOrDefaultAsync(workOrder => workOrder.Id == id, cancellationToken);
     }
 
+    public async Task<WorkOrder?> GetByIdForEstimateApprovalAsync(WorkOrderId id, CancellationToken cancellationToken = default)
+    {
+        if (!_dbContext.Database.IsRelational() || !_dbContext.Database.IsNpgsql())
+        {
+            return await GetByIdAsync(id, cancellationToken);
+        }
+
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "WorkOrders" WHERE "Id" = {id.Value} FOR UPDATE""",
+            cancellationToken);
+
+        return await GetByIdAsync(id, cancellationToken);
+    }
+
     public async Task<WorkOrderDetailsReadModel?> GetDetailsByIdAsync(
         WorkOrderId id,
         CancellationToken cancellationToken = default)

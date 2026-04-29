@@ -1,9 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
+using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Users.Entities;
+using GarageFlow.Tests.Integration.Api.Auth.Contracts;
+using GarageFlow.Tests.Integration.Api.Customers.Contracts;
 using GarageFlow.Tests.Integration.Api.Vehicles.Contracts;
 using GarageFlow.Tests.Integration.Support.Fixtures;
 using GarageFlow.Tests.Integration.Support.Helpers;
 using GarageFlow.Tests.Integration.Support.Seed;
+using GarageFlow.Tests.Shared.Users;
 using GarageFlow.Tests.Shared.Vehicles;
 
 namespace GarageFlow.Tests.Integration.Api.Vehicles;
@@ -20,6 +25,39 @@ public class VehiclesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
         var response = await client.GetAsync("/vehicles?page=1&pageSize=10");
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task ActiveCustomer_ShouldReceive403_WhenListingVehicles()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var uniqueToken = Guid.NewGuid().ToString("N");
+        var customerRequest = CustomerSeed.CreateUniqueBuilder()
+            .WithFullName("Vehicles Policy Customer")
+            .WithEmail($"vehicles.policy.{uniqueToken}@example.com")
+            .WithPhoneNumber("11900020002")
+            .BuildCreateRequest();
+
+        var createCustomerResponse = await client.PostAsJsonAsync("/customers", customerRequest);
+        HttpResponseAssertions.AssertStatus(createCustomerResponse, HttpStatusCode.Created);
+        var createdCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<CustomerResponse>(createCustomerResponse);
+
+        var activatePortalResponse = await client.PostAsJsonAsync(
+            $"/customers/{createdCustomer.Id}/portal-user",
+            new ActivateCustomerPortalUserRequest(new DateOnly(1991, 4, 15)));
+        HttpResponseAssertions.AssertStatus(activatePortalResponse, HttpStatusCode.Created);
+        var customerUser = await HttpResponseAssertions.ReadRequiredJsonAsync<ActivateCustomerPortalUserResponse>(activatePortalResponse);
+
+        await AuthenticateCustomerPortalUserAsActiveAsync(
+            client,
+            customerUser.Email,
+            customerUser.FullName,
+            customerUser.BirthDate,
+            "Customer.Policy.Vehicles#123");
+
+        var forbiddenResponse = await client.GetAsync("/vehicles?page=1&pageSize=10");
+
+        HttpResponseAssertions.AssertStatus(forbiddenResponse, HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -150,5 +188,27 @@ public class VehiclesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
             filterPayload.Items,
             vehicle => vehicle.Id == secondCustomerVehicle.VehicleId);
     }
-}
 
+    private static async Task<LoginResponse> AuthenticateCustomerPortalUserAsActiveAsync(
+        HttpClient client,
+        string email,
+        string fullName,
+        DateOnly birthDate,
+        string newPassword)
+    {
+        var initialPassword = User.GenerateInitialPassword(FullName.Create(fullName), birthDate);
+        var firstLogin = await client.LoginAndAttachBearerTokenAsync(email, initialPassword);
+        Assert.True(firstLogin.MustChangePassword);
+
+        var changePasswordResponse = await client.PutAsJsonAsync(
+            "/users/me/password",
+            new ChangeMyPasswordRequest(
+                CurrentPassword: initialPassword,
+                NewPassword: newPassword));
+        HttpResponseAssertions.AssertStatus(changePasswordResponse, HttpStatusCode.NoContent);
+
+        var activeLogin = await client.LoginAndAttachBearerTokenAsync(email, newPassword);
+        Assert.False(activeLogin.MustChangePassword);
+        return activeLogin;
+    }
+}

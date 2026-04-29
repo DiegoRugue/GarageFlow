@@ -38,6 +38,11 @@ public sealed class EstimateEntityConfiguration : IEntityTypeConfiguration<Estim
 
         builder.HasIndex(estimate => new { estimate.WorkOrderId, estimate.Status });
 
+        builder.HasIndex(estimate => estimate.WorkOrderId)
+            .HasDatabaseName("UX_WorkOrderEstimates_WorkOrderId_Approved")
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Approved'");
+
         builder.HasMany(estimate => estimate.InventoryLines)
             .WithOne()
             .HasForeignKey(line => line.EstimateId)

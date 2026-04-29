@@ -29,6 +29,39 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
     }
 
     [Fact]
+    public async Task ActiveCustomer_ShouldReceive403_WhenListingCustomers()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var uniqueToken = Guid.NewGuid().ToString("N");
+        var customerRequest = CustomerSeed.CreateUniqueBuilder()
+            .WithFullName("Customers Policy Customer")
+            .WithEmail($"customers.policy.{uniqueToken}@example.com")
+            .WithPhoneNumber("11900010001")
+            .BuildCreateRequest();
+
+        var createCustomerResponse = await client.PostAsJsonAsync("/customers", customerRequest);
+        HttpResponseAssertions.AssertStatus(createCustomerResponse, HttpStatusCode.Created);
+        var createdCustomer = await HttpResponseAssertions.ReadRequiredJsonAsync<CustomerResponse>(createCustomerResponse);
+
+        var activatePortalResponse = await client.PostAsJsonAsync(
+            $"/customers/{createdCustomer.Id}/portal-user",
+            new ActivateCustomerPortalUserRequest(new DateOnly(1990, 3, 14)));
+        HttpResponseAssertions.AssertStatus(activatePortalResponse, HttpStatusCode.Created);
+        var createdCustomerUser = await HttpResponseAssertions.ReadRequiredJsonAsync<ActivateCustomerPortalUserResponse>(activatePortalResponse);
+
+        await AuthenticateCustomerPortalUserAsActiveAsync(
+            client,
+            createdCustomerUser.Email,
+            createdCustomerUser.FullName,
+            createdCustomerUser.BirthDate,
+            "Customer.Policy.Customers#123");
+
+        var forbiddenResponse = await client.GetAsync("/customers?page=1&pageSize=20");
+
+        HttpResponseAssertions.AssertStatus(forbiddenResponse, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task PostCustomer_ShouldReturn201_WhenRequestIsValid()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
@@ -306,4 +339,3 @@ public class CustomersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gar
         return activeLogin;
     }
 }
-

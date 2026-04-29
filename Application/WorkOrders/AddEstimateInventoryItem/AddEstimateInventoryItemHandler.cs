@@ -40,6 +40,7 @@ public sealed class AddEstimateInventoryItemHandler(
                 throw new NotFoundException($"Inventory item with ID '{request.InventoryItemId}' was not found.");
             }
 
+            workOrder.EnsureEstimateCanBeEdited(estimateId);
             inventoryItem.DecreaseStock(quantity.Value);
             workOrder.AddInventoryLine(
                 estimateId,

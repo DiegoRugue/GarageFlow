@@ -13,7 +13,7 @@ public static class CustomerEndpoints
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
         var protectedCustomerRoutes = app.MapGroup(string.Empty)
-            .RequireAuthorization(SecurityPolicies.ActiveUser);
+            .RequireAuthorization(SecurityPolicies.ActiveStaff);
 
         protectedCustomerRoutes.MapCreateCustomerEndpoint();
         protectedCustomerRoutes.MapActivateCustomerPortalUserEndpoint();

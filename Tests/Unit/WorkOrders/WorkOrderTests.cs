@@ -177,6 +177,27 @@ public class WorkOrderTests
     }
 
     [Fact]
+    public void CreateEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsApproved()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.CreateEstimate());
+
+        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+    }
+
+    [Fact]
+    public void CreateEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgress()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        workOrder.StartWork();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.CreateEstimate());
+
+        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+    }
+
+    [Fact]
     public void ApproveEstimate_ShouldThrowBusinessRuleViolationException_WhenEstimateIsRejected()
     {
         var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
@@ -211,7 +232,7 @@ public class WorkOrderTests
             Description.Create("Additional labor"),
             Price.Create(30.00m)));
 
-        Assert.Equal("Only draft estimates can be edited.", exception.Message);
+        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
@@ -291,6 +312,57 @@ public class WorkOrderTests
             Price.Create(20.00m)));
 
         Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+    }
+
+    [Fact]
+    public void AddInventoryLine_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsApproved()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimateId = workOrder.Estimates.Single().Id;
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.AddInventoryLine(
+            estimateId,
+            InventoryItemId.New(),
+            Description.Create("Approved status line"),
+            EstimateItemQuantity.Create(1),
+            Price.Create(10.00m),
+            Price.Create(20.00m)));
+
+        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+    }
+
+    [Fact]
+    public void AddInventoryLine_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgress()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        workOrder.StartWork();
+        var estimateId = workOrder.Estimates.Single().Id;
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.AddInventoryLine(
+            estimateId,
+            InventoryItemId.New(),
+            Description.Create("In-progress status line"),
+            EstimateItemQuantity.Create(1),
+            Price.Create(10.00m),
+            Price.Create(20.00m)));
+
+        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+    }
+
+    [Fact]
+    public void AddServiceLine_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgress()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        workOrder.StartWork();
+        var estimateId = workOrder.Estimates.Single().Id;
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.AddServiceLine(
+            estimateId,
+            ServiceId.New(),
+            Description.Create("In-progress additional labor"),
+            Price.Create(30.00m)));
+
+        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
@@ -383,9 +455,14 @@ public class WorkOrderTests
     [Fact]
     public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsApproved_AndKeepEstimateDraft()
     {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var approvedEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.ApproveEstimate(approvedEstimate.Id);
         var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
@@ -399,9 +476,14 @@ public class WorkOrderTests
     [Fact]
     public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsCompleted_AndKeepEstimateDraft()
     {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var approvedEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.ApproveEstimate(approvedEstimate.Id);
         workOrder.StartWork();
         workOrder.Complete();
         var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
@@ -417,9 +499,14 @@ public class WorkOrderTests
     [Fact]
     public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsDelivered_AndKeepEstimateDraft()
     {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var approvedEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        workOrder.ApproveEstimate(approvedEstimate.Id);
         workOrder.StartWork();
         workOrder.Complete();
         workOrder.Deliver();

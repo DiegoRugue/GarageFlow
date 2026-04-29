@@ -15,7 +15,7 @@ public static class VehicleEndpoints
     public static IEndpointRouteBuilder MapVehicleEndpoints(this IEndpointRouteBuilder app)
     {
         var protectedVehicleRoutes = app.MapGroup(string.Empty)
-            .RequireAuthorization(SecurityPolicies.ActiveUser);
+            .RequireAuthorization(SecurityPolicies.ActiveStaff);
 
         protectedVehicleRoutes.MapCreateVehicleEndpoint();
         protectedVehicleRoutes.MapGetVehicleByIdEndpoint();
