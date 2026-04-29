@@ -1,4 +1,6 @@
+using GarageFlow.Domain.Customers.Entities;
 using GarageFlow.Domain.Customers.ValueObjects;
+using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
@@ -54,6 +56,16 @@ public sealed class WorkOrderEntityConfiguration : IEntityTypeConfiguration<Work
 
         builder.HasIndex(workOrder => workOrder.CustomerId);
         builder.HasIndex(workOrder => workOrder.VehicleId);
+
+        builder.HasOne<Customer>()
+            .WithMany()
+            .HasForeignKey(workOrder => workOrder.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Vehicle>()
+            .WithMany()
+            .HasForeignKey(workOrder => workOrder.VehicleId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Ignore(workOrder => workOrder.DomainEvents);
     }

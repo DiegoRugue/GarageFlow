@@ -477,6 +477,21 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.WorkOrder", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.Customers.Entities.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GarageFlow.Domain.Vehicles.Entities.Vehicle", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.Estimate", b =>
                 {
                     b.HasOne("GarageFlow.Domain.WorkOrders.Entities.WorkOrder", null)
