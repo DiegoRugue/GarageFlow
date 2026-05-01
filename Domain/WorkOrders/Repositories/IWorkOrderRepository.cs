@@ -31,5 +31,10 @@ public interface IWorkOrderRepository
         CustomerId customerId,
         CancellationToken cancellationToken = default);
 
+    Task<AverageServiceTimeReadModel> GetAverageServiceTimeAsync(
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(WorkOrder workOrder, CancellationToken cancellationToken = default);
 }
