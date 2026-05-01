@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Globalization;
+using System.Reflection;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Api.WorkOrders.GetAverageServiceTime;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Tests.Integration.Api.Customers.Contracts;
@@ -152,6 +154,37 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         Assert.Equal(1, payload.CompletedWorkOrdersCount);
         Assert.NotNull(payload.AverageDurationMinutes);
         Assert.True(payload.AverageDurationMinutes >= 0);
+    }
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldNormalizeOffsetWindowToUtc()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var from = new DateTimeOffset(2026, 5, 1, 3, 0, 0, TimeSpan.FromHours(3));
+        var to = new DateTimeOffset(2026, 5, 1, 4, 0, 0, TimeSpan.FromHours(3));
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
+        Assert.Equal(from.UtcDateTime, payload.From);
+        Assert.Equal(to.UtcDateTime, payload.To);
+        Assert.Equal(DateTimeKind.Utc, payload.From.Kind);
+        Assert.Equal(DateTimeKind.Utc, payload.To.Kind);
+    }
+
+    [Fact]
+    public void AverageServiceTime_EndpointBinding_ShouldUseDateTimeOffsetWindow()
+    {
+        var endpointMethod = typeof(GetAverageServiceTimeEndpoint).GetMethod(
+            "GetAverageServiceTime",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(endpointMethod);
+
+        var parameters = endpointMethod.GetParameters();
+        Assert.Equal(typeof(DateTimeOffset), parameters[0].ParameterType);
+        Assert.Equal(typeof(DateTimeOffset), parameters[1].ParameterType);
     }
 
     [Fact]
@@ -681,12 +714,19 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
 
     private static string CreateAverageServiceTimeUrl(DateTime from, DateTime to)
     {
-        return $"/work-orders/average-service-time?from={FormatUtc(from)}&to={FormatUtc(to)}";
+        return CreateAverageServiceTimeUrl(
+            new DateTimeOffset(from.ToUniversalTime(), TimeSpan.Zero),
+            new DateTimeOffset(to.ToUniversalTime(), TimeSpan.Zero));
     }
 
-    private static string FormatUtc(DateTime value)
+    private static string CreateAverageServiceTimeUrl(DateTimeOffset from, DateTimeOffset to)
     {
-        return value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
+        return $"/work-orders/average-service-time?from={FormatOffset(from)}&to={FormatOffset(to)}";
+    }
+
+    private static string FormatOffset(DateTimeOffset value)
+    {
+        return Uri.EscapeDataString(value.ToString("O", CultureInfo.InvariantCulture));
     }
 
     private static void AssertDoesNotExposeCostFields(string body)

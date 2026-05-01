@@ -21,12 +21,14 @@ public static class GetAverageServiceTimeEndpoint
     }
 
     private static async Task<IResult> GetAverageServiceTime(
-        DateTime from,
-        DateTime to,
+        DateTimeOffset from,
+        DateTimeOffset to,
         IMediator mediator,
         CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new GetAverageServiceTimeQuery(from, to), cancellationToken);
+        var result = await mediator.Send(
+            new GetAverageServiceTimeQuery(from.UtcDateTime, to.UtcDateTime),
+            cancellationToken);
 
         var response = new GetAverageServiceTimeResponse(
             From: result.From,
