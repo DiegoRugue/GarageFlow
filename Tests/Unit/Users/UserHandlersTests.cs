@@ -211,6 +211,28 @@ public class UserHandlersTests
     }
 
     [Fact]
+    public async Task CreateUser_ShouldThrowValidationException_WhenRoleIsCustomer()
+    {
+        var userRepositoryMock = CreateRepositoryMock();
+        var passwordHashServiceMock = new Mock<IPasswordHashService>();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new CreateUserHandler(
+            userRepositoryMock.Object,
+            passwordHashServiceMock.Object,
+            unitOfWorkMock.Object);
+
+        await Assert.ThrowsAsync<ValidationException>(() => handler.Handle(
+            new CreateUserCommand(
+                FullName: "Customer User",
+                Email: "customer.user@example.com",
+                BirthDate: new DateOnly(1990, 1, 1),
+                Role: UserRole.Customer),
+            CancellationToken.None).AsTask());
+
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_ShouldThrowUnauthorizedAccessException_WhenLoginUserDoesNotExist()
     {
         var repositoryMock = CreateRepositoryMock();

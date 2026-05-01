@@ -4,11 +4,13 @@ using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Vehicles.Entities;
+using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Infrastructure.Customers.Configurations;
 using GarageFlow.Infrastructure.InventoryItems.Configurations;
 using GarageFlow.Infrastructure.Services.Configurations;
 using GarageFlow.Infrastructure.Users.Configurations;
 using GarageFlow.Infrastructure.Vehicles.Configurations;
+using GarageFlow.Infrastructure.WorkOrders.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -27,6 +29,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     public DbSet<VehicleBrand> VehicleBrands => Set<VehicleBrand>();
     public DbSet<VehicleModel> VehicleModels => Set<VehicleModel>();
     public DbSet<VehicleColor> VehicleColors => Set<VehicleColor>();
+    public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +41,10 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
         modelBuilder.ApplyConfiguration(new VehicleBrandEntityConfiguration());
         modelBuilder.ApplyConfiguration(new VehicleModelEntityConfiguration());
         modelBuilder.ApplyConfiguration(new VehicleColorEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new WorkOrderEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new EstimateEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new EstimateInventoryLineEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new EstimateServiceLineEntityConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 

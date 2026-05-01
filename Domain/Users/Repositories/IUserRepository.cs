@@ -1,4 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.ValueObjects;
 
@@ -18,6 +19,10 @@ public interface IUserRepository
     Task AddAsync(User user, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsByEmailAsync(Email email, CancellationToken cancellationToken = default);
+
+    Task<User?> GetByCustomerIdAsync(CustomerId customerId, CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsByCustomerIdAsync(CustomerId customerId, CancellationToken cancellationToken = default);
 
     void Remove(User user);
 }

@@ -2,6 +2,7 @@ using GarageFlow.BuildingBlocks.Domain.Entities;
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.Interfaces;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Domain.Users.Events;
 using GarageFlow.Domain.Users.ValueObjects;
@@ -14,6 +15,7 @@ public sealed class User : Entity<UserId>, IAggregateRoot
     public Email Email { get; private set; }
     public UserBirthDate BirthDate { get; private set; }
     public UserRole Role { get; private set; }
+    public CustomerId? CustomerId { get; private set; }
     public string PasswordHash { get; private set; }
     public bool MustChangePassword { get; private set; }
 
@@ -24,12 +26,14 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         UserBirthDate birthDate,
         UserRole role,
         string passwordHash,
-        bool mustChangePassword) : base(id)
+        bool mustChangePassword,
+        CustomerId? customerId = null) : base(id)
     {
         FullName = fullName;
         Email = NormalizeEmail(email);
         BirthDate = EnsureValidBirthDate(birthDate);
         Role = EnsureValidRole(role);
+        CustomerId = EnsureValidCustomerLink(role, customerId);
         PasswordHash = EnsurePasswordHash(passwordHash);
         MustChangePassword = mustChangePassword;
     }
@@ -39,14 +43,16 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         Email email,
         DateOnly birthDate,
         UserRole role,
-        string passwordHash)
+        string passwordHash,
+        CustomerId? customerId = null)
     {
         return Create(
             fullName,
             email,
             UserBirthDate.Create(birthDate),
             role,
-            passwordHash);
+            passwordHash,
+            customerId);
     }
 
     public static User Create(
@@ -54,7 +60,8 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         Email email,
         UserBirthDate birthDate,
         UserRole role,
-        string passwordHash)
+        string passwordHash,
+        CustomerId? customerId = null)
     {
         var user = new User(
             id: UserId.New(),
@@ -63,7 +70,8 @@ public sealed class User : Entity<UserId>, IAggregateRoot
             birthDate: birthDate,
             role: role,
             passwordHash: passwordHash,
-            mustChangePassword: true);
+            mustChangePassword: true,
+            customerId: customerId);
 
         user.RaiseDomainEvent(new UserCreated(
             UserId: user.Id,
@@ -71,6 +79,7 @@ public sealed class User : Entity<UserId>, IAggregateRoot
             Email: user.Email.Value,
             BirthDate: user.BirthDate.Value,
             Role: user.Role,
+            CustomerId: user.CustomerId,
             MustChangePassword: user.MustChangePassword,
             CreatedAt: user.CreatedAt));
 
@@ -152,6 +161,26 @@ public sealed class User : Entity<UserId>, IAggregateRoot
         }
 
         return role;
+    }
+
+    private static CustomerId? EnsureValidCustomerLink(UserRole role, CustomerId? customerId)
+    {
+        if (role == UserRole.Customer && customerId is null)
+        {
+            throw new ValidationException("Customer users must be linked to a customer.");
+        }
+
+        if (role == UserRole.Customer && customerId is CustomerId id && id.Value == Guid.Empty)
+        {
+            throw new ValidationException("Customer users must be linked to a customer.");
+        }
+
+        if (role != UserRole.Customer && customerId is not null)
+        {
+            throw new ValidationException("Only customer users can be linked to a customer.");
+        }
+
+        return customerId;
     }
 
     private static UserBirthDate EnsureValidBirthDate(UserBirthDate birthDate) => UserBirthDate.Create(birthDate.Value);

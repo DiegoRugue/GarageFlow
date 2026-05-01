@@ -1,3 +1,4 @@
+using GarageFlow.Api.Customers.ActivateCustomerPortalUser;
 using GarageFlow.Api.Customers.CreateCustomer;
 using GarageFlow.Api.Customers.DeleteCustomer;
 using GarageFlow.Api.Customers.GetCustomerById;
@@ -12,9 +13,10 @@ public static class CustomerEndpoints
     public static IEndpointRouteBuilder MapCustomerEndpoints(this IEndpointRouteBuilder app)
     {
         var protectedCustomerRoutes = app.MapGroup(string.Empty)
-            .RequireAuthorization(SecurityPolicies.ActiveUser);
+            .RequireAuthorization(SecurityPolicies.ActiveStaff);
 
         protectedCustomerRoutes.MapCreateCustomerEndpoint();
+        protectedCustomerRoutes.MapActivateCustomerPortalUserEndpoint();
         protectedCustomerRoutes.MapGetCustomerByIdEndpoint();
         protectedCustomerRoutes.MapListCustomersEndpoint();
         protectedCustomerRoutes.MapUpdateCustomerEndpoint();

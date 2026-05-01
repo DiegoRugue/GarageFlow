@@ -9,6 +9,10 @@ public interface IInventoryItemRepository
         InventoryItemId id,
         CancellationToken cancellationToken = default);
 
+    Task<InventoryItem?> GetByIdForStockReservationAsync(
+        InventoryItemId id,
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<InventoryItem> Items, int TotalCount)> ListAsync(
         int page,
         int pageSize,

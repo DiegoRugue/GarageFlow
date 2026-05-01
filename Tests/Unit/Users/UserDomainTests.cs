@@ -1,5 +1,6 @@
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Domain.Users.Events;
@@ -143,5 +144,77 @@ public class UserDomainTests
 
         Assert.Equal(user.Id, passwordChanged.UserId);
         Assert.False(passwordChanged.MustChangePassword);
+    }
+
+    [Fact]
+    public void Create_ShouldCreateCustomerUser_WhenCustomerIdIsProvided()
+    {
+        var customerId = CustomerId.New();
+
+        var user = User.Create(
+            FullName.Create("Customer User"),
+            Email.Create("customer.user@example.com"),
+            new DateOnly(1990, 1, 1),
+            UserRole.Customer,
+            "hash",
+            customerId);
+
+        Assert.Equal(UserRole.Customer, user.Role);
+        Assert.Equal(customerId, user.CustomerId);
+    }
+
+    [Fact]
+    public void Create_ShouldThrowValidationException_WhenCustomerRoleHasNoCustomerId()
+    {
+        Assert.Throws<ValidationException>(() => User.Create(
+            FullName.Create("Customer User"),
+            Email.Create("customer.user@example.com"),
+            new DateOnly(1990, 1, 1),
+            UserRole.Customer,
+            "hash"));
+    }
+
+    [Fact]
+    public void Create_ShouldThrowValidationException_WhenStaffRoleHasCustomerId()
+    {
+        Assert.Throws<ValidationException>(() => User.Create(
+            FullName.Create("Staff User"),
+            Email.Create("staff.user@example.com"),
+            new DateOnly(1990, 1, 1),
+            UserRole.Attendant,
+            "hash",
+            CustomerId.New()));
+    }
+
+    [Fact]
+    public void Create_ShouldThrowValidationException_WhenCustomerRoleHasEmptyCustomerId()
+    {
+        Assert.Throws<ValidationException>(() => User.Create(
+            FullName.Create("Customer User"),
+            Email.Create("customer.user@example.com"),
+            new DateOnly(1990, 1, 1),
+            UserRole.Customer,
+            "hash",
+            default(CustomerId)));
+    }
+
+    [Fact]
+    public void Create_ShouldIncludeCustomerIdInUserCreatedDomainEvent_WhenUserIsCustomer()
+    {
+        var customerId = CustomerId.New();
+
+        var user = User.Create(
+            fullName: FullName.Create("Customer Event"),
+            email: Email.Create("customer.event@example.com"),
+            birthDate: new DateOnly(1990, 2, 3),
+            role: UserRole.Customer,
+            passwordHash: "hash-password",
+            customerId: customerId);
+
+        var domainEvent = Assert.Single(user.DomainEvents);
+        var userCreated = Assert.IsType<UserCreated>(domainEvent);
+
+        Assert.Equal(user.Id, userCreated.UserId);
+        Assert.Equal(customerId, userCreated.CustomerId);
     }
 }

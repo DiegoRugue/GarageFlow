@@ -139,6 +139,9 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(254)
@@ -166,6 +169,10 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CustomerId")
+                        .IsUnique()
+                        .HasFilter("\"CustomerId\" IS NOT NULL");
 
                     b.HasIndex("Email")
                         .IsUnique();
@@ -295,6 +302,149 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                     b.ToTable("VehicleModels", (string)null);
                 });
 
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.Estimate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkOrderId", "Status");
+
+                    b.HasIndex("WorkOrderId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Approved'")
+                        .HasDatabaseName("UX_WorkOrderEstimates_WorkOrderId_Approved");
+
+                    b.ToTable("WorkOrderEstimates", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.EstimateInventoryLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DescriptionSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InventoryItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstimateId");
+
+                    b.ToTable("WorkOrderEstimateInventoryLines", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.EstimateServiceLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DescriptionSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstimateId");
+
+                    b.ToTable("WorkOrderEstimateServiceLines", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.WorkOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("WorkOrders", (string)null);
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.Users.Entities.User", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.Customers.Entities.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("GarageFlow.Domain.Vehicles.Entities.Vehicle", b =>
                 {
                     b.HasOne("GarageFlow.Domain.Customers.Entities.Customer", null)
@@ -330,6 +480,60 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
                         .HasForeignKey("VehicleBrandId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.WorkOrder", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.Customers.Entities.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GarageFlow.Domain.Vehicles.Entities.Vehicle", null)
+                        .WithMany()
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.Estimate", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.WorkOrders.Entities.WorkOrder", null)
+                        .WithMany("Estimates")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.EstimateInventoryLine", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.WorkOrders.Entities.Estimate", null)
+                        .WithMany("InventoryLines")
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.EstimateServiceLine", b =>
+                {
+                    b.HasOne("GarageFlow.Domain.WorkOrders.Entities.Estimate", null)
+                        .WithMany("ServiceLines")
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.Estimate", b =>
+                {
+                    b.Navigation("InventoryLines");
+
+                    b.Navigation("ServiceLines");
+                });
+
+            modelBuilder.Entity("GarageFlow.Domain.WorkOrders.Entities.WorkOrder", b =>
+                {
+                    b.Navigation("Estimates");
                 });
 #pragma warning restore 612, 618
         }

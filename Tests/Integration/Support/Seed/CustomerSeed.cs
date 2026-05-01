@@ -1,6 +1,6 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
-using System.Globalization;
 using GarageFlow.Tests.Shared.Customers;
 
 namespace GarageFlow.Tests.Integration.Support.Seed;

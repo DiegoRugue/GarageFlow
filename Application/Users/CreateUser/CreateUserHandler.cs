@@ -3,6 +3,7 @@ using GarageFlow.BuildingBlocks.Domain.Exceptions;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Users.Entities;
+using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Domain.Users.Repositories;
 using GarageFlow.Domain.Users.ValueObjects;
 using Mediator;
@@ -24,6 +25,11 @@ public sealed class CreateUserHandler(
         var email = Email.Create(request.Email);
         var normalizedEmail = Email.Create(email.Value.ToLowerInvariant());
         var birthDate = UserBirthDate.Create(request.BirthDate);
+
+        if (request.Role == UserRole.Customer)
+        {
+            throw new ValidationException("Customer users must be created through customer portal activation.");
+        }
 
         var exists = await _userRepository.ExistsByEmailAsync(normalizedEmail, cancellationToken);
         if (exists)
