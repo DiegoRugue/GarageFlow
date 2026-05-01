@@ -181,6 +181,46 @@ public class WorkOrderTests
     }
 
     [Fact]
+    public void StartWork_CalledTwice_ShouldNotOverwriteStartedAt_OrDuplicateInProgressTransitionEvent()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+
+        workOrder.StartWork();
+        var originalStartedAt = workOrder.StartedAt;
+        var inProgressTransitionsBeforeSecondCall = workOrder.DomainEvents
+            .OfType<WorkOrderStatusChanged>()
+            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.InProgress);
+
+        workOrder.StartWork();
+
+        var inProgressTransitionsAfterSecondCall = workOrder.DomainEvents
+            .OfType<WorkOrderStatusChanged>()
+            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.InProgress);
+        Assert.Equal(originalStartedAt, workOrder.StartedAt);
+        Assert.Equal(inProgressTransitionsBeforeSecondCall, inProgressTransitionsAfterSecondCall);
+    }
+
+    [Fact]
+    public void Complete_CalledTwice_ShouldNotOverwriteCompletedAt_OrDuplicateCompletedTransitionEvent()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        workOrder.StartWork();
+        workOrder.Complete();
+        var originalCompletedAt = workOrder.CompletedAt;
+        var completedTransitionsBeforeSecondCall = workOrder.DomainEvents
+            .OfType<WorkOrderStatusChanged>()
+            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.Completed);
+
+        workOrder.Complete();
+
+        var completedTransitionsAfterSecondCall = workOrder.DomainEvents
+            .OfType<WorkOrderStatusChanged>()
+            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.Completed);
+        Assert.Equal(originalCompletedAt, workOrder.CompletedAt);
+        Assert.Equal(completedTransitionsBeforeSecondCall, completedTransitionsAfterSecondCall);
+    }
+
+    [Fact]
     public void StartWork_ShouldNotSetStartedAt_WhenTransitionIsRejected()
     {
         var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
