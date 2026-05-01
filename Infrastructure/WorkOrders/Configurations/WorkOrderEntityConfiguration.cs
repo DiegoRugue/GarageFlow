@@ -40,6 +40,10 @@ public sealed class WorkOrderEntityConfiguration : IEntityTypeConfiguration<Work
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(workOrder => workOrder.StartedAt);
+
+        builder.Property(workOrder => workOrder.CompletedAt);
+
         builder.Property(workOrder => workOrder.CreatedAt)
             .IsRequired();
 
@@ -56,6 +60,7 @@ public sealed class WorkOrderEntityConfiguration : IEntityTypeConfiguration<Work
 
         builder.HasIndex(workOrder => workOrder.CustomerId);
         builder.HasIndex(workOrder => workOrder.VehicleId);
+        builder.HasIndex(workOrder => workOrder.CompletedAt);
 
         builder.HasOne<Customer>()
             .WithMany()
