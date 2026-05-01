@@ -88,8 +88,8 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
     }
 
     public async Task<AverageServiceTimeReadModel> GetAverageServiceTimeAsync(
-        DateTime from,
-        DateTime to,
+        DateTime completedFrom,
+        DateTime completedTo,
         CancellationToken cancellationToken = default)
     {
         var query = _dbContext.WorkOrders
@@ -97,8 +97,8 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
             .Where(workOrder =>
                 workOrder.StartedAt.HasValue &&
                 workOrder.CompletedAt.HasValue &&
-                workOrder.CompletedAt.Value >= from &&
-                workOrder.CompletedAt.Value <= to);
+                workOrder.CompletedAt.Value >= completedFrom &&
+                workOrder.CompletedAt.Value <= completedTo);
 
         var completedWorkOrdersCount = await query.CountAsync(cancellationToken);
         if (completedWorkOrdersCount == 0)

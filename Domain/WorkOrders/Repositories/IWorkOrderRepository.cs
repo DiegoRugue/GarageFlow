@@ -32,8 +32,8 @@ public interface IWorkOrderRepository
         CancellationToken cancellationToken = default);
 
     Task<AverageServiceTimeReadModel> GetAverageServiceTimeAsync(
-        DateTime from,
-        DateTime to,
+        DateTime completedFrom,
+        DateTime completedTo,
         CancellationToken cancellationToken = default);
 
     Task AddAsync(WorkOrder workOrder, CancellationToken cancellationToken = default);
