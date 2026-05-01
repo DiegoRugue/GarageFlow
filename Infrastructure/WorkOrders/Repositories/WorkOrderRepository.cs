@@ -92,32 +92,28 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
         DateTime to,
         CancellationToken cancellationToken = default)
     {
-        var durations = await _dbContext.WorkOrders
+        var query = _dbContext.WorkOrders
             .AsNoTracking()
             .Where(workOrder =>
                 workOrder.StartedAt.HasValue &&
                 workOrder.CompletedAt.HasValue &&
                 workOrder.CompletedAt.Value >= from &&
-                workOrder.CompletedAt.Value <= to)
-            .Select(workOrder => new
-            {
-                StartedAt = workOrder.StartedAt!.Value,
-                CompletedAt = workOrder.CompletedAt!.Value
-            })
-            .ToListAsync(cancellationToken);
+                workOrder.CompletedAt.Value <= to);
 
-        if (durations.Count == 0)
+        var completedWorkOrdersCount = await query.CountAsync(cancellationToken);
+        if (completedWorkOrdersCount == 0)
         {
             return new AverageServiceTimeReadModel(
                 CompletedWorkOrdersCount: 0,
                 AverageDurationMinutes: null);
         }
 
-        var averageDurationMinutes = durations.Average(duration =>
-            (duration.CompletedAt - duration.StartedAt).TotalMinutes);
+        var averageDurationMinutes = await query.AverageAsync(
+            workOrder => (workOrder.CompletedAt!.Value - workOrder.StartedAt!.Value).TotalMinutes,
+            cancellationToken);
 
         return new AverageServiceTimeReadModel(
-            CompletedWorkOrdersCount: durations.Count,
+            CompletedWorkOrdersCount: completedWorkOrdersCount,
             AverageDurationMinutes: averageDurationMinutes);
     }
 
