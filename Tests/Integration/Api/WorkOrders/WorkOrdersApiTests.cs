@@ -1,11 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Globalization;
+using System.Reflection;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.Api.WorkOrders.GetAverageServiceTime;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Tests.Integration.Api.Customers.Contracts;
 using GarageFlow.Tests.Integration.Api.InventoryItems.Contracts;
+using GarageFlow.Tests.Integration.Api.Services.Contracts;
 using GarageFlow.Tests.Integration.Api.Users.Contracts;
 using GarageFlow.Tests.Integration.Api.Vehicles.Contracts;
 using GarageFlow.Tests.Integration.Api.WorkOrders.Contracts;
@@ -13,6 +17,7 @@ using GarageFlow.Tests.Integration.Support.Fixtures;
 using GarageFlow.Tests.Integration.Support.Helpers;
 using GarageFlow.Tests.Integration.Support.Seed;
 using GarageFlow.Tests.Shared.InventoryItems;
+using GarageFlow.Tests.Shared.Services;
 using GarageFlow.Tests.Shared.Users;
 using GarageFlow.Tests.Shared.WorkOrders;
 
@@ -21,6 +26,166 @@ namespace GarageFlow.Tests.Integration.Api.WorkOrders;
 public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageFlowApiFixture>
 {
     private readonly GarageFlowApiFixture _fixture = fixture;
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldReturn401_WhenRequestHasNoToken()
+    {
+        using var client = _fixture.CreateClient();
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldReturn403_WhenAuthenticatedUserIsCustomer()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            client,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+
+        var activateResponse = await client.PostAsJsonAsync(
+            $"/customers/{seededVehicle.CustomerId}/portal-user",
+            new ActivateCustomerPortalUserRequest(new DateOnly(1991, 1, 11)));
+        HttpResponseAssertions.AssertStatus(activateResponse, HttpStatusCode.Created);
+        var customerUser = await HttpResponseAssertions.ReadRequiredJsonAsync<ActivateCustomerPortalUserResponse>(activateResponse);
+
+        await AuthenticateCreatedUserAsActiveAsync(
+            client,
+            customerUser.Email,
+            customerUser.FullName,
+            customerUser.BirthDate,
+            "Customer.Average.Service.Time#123");
+
+        var from = DateTime.UtcNow.AddDays(-1);
+        var to = DateTime.UtcNow.AddDays(1);
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldReturn400_WhenWindowIsInvalid()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var from = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, from));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedWorkOrders()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var from = DateTime.UtcNow.AddDays(365);
+        var to = DateTime.UtcNow.AddDays(366);
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
+        Assert.Equal(0, payload.CompletedWorkOrdersCount);
+        Assert.Null(payload.AverageDurationMinutes);
+    }
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldReturnAverageDuration_ForCompletedWorkOrdersInWindow()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            client,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        var workOrder = await CreateWorkOrderAsync(client, seededVehicle.CustomerId, seededVehicle.VehicleId);
+        var estimate = await CreateEstimateAsync(client, workOrder.Id);
+        var service = await CreateServiceAsync(
+            client,
+            new ServiceBuilder()
+                .WithDescription($"Average service labor {Guid.NewGuid():N}")
+                .WithPrice(150m));
+
+        var addServiceResponse = await client.PostAsJsonAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+
+        var submitResponse = await client.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/submit",
+            content: null);
+        HttpResponseAssertions.AssertStatus(submitResponse, HttpStatusCode.NoContent);
+
+        var activateResponse = await client.PostAsJsonAsync(
+            $"/customers/{seededVehicle.CustomerId}/portal-user",
+            new ActivateCustomerPortalUserRequest(new DateOnly(1991, 1, 11)));
+        HttpResponseAssertions.AssertStatus(activateResponse, HttpStatusCode.Created);
+        var customerUser = await HttpResponseAssertions.ReadRequiredJsonAsync<ActivateCustomerPortalUserResponse>(activateResponse);
+
+        await AuthenticateCreatedUserAsActiveAsync(
+            client,
+            customerUser.Email,
+            customerUser.FullName,
+            customerUser.BirthDate,
+            "Customer.Average.Approve#123");
+
+        var approveResponse = await client.PostAsync(
+            $"/me/work-orders/{workOrder.Id}/estimates/{estimate.Id}/approve",
+            content: null);
+        HttpResponseAssertions.AssertStatus(approveResponse, HttpStatusCode.NoContent);
+
+        await client.AuthenticateAsActiveBootstrapAdminAsync();
+
+        var from = DateTime.UtcNow.AddMinutes(-1);
+        var startResponse = await client.PostAsync($"/work-orders/{workOrder.Id}/start-work", content: null);
+        HttpResponseAssertions.AssertStatus(startResponse, HttpStatusCode.NoContent);
+
+        var completeResponse = await client.PostAsync($"/work-orders/{workOrder.Id}/complete", content: null);
+        HttpResponseAssertions.AssertStatus(completeResponse, HttpStatusCode.NoContent);
+        var to = DateTime.UtcNow.AddMinutes(1);
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
+        Assert.Equal(1, payload.CompletedWorkOrdersCount);
+        Assert.NotNull(payload.AverageDurationMinutes);
+        Assert.True(payload.AverageDurationMinutes >= 0);
+    }
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldNormalizeOffsetWindowToUtc()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var from = new DateTimeOffset(2026, 5, 1, 3, 0, 0, TimeSpan.FromHours(3));
+        var to = new DateTimeOffset(2026, 5, 1, 4, 0, 0, TimeSpan.FromHours(3));
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
+        Assert.Equal(from.UtcDateTime, payload.From);
+        Assert.Equal(to.UtcDateTime, payload.To);
+        Assert.Equal(DateTimeKind.Utc, payload.From.Kind);
+        Assert.Equal(DateTimeKind.Utc, payload.To.Kind);
+    }
+
+    [Fact]
+    public void AverageServiceTime_EndpointBinding_ShouldUseDateTimeOffsetWindow()
+    {
+        var endpointMethod = typeof(GetAverageServiceTimeEndpoint).GetMethod(
+            "GetAverageServiceTime",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(endpointMethod);
+
+        var parameters = endpointMethod.GetParameters();
+        Assert.Equal(typeof(DateTimeOffset), parameters[0].ParameterType);
+        Assert.Equal(typeof(DateTimeOffset), parameters[1].ParameterType);
+    }
 
     [Fact]
     public async Task WorkOrdersStaffRoutes_ShouldReturn401_WhenRequestHasNoToken()
@@ -537,6 +702,31 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var response = await client.PostAsJsonAsync("/inventory-items", request);
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Created);
         return await HttpResponseAssertions.ReadRequiredJsonAsync<InventoryItemResponse>(response);
+    }
+
+    private static async Task<ServiceResponse> CreateServiceAsync(HttpClient client, ServiceBuilder? builder = null)
+    {
+        var request = (builder ?? new ServiceBuilder()).BuildCreateRequest();
+        var response = await client.PostAsJsonAsync("/services", request);
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Created);
+        return await HttpResponseAssertions.ReadRequiredJsonAsync<ServiceResponse>(response);
+    }
+
+    private static string CreateAverageServiceTimeUrl(DateTime from, DateTime to)
+    {
+        return CreateAverageServiceTimeUrl(
+            new DateTimeOffset(from.ToUniversalTime(), TimeSpan.Zero),
+            new DateTimeOffset(to.ToUniversalTime(), TimeSpan.Zero));
+    }
+
+    private static string CreateAverageServiceTimeUrl(DateTimeOffset from, DateTimeOffset to)
+    {
+        return $"/work-orders/average-service-time?from={FormatOffset(from)}&to={FormatOffset(to)}";
+    }
+
+    private static string FormatOffset(DateTimeOffset value)
+    {
+        return Uri.EscapeDataString(value.ToString("O", CultureInfo.InvariantCulture));
     }
 
     private static void AssertDoesNotExposeCostFields(string body)

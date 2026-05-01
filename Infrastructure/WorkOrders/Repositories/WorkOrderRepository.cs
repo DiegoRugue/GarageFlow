@@ -87,6 +87,36 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
         return ListDetailsAsync(page, pageSize, customerId, cancellationToken);
     }
 
+    public async Task<AverageServiceTimeReadModel> GetAverageServiceTimeAsync(
+        DateTime completedFrom,
+        DateTime completedTo,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.WorkOrders
+            .AsNoTracking()
+            .Where(workOrder =>
+                workOrder.StartedAt.HasValue &&
+                workOrder.CompletedAt.HasValue &&
+                workOrder.CompletedAt.Value >= completedFrom &&
+                workOrder.CompletedAt.Value <= completedTo);
+
+        var completedWorkOrdersCount = await query.CountAsync(cancellationToken);
+        if (completedWorkOrdersCount == 0)
+        {
+            return new AverageServiceTimeReadModel(
+                CompletedWorkOrdersCount: 0,
+                AverageDurationMinutes: null);
+        }
+
+        var averageDurationMinutes = await query.AverageAsync(
+            workOrder => (workOrder.CompletedAt!.Value - workOrder.StartedAt!.Value).TotalMinutes,
+            cancellationToken);
+
+        return new AverageServiceTimeReadModel(
+            CompletedWorkOrdersCount: completedWorkOrdersCount,
+            AverageDurationMinutes: averageDurationMinutes);
+    }
+
     public Task AddAsync(WorkOrder workOrder, CancellationToken cancellationToken = default)
     {
         return _dbContext.WorkOrders.AddAsync(workOrder, cancellationToken).AsTask();

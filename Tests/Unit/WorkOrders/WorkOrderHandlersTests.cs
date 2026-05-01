@@ -7,6 +7,7 @@ using GarageFlow.Application.WorkOrders.CompleteWorkOrder;
 using GarageFlow.Application.WorkOrders.CreateEstimate;
 using GarageFlow.Application.WorkOrders.CreateWorkOrder;
 using GarageFlow.Application.WorkOrders.DeliverWorkOrder;
+using GarageFlow.Application.WorkOrders.GetAverageServiceTime;
 using GarageFlow.Application.WorkOrders.GetMyWorkOrderById;
 using GarageFlow.Application.WorkOrders.GetWorkOrderById;
 using GarageFlow.Application.WorkOrders.ListMyWorkOrders;
@@ -1189,12 +1190,69 @@ public class WorkOrderHandlersTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task GetAverageServiceTime_ShouldThrowValidationException_WhenWindowIsInvalid()
+    {
+        var from = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
+            averageServiceTime: new AverageServiceTimeReadModel(CompletedWorkOrdersCount: 0, AverageDurationMinutes: null));
+        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            async () => await handler.Handle(new GetAverageServiceTimeQuery(from, from), CancellationToken.None));
+
+        Assert.Equal("From must be earlier than To.", exception.Message);
+        workOrderRepositoryMock.Verify(
+            x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetAverageServiceTime_ShouldReturnAverageDuration_WhenWindowHasCompletedWorkOrders()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 31, 23, 59, 59, DateTimeKind.Utc);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
+            averageServiceTime: new AverageServiceTimeReadModel(
+                CompletedWorkOrdersCount: 3,
+                AverageDurationMinutes: 184.5d));
+        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+
+        var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to), CancellationToken.None);
+
+        Assert.Equal(from, result.From);
+        Assert.Equal(to, result.To);
+        Assert.Equal(3, result.CompletedWorkOrdersCount);
+        Assert.Equal(184.5d, result.AverageDurationMinutes);
+        workOrderRepositoryMock.Verify(
+            x => x.GetAverageServiceTimeAsync(from, to, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedWorkOrders()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
+            averageServiceTime: new AverageServiceTimeReadModel(
+                CompletedWorkOrdersCount: 0,
+                AverageDurationMinutes: null));
+        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+
+        var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to), CancellationToken.None);
+
+        Assert.Equal(0, result.CompletedWorkOrdersCount);
+        Assert.Null(result.AverageDurationMinutes);
+    }
+
     private static Mock<IWorkOrderRepository> CreateWorkOrderRepositoryMock(
         List<WorkOrder>? initialWorkOrders = null,
         List<WorkOrderDetailsReadModel>? detailsById = null,
         List<WorkOrderDetailsReadModel>? detailsList = null,
         List<WorkOrderDetailsReadModel>? customerDetailsById = null,
-        List<WorkOrderDetailsReadModel>? customerDetailsList = null)
+        List<WorkOrderDetailsReadModel>? customerDetailsList = null,
+        AverageServiceTimeReadModel? averageServiceTime = null)
     {
         var workOrders = initialWorkOrders ?? [];
         var staffDetailsById = detailsById ?? [];
@@ -1266,6 +1324,15 @@ public class WorkOrderHandlersTests
                 var totalCount = customerDetailsListPage.Count(item => item.CustomerId == customerId.Value);
                 return ((IReadOnlyList<WorkOrderDetailsReadModel>)items, totalCount);
             });
+
+        repositoryMock
+            .Setup(x => x.GetAverageServiceTimeAsync(
+                It.IsAny<DateTime>(),
+                It.IsAny<DateTime>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(averageServiceTime ?? new AverageServiceTimeReadModel(
+                CompletedWorkOrdersCount: 0,
+                AverageDurationMinutes: null));
 
         repositoryMock
             .Setup(x => x.AddAsync(It.IsAny<WorkOrder>(), It.IsAny<CancellationToken>()))
