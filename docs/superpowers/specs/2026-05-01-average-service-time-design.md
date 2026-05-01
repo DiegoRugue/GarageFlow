@@ -283,10 +283,17 @@ The integration flow should create a work order, create an estimate, add at leas
 - The endpoint is available only to active staff.
 - API types do not depend directly on Domain, Infrastructure, or BuildingBlocks.
 - The implementation follows the canonical GarageFlow vertical-slice layout.
+- The implementation keeps code duplication below the CI threshold of 3%.
 
 ## Verification
 
-Final validation must run:
+Final validation must follow the CI quality gate:
+
+- build completes with zero warnings;
+- code coverage stays above 80%;
+- duplicated code stays below 3%.
+
+Final local validation must run:
 
 ```bash
 dotnet build GarageFlow.slnx
@@ -294,3 +301,5 @@ dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
 dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj
 dotnet test GarageFlow.slnx
 ```
+
+During implementation, keep shared test setup and mapping helpers aligned with existing patterns to avoid unnecessary duplication while still preserving clear vertical slices.
