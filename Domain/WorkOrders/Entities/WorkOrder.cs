@@ -19,6 +19,8 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
     public CustomerId CustomerId { get; private set; }
     public VehicleId VehicleId { get; private set; }
     public WorkOrderStatus Status { get; private set; }
+    public DateTime? StartedAt { get; private set; }
+    public DateTime? CompletedAt { get; private set; }
     public IReadOnlyCollection<Estimate> Estimates => _estimates.AsReadOnly();
 
     private WorkOrder(
@@ -195,7 +197,14 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Work order cannot start while waiting for customer approval.");
         }
 
-        TransitionTo(WorkOrderStatus.InProgress);
+        if (Status == WorkOrderStatus.InProgress)
+        {
+            return;
+        }
+
+        var startedAt = DateTime.UtcNow;
+        TransitionTo(WorkOrderStatus.InProgress, startedAt);
+        StartedAt = startedAt;
     }
 
     public void Complete()
@@ -206,7 +215,14 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Work order requires exactly one approved estimate before completion.");
         }
 
-        TransitionTo(WorkOrderStatus.Completed);
+        if (Status == WorkOrderStatus.Completed)
+        {
+            return;
+        }
+
+        var completedAt = DateTime.UtcNow;
+        TransitionTo(WorkOrderStatus.Completed, completedAt);
+        CompletedAt = completedAt;
     }
 
     public void Deliver()
@@ -312,7 +328,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         }
     }
 
-    private void TransitionTo(WorkOrderStatus newStatus)
+    private void TransitionTo(WorkOrderStatus newStatus, DateTime? occurredAt = null)
     {
         if (Status == newStatus)
         {
@@ -341,7 +357,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
         var previousStatus = Status;
         Status = newStatus;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = occurredAt ?? DateTime.UtcNow;
 
         RaiseDomainEvent(new WorkOrderStatusChanged(
             WorkOrderId: Id,

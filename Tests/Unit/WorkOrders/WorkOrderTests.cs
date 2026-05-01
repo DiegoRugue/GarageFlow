@@ -137,6 +137,63 @@ public class WorkOrderTests
     }
 
     [Fact]
+    public void StartDiagnosis_ShouldNotSetServiceTiming()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+
+        workOrder.StartDiagnosis();
+
+        Assert.Equal(WorkOrderStatus.Diagnosing, workOrder.Status);
+        Assert.Null(workOrder.StartedAt);
+        Assert.Null(workOrder.CompletedAt);
+    }
+
+    [Fact]
+    public void StartWork_ShouldSetStartedAt_WhenTransitioningToInProgress()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var beforeStart = DateTime.UtcNow;
+
+        workOrder.StartWork();
+
+        var afterStart = DateTime.UtcNow;
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
+        Assert.NotNull(workOrder.StartedAt);
+        Assert.InRange(workOrder.StartedAt.Value, beforeStart, afterStart);
+        Assert.Null(workOrder.CompletedAt);
+    }
+
+    [Fact]
+    public void Complete_ShouldSetCompletedAt_WhenTransitioningToCompleted()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        workOrder.StartWork();
+        var beforeComplete = DateTime.UtcNow;
+
+        workOrder.Complete();
+
+        var afterComplete = DateTime.UtcNow;
+        Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
+        Assert.NotNull(workOrder.StartedAt);
+        Assert.NotNull(workOrder.CompletedAt);
+        Assert.InRange(workOrder.CompletedAt.Value, beforeComplete, afterComplete);
+        Assert.True(workOrder.CompletedAt.Value >= workOrder.StartedAt.Value);
+    }
+
+    [Fact]
+    public void StartWork_ShouldNotSetStartedAt_WhenTransitionIsRejected()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.StartWork());
+
+        Assert.Equal("Work order cannot start while waiting for customer approval.", exception.Message);
+        Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
+        Assert.Null(workOrder.StartedAt);
+        Assert.Null(workOrder.CompletedAt);
+    }
+
+    [Fact]
     public void Deliver_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsNotCompleted()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
