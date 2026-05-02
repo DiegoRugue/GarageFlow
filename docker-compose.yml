@@ -21,11 +21,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@garageflow.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@garageflow.dev}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: ${PGADMIN_SERVER_MODE:-False}
     ports:
-      - "${PGADMIN_PORT:-5050}:5050"
+      - "${PGADMIN_PORT:-5050}:80"
     volumes:
       - garageflow_pgadmin_data:/var/lib/pgadmin
 
@@ -33,6 +33,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    pull_policy: build
     depends_on:
       postgres:
         condition: service_healthy
