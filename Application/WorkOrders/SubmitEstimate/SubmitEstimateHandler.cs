@@ -21,6 +21,8 @@ public sealed class SubmitEstimateHandler(
     {
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
         var estimateId = EstimateId.From(request.EstimateId);
+        var shouldSendApprovalEmail = false;
+        var customerIdForApprovalEmail = Guid.Empty;
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
@@ -36,20 +38,27 @@ public sealed class SubmitEstimateHandler(
             workOrder.SubmitEstimate(estimateId);
             if (previousStatus != WorkOrderStatus.WaitingApproval && workOrder.Status == WorkOrderStatus.WaitingApproval)
             {
-                await _emailSender.SendEstimateWaitingApprovalAsync(
-                    workOrder.Id.Value,
-                    estimateId.Value,
-                    workOrder.CustomerId.Value,
-                    cancellationToken);
+                shouldSendApprovalEmail = true;
+                customerIdForApprovalEmail = workOrder.CustomerId.Value;
             }
 
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
-            return Unit.Value;
         }
         catch
         {
             await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             throw;
         }
+
+        if (shouldSendApprovalEmail)
+        {
+            await _emailSender.SendEstimateWaitingApprovalAsync(
+                request.WorkOrderId,
+                request.EstimateId,
+                customerIdForApprovalEmail,
+                cancellationToken);
+        }
+
+        return Unit.Value;
     }
 }

@@ -16,8 +16,7 @@ public class ModuleConventionTests
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     private static readonly HashSet<string> AllowedApplicationNamingExceptions =
     [
-        "Application/Users/ListUsers/UserListItem.cs",
-        "Application/WorkOrders/Abstractions/ICustomerApprovalEmailSender.cs"
+        "Application/Users/ListUsers/UserListItem.cs"
     ];
 
     [Fact]
@@ -221,7 +220,31 @@ public class ModuleConventionTests
             return true;
         }
 
+        if (IsValidApplicationAbstractionInterface(filePath))
+        {
+            return true;
+        }
+
         return AllowedApplicationNamingExceptions.Contains(ToRelativePath(filePath));
+    }
+
+    private static bool IsValidApplicationAbstractionInterface(string filePath)
+    {
+        var relativePath = ToRelativePath(filePath);
+        var pathSegments = relativePath.Split('/');
+        if (pathSegments.Length < 4)
+        {
+            return false;
+        }
+
+        if (!string.Equals(pathSegments[0], "Application", StringComparison.Ordinal) ||
+            !string.Equals(pathSegments[2], "Abstractions", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var fileName = Path.GetFileName(relativePath);
+        return fileName.StartsWith('I') && fileName.EndsWith(".cs", StringComparison.Ordinal);
     }
 
     private static string ToRelativePath(string absolutePath)

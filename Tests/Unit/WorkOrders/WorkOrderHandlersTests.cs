@@ -580,6 +580,24 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
+    public async Task CompleteEstimateService_ShouldRollback_WhenWorkOrderIsMissing()
+    {
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new CompleteEstimateServiceHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+        var workOrderId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(
+                new CompleteEstimateServiceCommand(workOrderId, Guid.NewGuid(), Guid.NewGuid()),
+                CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrderId}' was not found.", exception.Message);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task SubmitEstimate_ShouldSendApprovalEmail_WhenWorkOrderMovesToWaitingApproval()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
@@ -609,6 +627,155 @@ public class WorkOrderHandlersTests
                 workOrder.CustomerId.Value,
                 It.IsAny<CancellationToken>()),
             Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldCommitBeforeSendingApprovalEmail_WhenWorkOrderMovesToWaitingApproval()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+        var hasCommittedTransaction = false;
+
+        unitOfWorkMock
+            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        workOrderRepositoryMock
+            .Setup(x => x.GetByIdForEstimateMutationAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workOrder);
+
+        unitOfWorkMock
+            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => hasCommittedTransaction = true)
+            .Returns(Task.CompletedTask);
+
+        emailSenderMock
+            .Setup(x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(hasCommittedTransaction))
+            .Returns(Task.CompletedTask);
+
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
+
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                workOrder.Id.Value,
+                estimate.Id.Value,
+                workOrder.CustomerId.Value,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldNotSendApprovalEmail_WhenCommitFails()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+
+        unitOfWorkMock
+            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Commit failed"));
+
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await handler.Handle(
+                new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
+                CancellationToken.None));
+
+        Assert.Equal("Commit failed", exception.Message);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldNotRollback_WhenApprovalEmailSendFailsAfterCommit()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+
+        emailSenderMock
+            .Setup(x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Email send failed"));
+
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await handler.Handle(
+                new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
+                CancellationToken.None));
+
+        Assert.Equal("Email send failed", exception.Message);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldNotSendApprovalEmail_WhenWorkOrderWasAlreadyWaitingApproval()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var firstEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, firstEstimate.Id);
+        workOrder.SubmitEstimate(firstEstimate.Id);
+        var secondEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, secondEstimate.Id);
+
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, secondEstimate.Id.Value), CancellationToken.None);
+
+        Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
         unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
