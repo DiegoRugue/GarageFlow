@@ -38,7 +38,7 @@ public class WorkOrderTests
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
 
-        Assert.Equal("Estimate must contain at least one line item before submission.", exception.Message);
+        Assert.Equal("Estimate must contain at least one service line before submission.", exception.Message);
         Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
         Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
@@ -354,10 +354,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var firstEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, firstEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, firstEstimate.Id);
         workOrder.SubmitEstimate(firstEstimate.Id);
 
         var secondEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, secondEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, secondEstimate.Id);
         workOrder.SubmitEstimate(secondEstimate.Id);
         workOrder.ApproveEstimate(firstEstimate.Id);
 
@@ -372,6 +374,7 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
 
         workOrder.SubmitEstimate(estimate.Id);
 
@@ -555,10 +558,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, approvedEstimate.Id);
         workOrder.SubmitEstimate(approvedEstimate.Id);
 
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.ApproveEstimate(approvedEstimate.Id);
         var submittedEventsBefore = workOrder.DomainEvents.OfType<EstimateSubmitted>().Count();
 
@@ -576,10 +581,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, approvedEstimate.Id);
         workOrder.SubmitEstimate(approvedEstimate.Id);
 
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.ApproveEstimate(approvedEstimate.Id);
         workOrder.StartWork();
         workOrder.Complete();
@@ -599,10 +606,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, approvedEstimate.Id);
         workOrder.SubmitEstimate(approvedEstimate.Id);
 
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.ApproveEstimate(approvedEstimate.Id);
         workOrder.StartWork();
         workOrder.Complete();
@@ -680,7 +689,7 @@ public class WorkOrderTests
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
 
-        Assert.Equal("Estimate must contain at least one line item before submission.", exception.Message);
+        Assert.Equal("Estimate must contain at least one service line before submission.", exception.Message);
         Assert.Equal(WorkOrderStatus.Diagnosing, workOrder.Status);
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
         Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
@@ -693,10 +702,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, approvedEstimate.Id);
         workOrder.SubmitEstimate(approvedEstimate.Id);
 
         var pendingEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, pendingEstimate.Id);
         workOrder.SubmitEstimate(pendingEstimate.Id);
 
         workOrder.ApproveEstimate(approvedEstimate.Id);
@@ -720,10 +731,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, approvedEstimate.Id);
         workOrder.SubmitEstimate(approvedEstimate.Id);
 
         var pendingEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, pendingEstimate.Id);
         workOrder.SubmitEstimate(pendingEstimate.Id);
 
         workOrder.ApproveEstimate(approvedEstimate.Id);
@@ -747,10 +760,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, approvedEstimate.Id);
         workOrder.SubmitEstimate(approvedEstimate.Id);
 
         var pendingEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, pendingEstimate.Id);
         workOrder.SubmitEstimate(pendingEstimate.Id);
 
         workOrder.ApproveEstimate(approvedEstimate.Id);
@@ -775,10 +790,12 @@ public class WorkOrderTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, approvedEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, approvedEstimate.Id);
         workOrder.SubmitEstimate(approvedEstimate.Id);
 
         var pendingEstimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, pendingEstimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, pendingEstimate.Id);
         workOrder.SubmitEstimate(pendingEstimate.Id);
 
         workOrder.ApproveEstimate(approvedEstimate.Id);
@@ -811,5 +828,126 @@ public class WorkOrderTests
         Assert.DoesNotContain("Approve", publicInstanceMethods);
         Assert.DoesNotContain("Reject", publicInstanceMethods);
         Assert.DoesNotContain("Cancel", publicInstanceMethods);
+    }
+
+    [Fact]
+    public void AddServiceLine_ShouldCreatePendingServiceLine()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+
+        workOrder.AddServiceLine(
+            estimate.Id,
+            ServiceId.New(),
+            Description.Create("Timing service"),
+            Price.Create(80m));
+
+        var serviceLine = Assert.Single(estimate.ServiceLines);
+        Assert.Equal(EstimateServiceLineStatus.Pending, serviceLine.Status);
+        Assert.Null(serviceLine.StartedAt);
+        Assert.Null(serviceLine.CompletedAt);
+    }
+
+    [Fact]
+    public void StartEstimateService_ShouldMovePendingServiceToInProgress_AndStartWorkOrder()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+        var beforeStart = DateTime.UtcNow;
+
+        workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
+
+        var afterStart = DateTime.UtcNow;
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
+        Assert.Equal(EstimateServiceLineStatus.InProgress, serviceLine.Status);
+        Assert.NotNull(workOrder.StartedAt);
+        Assert.NotNull(serviceLine.StartedAt);
+        Assert.InRange(serviceLine.StartedAt.Value, beforeStart, afterStart);
+        Assert.Equal(workOrder.StartedAt, serviceLine.StartedAt);
+    }
+
+    [Fact]
+    public void CompleteEstimateService_ShouldCompleteService_AndCompleteWorkOrder_WhenAllServicesAreCompleted()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+        workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
+        var beforeComplete = DateTime.UtcNow;
+
+        workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
+
+        var afterComplete = DateTime.UtcNow;
+        Assert.Equal(EstimateServiceLineStatus.Completed, serviceLine.Status);
+        Assert.NotNull(serviceLine.CompletedAt);
+        Assert.InRange(serviceLine.CompletedAt.Value, beforeComplete, afterComplete);
+        Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
+        Assert.Equal(serviceLine.CompletedAt, workOrder.CompletedAt);
+    }
+
+    [Fact]
+    public void CompleteEstimateService_ShouldKeepWorkOrderInProgress_WhenAnotherServiceIsNotCompleted()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        workOrder.AddServiceLine(estimate.Id, ServiceId.New(), Description.Create("First service"), Price.Create(100m));
+        workOrder.AddServiceLine(estimate.Id, ServiceId.New(), Description.Create("Second service"), Price.Create(150m));
+        workOrder.SubmitEstimate(estimate.Id);
+        workOrder.ApproveEstimate(estimate.Id);
+        var firstService = estimate.ServiceLines.First();
+
+        workOrder.StartEstimateService(estimate.Id, firstService.Id);
+        workOrder.CompleteEstimateService(estimate.Id, firstService.Id);
+
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
+        Assert.Equal(EstimateServiceLineStatus.Completed, firstService.Status);
+        Assert.Contains(estimate.ServiceLines, line => line.Status == EstimateServiceLineStatus.Pending);
+        Assert.Null(workOrder.CompletedAt);
+    }
+
+    [Fact]
+    public void CompleteEstimateService_ShouldThrowBusinessRuleViolationException_WhenServiceIsPending()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(
+            () => workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id));
+
+        Assert.Equal("Work order must be in progress before completing services.", exception.Message);
+        Assert.Equal(EstimateServiceLineStatus.Pending, serviceLine.Status);
+        Assert.Null(serviceLine.CompletedAt);
+    }
+
+    [Fact]
+    public void StartEstimateService_ShouldThrowBusinessRuleViolationException_WhenServiceIsCompleted()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+        workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
+        workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(
+            () => workOrder.StartEstimateService(estimate.Id, serviceLine.Id));
+
+        Assert.Equal("Finalized work orders cannot be changed.", exception.Message);
+        Assert.Equal(EstimateServiceLineStatus.Completed, serviceLine.Status);
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenEstimateHasOnlyInventory()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
+
+        Assert.Equal("Estimate must contain at least one service line before submission.", exception.Message);
+        Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
+        Assert.Equal(EstimateStatus.Draft, estimate.Status);
     }
 }

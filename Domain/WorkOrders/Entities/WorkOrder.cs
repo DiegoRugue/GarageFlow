@@ -207,7 +207,59 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         StartedAt = startedAt;
     }
 
+    public void StartEstimateService(EstimateId estimateId, EstimateServiceLineId lineId)
+    {
+        EnsureNotFinalizedForContentChanges();
+
+        var estimate = GetApprovedEstimateOrThrow(estimateId);
+        var serviceLine = GetEstimateServiceLineOrThrow(estimate, lineId);
+        var startedAtBeforeLineStart = StartedAt;
+
+        if (Status == WorkOrderStatus.Approved)
+        {
+            StartWork();
+        }
+        else if (Status != WorkOrderStatus.InProgress)
+        {
+            throw new BusinessRuleViolationException("Work order must be approved before starting services.");
+        }
+
+        serviceLine.Start();
+
+        if (startedAtBeforeLineStart is null)
+        {
+            StartedAt = serviceLine.StartedAt;
+        }
+
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void CompleteEstimateService(EstimateId estimateId, EstimateServiceLineId lineId)
+    {
+        if (Status != WorkOrderStatus.InProgress)
+        {
+            throw new BusinessRuleViolationException("Work order must be in progress before completing services.");
+        }
+
+        var estimate = GetApprovedEstimateOrThrow(estimateId);
+        var serviceLine = GetEstimateServiceLineOrThrow(estimate, lineId);
+
+        serviceLine.Complete();
+
+        if (estimate.ServiceLines.All(line => line.Status == EstimateServiceLineStatus.Completed))
+        {
+            CompleteFromServiceLines(serviceLine.CompletedAt);
+        }
+
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void Complete()
+    {
+        CompleteFromServiceLines(null);
+    }
+
+    private void CompleteFromServiceLines(DateTime? completedAt)
     {
         var approvedEstimatesCount = _estimates.Count(estimate => estimate.Status == EstimateStatus.Approved);
         if (approvedEstimatesCount != 1)
@@ -220,9 +272,9 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             return;
         }
 
-        var completedAt = DateTime.UtcNow;
-        TransitionTo(WorkOrderStatus.Completed, completedAt);
-        CompletedAt = completedAt;
+        var occurredAt = completedAt ?? DateTime.UtcNow;
+        TransitionTo(WorkOrderStatus.Completed, occurredAt);
+        CompletedAt = occurredAt;
     }
 
     public void Deliver()
@@ -249,6 +301,28 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         }
 
         return estimate;
+    }
+
+    private Estimate GetApprovedEstimateOrThrow(EstimateId estimateId)
+    {
+        var estimate = GetEstimateOrThrow(estimateId);
+        if (estimate.Status != EstimateStatus.Approved)
+        {
+            throw new BusinessRuleViolationException("Only approved estimates can have services executed.");
+        }
+
+        return estimate;
+    }
+
+    private static EstimateServiceLine GetEstimateServiceLineOrThrow(Estimate estimate, EstimateServiceLineId lineId)
+    {
+        var serviceLine = estimate.ServiceLines.SingleOrDefault(candidate => candidate.Id == lineId);
+        if (serviceLine is null)
+        {
+            throw new NotFoundException($"Estimate service line with ID '{lineId.Value}' was not found.");
+        }
+
+        return serviceLine;
     }
 
     private Estimate GetEditableEstimateOrThrow(EstimateId estimateId)
@@ -307,9 +381,9 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Only draft estimates can be edited.");
         }
 
-        if (estimate.InventoryLines.Count == 0 && estimate.ServiceLines.Count == 0)
+        if (estimate.ServiceLines.Count == 0)
         {
-            throw new BusinessRuleViolationException("Estimate must contain at least one line item before submission.");
+            throw new BusinessRuleViolationException("Estimate must contain at least one service line before submission.");
         }
     }
 
