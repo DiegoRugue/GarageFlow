@@ -62,11 +62,6 @@ public sealed class EstimateServiceLine : Entity<EstimateServiceLineId>
 
     private void TransitionTo(EstimateServiceLineStatus newStatus, DateTime occurredAt)
     {
-        if (Status == newStatus)
-        {
-            return;
-        }
-
         var isAllowed = (Status, newStatus) switch
         {
             (EstimateServiceLineStatus.Pending, EstimateServiceLineStatus.InProgress) => true,

@@ -950,4 +950,45 @@ public class WorkOrderTests
         Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
     }
+
+    [Fact]
+    public void StartEstimateService_CalledTwice_ShouldThrowBusinessRuleViolationException_AndKeepOriginalStartedAt()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+        workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
+        var originalStartedAt = serviceLine.StartedAt;
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(
+            () => workOrder.StartEstimateService(estimate.Id, serviceLine.Id));
+
+        Assert.Equal("Estimate service line status transition from 'InProgress' to 'InProgress' is not allowed.", exception.Message);
+        Assert.Equal(EstimateServiceLineStatus.InProgress, serviceLine.Status);
+        Assert.Equal(originalStartedAt, serviceLine.StartedAt);
+        Assert.Null(serviceLine.CompletedAt);
+    }
+
+    [Fact]
+    public void CompleteEstimateService_CalledTwiceForSameLine_ShouldThrowBusinessRuleViolationException_AndKeepOriginalCompletedAt()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        workOrder.AddServiceLine(estimate.Id, ServiceId.New(), Description.Create("First service"), Price.Create(100m));
+        workOrder.AddServiceLine(estimate.Id, ServiceId.New(), Description.Create("Second service"), Price.Create(150m));
+        workOrder.SubmitEstimate(estimate.Id);
+        workOrder.ApproveEstimate(estimate.Id);
+
+        var firstService = estimate.ServiceLines.First();
+        workOrder.StartEstimateService(estimate.Id, firstService.Id);
+        workOrder.CompleteEstimateService(estimate.Id, firstService.Id);
+        var originalCompletedAt = firstService.CompletedAt;
+
+        var exception = Assert.Throws<BusinessRuleViolationException>(
+            () => workOrder.CompleteEstimateService(estimate.Id, firstService.Id));
+
+        Assert.Equal("Estimate service line status transition from 'Completed' to 'Completed' is not allowed.", exception.Message);
+        Assert.Equal(EstimateServiceLineStatus.Completed, firstService.Status);
+        Assert.Equal(originalCompletedAt, firstService.CompletedAt);
+    }
 }
