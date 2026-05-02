@@ -17,7 +17,7 @@ namespace GarageFlow.Tests.Integration.WorkOrders;
 public sealed class WorkOrderRepositoryQueryTests
 {
     [Fact]
-    public async Task GetAverageServiceTimeAsync_ShouldReturnZeroCountAndNullAverage_WhenNoWorkOrdersMatchWindow()
+    public async Task GetAverageServiceTimeAsync_ShouldReturnZeroCountAndNullAverage_WhenNoServiceLinesMatchWindow()
     {
         using var dbContext = CreateDbContext();
         var repository = new WorkOrderRepository(dbContext);
@@ -27,7 +27,7 @@ public sealed class WorkOrderRepositoryQueryTests
 
         var result = await repository.GetAverageServiceTimeAsync(from, to);
 
-        Assert.Equal(0, result.CompletedWorkOrdersCount);
+        Assert.Equal(0, result.CompletedServicesCount);
         Assert.Null(result.AverageDurationMinutes);
     }
 
@@ -39,19 +39,20 @@ public sealed class WorkOrderRepositoryQueryTests
 
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
+        var serviceId = ServiceId.New();
         var from = new DateTime(2026, 2, 10, 9, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 2, 10, 12, 0, 0, DateTimeKind.Utc);
 
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, from.AddMinutes(-30), from);
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, to.AddMinutes(-45), to);
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, from, from.AddMinutes(30));
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, from.AddHours(-1), from.AddTicks(-1));
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, to, to.AddTicks(1));
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, from.AddMinutes(-30), from);
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, to.AddMinutes(-45), to);
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, from, from.AddMinutes(30));
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, from.AddHours(-1), from.AddTicks(-1));
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, to, to.AddTicks(1));
         await dbContext.SaveChangesAsync();
 
         var result = await repository.GetAverageServiceTimeAsync(from, to);
 
-        Assert.Equal(3, result.CompletedWorkOrdersCount);
+        Assert.Equal(3, result.CompletedServicesCount);
     }
 
     [Fact]
@@ -62,17 +63,30 @@ public sealed class WorkOrderRepositoryQueryTests
 
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
+        var serviceId = ServiceId.New();
         var from = new DateTime(2026, 3, 3, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 3, 3, 23, 59, 59, DateTimeKind.Utc);
 
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, null, from.AddHours(2));
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, from.AddHours(3), null);
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, from.AddHours(4), from.AddHours(5));
+        CreateWorkOrderWithServiceStatusAndTiming(
+            dbContext,
+            customerId,
+            vehicleId,
+            serviceId,
+            startedAt: null,
+            completedAt: from.AddHours(2));
+        CreateWorkOrderWithServiceStatusAndTiming(
+            dbContext,
+            customerId,
+            vehicleId,
+            serviceId,
+            startedAt: from.AddHours(3),
+            completedAt: null);
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, from.AddHours(4), from.AddHours(5));
         await dbContext.SaveChangesAsync();
 
         var result = await repository.GetAverageServiceTimeAsync(from, to);
 
-        Assert.Equal(1, result.CompletedWorkOrdersCount);
+        Assert.Equal(1, result.CompletedServicesCount);
         Assert.Equal(60d, result.AverageDurationMinutes);
     }
 
@@ -84,20 +98,42 @@ public sealed class WorkOrderRepositoryQueryTests
 
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
+        var serviceId = ServiceId.New();
         var from = new DateTime(2026, 4, 6, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 4, 6, 23, 59, 59, DateTimeKind.Utc);
 
         var firstCompletedAt = from.AddHours(8);
         var secondCompletedAt = from.AddHours(10);
         var thirdCompletedAt = from.AddHours(12);
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, firstCompletedAt.AddMinutes(-30), firstCompletedAt);
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, secondCompletedAt.AddMinutes(-45), secondCompletedAt);
-        CreateWorkOrderWithTiming(dbContext, customerId, vehicleId, thirdCompletedAt.AddMinutes(-105), thirdCompletedAt);
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, firstCompletedAt.AddMinutes(-30), firstCompletedAt);
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, secondCompletedAt.AddMinutes(-45), secondCompletedAt);
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, thirdCompletedAt.AddMinutes(-105), thirdCompletedAt);
         await dbContext.SaveChangesAsync();
 
         var result = await repository.GetAverageServiceTimeAsync(from, to);
 
-        Assert.Equal(3, result.CompletedWorkOrdersCount);
+        Assert.Equal(3, result.CompletedServicesCount);
+        Assert.Equal(60d, result.AverageDurationMinutes);
+    }
+
+    [Fact]
+    public async Task GetAverageServiceTimeAsync_ShouldFilterCompletedServiceLinesByServiceId()
+    {
+        using var dbContext = CreateDbContext();
+        var repository = new WorkOrderRepository(dbContext);
+        var customerId = CustomerId.New();
+        var vehicleId = VehicleId.New();
+        var targetServiceId = ServiceId.New();
+        var otherServiceId = ServiceId.New();
+        var from = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 2, 23, 59, 59, DateTimeKind.Utc);
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, targetServiceId, from.AddHours(8), from.AddHours(9));
+        CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, otherServiceId, from.AddHours(10), from.AddHours(12));
+        await dbContext.SaveChangesAsync();
+
+        var result = await repository.GetAverageServiceTimeAsync(from, to, targetServiceId);
+
+        Assert.Equal(1, result.CompletedServicesCount);
         Assert.Equal(60d, result.AverageDurationMinutes);
     }
 
@@ -181,18 +217,53 @@ public sealed class WorkOrderRepositoryQueryTests
         return new GarageFlowDbContext(options);
     }
 
-    private static void CreateWorkOrderWithTiming(
+    private static WorkOrder CreateWorkOrderWithCompletedService(
         GarageFlowDbContext dbContext,
         CustomerId customerId,
         VehicleId vehicleId,
+        ServiceId serviceId,
+        DateTime startedAt,
+        DateTime completedAt)
+    {
+        return CreateWorkOrderWithServiceStatusAndTiming(
+            dbContext,
+            customerId,
+            vehicleId,
+            serviceId,
+            startedAt,
+            completedAt);
+    }
+
+    private static WorkOrder CreateWorkOrderWithServiceStatusAndTiming(
+        GarageFlowDbContext dbContext,
+        CustomerId customerId,
+        VehicleId vehicleId,
+        ServiceId serviceId,
         DateTime? startedAt,
         DateTime? completedAt)
     {
         var workOrder = WorkOrder.Create(customerId, vehicleId);
+        var estimate = workOrder.CreateEstimate();
+        workOrder.AddServiceLine(
+            estimate.Id,
+            serviceId,
+            Description.Create("Timed service"),
+            Price.Create(100m));
+        workOrder.SubmitEstimate(estimate.Id);
+        workOrder.ApproveEstimate(estimate.Id);
+        var serviceLine = estimate.ServiceLines.Single();
+        workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
+        if (completedAt.HasValue)
+        {
+            workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
+        }
+
         dbContext.WorkOrders.Add(workOrder);
-        var entry = dbContext.Entry(workOrder);
-        entry.Property(item => item.StartedAt).CurrentValue = startedAt;
-        entry.Property(item => item.CompletedAt).CurrentValue = completedAt;
+        dbContext.Entry(serviceLine).Property(line => line.StartedAt).CurrentValue = startedAt;
+        dbContext.Entry(serviceLine).Property(line => line.CompletedAt).CurrentValue = completedAt;
+        dbContext.Entry(workOrder).Property(item => item.StartedAt).CurrentValue = startedAt;
+        dbContext.Entry(workOrder).Property(item => item.CompletedAt).CurrentValue = completedAt;
+        return workOrder;
     }
 
     private static bool ContainsAsSplitQueryCall(Expression expression)

@@ -1,5 +1,7 @@
 using GarageFlow.Domain.Customers.ValueObjects;
+using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
+using GarageFlow.Domain.WorkOrders.Enums;
 using GarageFlow.Domain.WorkOrders.Repositories;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using GarageFlow.Infrastructure.DataAccess;
@@ -90,30 +92,37 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
     public async Task<AverageServiceTimeReadModel> GetAverageServiceTimeAsync(
         DateTime completedFrom,
         DateTime completedTo,
+        ServiceId? serviceId = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _dbContext.WorkOrders
+        var query = _dbContext.Set<EstimateServiceLine>()
             .AsNoTracking()
-            .Where(workOrder =>
-                workOrder.StartedAt.HasValue &&
-                workOrder.CompletedAt.HasValue &&
-                workOrder.CompletedAt.Value >= completedFrom &&
-                workOrder.CompletedAt.Value <= completedTo);
+            .Where(line =>
+                line.Status == EstimateServiceLineStatus.Completed &&
+                line.StartedAt.HasValue &&
+                line.CompletedAt.HasValue &&
+                line.CompletedAt.Value >= completedFrom &&
+                line.CompletedAt.Value <= completedTo);
 
-        var completedWorkOrdersCount = await query.CountAsync(cancellationToken);
-        if (completedWorkOrdersCount == 0)
+        if (serviceId is not null)
+        {
+            query = query.Where(line => line.ServiceId == serviceId);
+        }
+
+        var completedServicesCount = await query.CountAsync(cancellationToken);
+        if (completedServicesCount == 0)
         {
             return new AverageServiceTimeReadModel(
-                CompletedWorkOrdersCount: 0,
+                CompletedServicesCount: 0,
                 AverageDurationMinutes: null);
         }
 
         var averageDurationMinutes = await query.AverageAsync(
-            workOrder => (workOrder.CompletedAt!.Value - workOrder.StartedAt!.Value).TotalMinutes,
+            line => (line.CompletedAt!.Value - line.StartedAt!.Value).TotalMinutes,
             cancellationToken);
 
         return new AverageServiceTimeReadModel(
-            CompletedWorkOrdersCount: completedWorkOrdersCount,
+            CompletedServicesCount: completedServicesCount,
             AverageDurationMinutes: averageDurationMinutes);
     }
 

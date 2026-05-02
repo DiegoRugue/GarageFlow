@@ -1467,7 +1467,7 @@ public class WorkOrderHandlersTests
     {
         var from = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
-            averageServiceTime: new AverageServiceTimeReadModel(CompletedWorkOrdersCount: 0, AverageDurationMinutes: null));
+            averageServiceTime: new AverageServiceTimeReadModel(CompletedServicesCount: 0, AverageDurationMinutes: null));
         var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
@@ -1475,29 +1475,31 @@ public class WorkOrderHandlersTests
 
         Assert.Equal("From must be earlier than To.", exception.Message);
         workOrderRepositoryMock.Verify(
-            x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ServiceId?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
     [Fact]
-    public async Task GetAverageServiceTime_ShouldReturnAverageDuration_WhenWindowHasCompletedWorkOrders()
+    public async Task GetAverageServiceTime_ShouldReturnAverageDuration_WhenWindowHasCompletedServices()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 5, 31, 23, 59, 59, DateTimeKind.Utc);
+        var serviceId = Guid.NewGuid();
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
             averageServiceTime: new AverageServiceTimeReadModel(
-                CompletedWorkOrdersCount: 3,
+                CompletedServicesCount: 3,
                 AverageDurationMinutes: 184.5d));
         var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
 
-        var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to), CancellationToken.None);
+        var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to, serviceId), CancellationToken.None);
 
         Assert.Equal(from, result.From);
         Assert.Equal(to, result.To);
-        Assert.Equal(3, result.CompletedWorkOrdersCount);
+        Assert.Equal(serviceId, result.ServiceId);
+        Assert.Equal(3, result.CompletedServicesCount);
         Assert.Equal(184.5d, result.AverageDurationMinutes);
         workOrderRepositoryMock.Verify(
-            x => x.GetAverageServiceTimeAsync(from, to, It.IsAny<CancellationToken>()),
+            x => x.GetAverageServiceTimeAsync(from, to, It.Is<ServiceId?>(id => id!.Value.Value == serviceId), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -1508,13 +1510,13 @@ public class WorkOrderHandlersTests
         var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
             averageServiceTime: new AverageServiceTimeReadModel(
-                CompletedWorkOrdersCount: 0,
+                CompletedServicesCount: 0,
                 AverageDurationMinutes: null));
         var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
 
         var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to), CancellationToken.None);
 
-        Assert.Equal(0, result.CompletedWorkOrdersCount);
+        Assert.Equal(0, result.CompletedServicesCount);
         Assert.Null(result.AverageDurationMinutes);
     }
 
@@ -1601,9 +1603,10 @@ public class WorkOrderHandlersTests
             .Setup(x => x.GetAverageServiceTimeAsync(
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
+                It.IsAny<ServiceId?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(averageServiceTime ?? new AverageServiceTimeReadModel(
-                CompletedWorkOrdersCount: 0,
+                CompletedServicesCount: 0,
                 AverageDurationMinutes: null));
 
         repositoryMock

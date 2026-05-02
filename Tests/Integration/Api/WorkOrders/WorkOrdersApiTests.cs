@@ -80,7 +80,7 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
-    public async Task AverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedWorkOrders()
+    public async Task AverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedServices()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
         var from = DateTime.UtcNow.AddDays(365);
@@ -90,12 +90,13 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
         var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
-        Assert.Equal(0, payload.CompletedWorkOrdersCount);
+        Assert.Equal(0, payload.CompletedServicesCount);
+        Assert.Null(payload.ServiceId);
         Assert.Null(payload.AverageDurationMinutes);
     }
 
     [Fact]
-    public async Task AverageServiceTime_ShouldReturnAverageDuration_ForCompletedWorkOrdersInWindow()
+    public async Task AverageServiceTime_ShouldReturnAverageDuration_ForCompletedServiceLinesInWindow()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
         var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
@@ -138,20 +139,27 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         HttpResponseAssertions.AssertStatus(approveResponse, HttpStatusCode.NoContent);
 
         await client.AuthenticateAsActiveBootstrapAdminAsync();
+        var approvedDetails = await GetWorkOrderDetailsAsync(client, workOrder.Id);
+        var serviceLineId = Assert.Single(approvedDetails.Estimates.Single().ServiceLines).Id;
 
         var from = DateTime.UtcNow.AddMinutes(-1);
-        var startResponse = await client.PostAsync($"/work-orders/{workOrder.Id}/start-work", content: null);
+        var startResponse = await client.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/start",
+            content: null);
         HttpResponseAssertions.AssertStatus(startResponse, HttpStatusCode.NoContent);
 
-        var completeResponse = await client.PostAsync($"/work-orders/{workOrder.Id}/complete", content: null);
+        var completeResponse = await client.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/complete",
+            content: null);
         HttpResponseAssertions.AssertStatus(completeResponse, HttpStatusCode.NoContent);
         var to = DateTime.UtcNow.AddMinutes(1);
 
-        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to, service.Id));
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
         var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
-        Assert.Equal(1, payload.CompletedWorkOrdersCount);
+        Assert.Equal(service.Id, payload.ServiceId);
+        Assert.Equal(1, payload.CompletedServicesCount);
         Assert.NotNull(payload.AverageDurationMinutes);
         Assert.True(payload.AverageDurationMinutes >= 0);
     }
@@ -185,6 +193,7 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var parameters = endpointMethod.GetParameters();
         Assert.Equal(typeof(DateTimeOffset), parameters[0].ParameterType);
         Assert.Equal(typeof(DateTimeOffset), parameters[1].ParameterType);
+        Assert.Equal(typeof(Guid?), parameters[2].ParameterType);
     }
 
     [Fact]
@@ -838,9 +847,18 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             new DateTimeOffset(to.ToUniversalTime(), TimeSpan.Zero));
     }
 
-    private static string CreateAverageServiceTimeUrl(DateTimeOffset from, DateTimeOffset to)
+    private static string CreateAverageServiceTimeUrl(DateTime from, DateTime to, Guid? serviceId)
     {
-        return $"/work-orders/average-service-time?from={FormatOffset(from)}&to={FormatOffset(to)}";
+        return CreateAverageServiceTimeUrl(
+            new DateTimeOffset(from.ToUniversalTime(), TimeSpan.Zero),
+            new DateTimeOffset(to.ToUniversalTime(), TimeSpan.Zero),
+            serviceId);
+    }
+
+    private static string CreateAverageServiceTimeUrl(DateTimeOffset from, DateTimeOffset to, Guid? serviceId = null)
+    {
+        var serviceIdFilter = serviceId.HasValue ? $"&serviceId={serviceId.Value}" : string.Empty;
+        return $"/work-orders/average-service-time?from={FormatOffset(from)}&to={FormatOffset(to)}{serviceIdFilter}";
     }
 
     private static string FormatOffset(DateTimeOffset value)
