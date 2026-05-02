@@ -1,4 +1,5 @@
 using GarageFlow.Application.Auth.Abstractions;
+using GarageFlow.Application.WorkOrders.Abstractions;
 using GarageFlow.BuildingBlocks.Persistence;
 using GarageFlow.Domain.Customers.Repositories;
 using GarageFlow.Domain.InventoryItems.Repositories;
@@ -13,6 +14,7 @@ using GarageFlow.Infrastructure.InventoryItems.Repositories;
 using GarageFlow.Infrastructure.Services.Repositories;
 using GarageFlow.Infrastructure.Users.Repositories;
 using GarageFlow.Infrastructure.Vehicles.Repositories;
+using GarageFlow.Infrastructure.WorkOrders.Email;
 using GarageFlow.Infrastructure.WorkOrders.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -70,6 +72,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();
         builder.Services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
         builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
+        builder.Services.AddScoped<ICustomerApprovalEmailSender, LoggingCustomerApprovalEmailSender>();
         builder.Services.AddScoped<IPasswordHashService, PasswordHashService>();
         builder.Services.AddScoped<ITokenService, JwtTokenService>();
         builder.Services.Configure<JwtTokenOptions>(builder.Configuration.GetSection(JwtTokenOptions.SectionName));

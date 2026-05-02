@@ -16,7 +16,8 @@ public class ModuleConventionTests
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     private static readonly HashSet<string> AllowedApplicationNamingExceptions =
     [
-        "Application/Users/ListUsers/UserListItem.cs"
+        "Application/Users/ListUsers/UserListItem.cs",
+        "Application/WorkOrders/Abstractions/ICustomerApprovalEmailSender.cs"
     ];
 
     [Fact]
