@@ -198,6 +198,30 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task StartEstimateService_ShouldReturn401_WhenRequestHasNoToken()
+    {
+        using var client = _fixture.CreateClient();
+
+        var response = await client.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/start",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task CompleteEstimateService_ShouldReturn401_WhenRequestHasNoToken()
+    {
+        using var client = _fixture.CreateClient();
+
+        var response = await client.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/complete",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task Staff_ShouldCreateWorkOrder_WithCreatedStatus()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
