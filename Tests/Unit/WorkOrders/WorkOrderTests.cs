@@ -75,29 +75,6 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void Complete_ShouldThrowBusinessRuleViolationException_WhenNoEstimateIsApproved()
-    {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-
-        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.Complete());
-
-        Assert.Equal("Work order requires exactly one approved estimate before completion.", exception.Message);
-    }
-
-    [Fact]
-    public void Complete_ShouldThrowBusinessRuleViolationException_WhenApprovedEstimateHasPendingServices()
-    {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-        workOrder.StartWork();
-
-        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.Complete());
-
-        Assert.Equal("All approved estimate service lines must be completed before completion.", exception.Message);
-        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
-        Assert.Null(workOrder.CompletedAt);
-    }
-
-    [Fact]
     public void AddInventoryLine_ShouldCalculateEstimateTotal()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
@@ -165,21 +142,21 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void Complete_ShouldSetCompletedAt_WhenTransitioningToCompleted()
+    public void CompleteEstimateService_ShouldSetWorkOrderCompletedAt_WhenLastServiceCompletes()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
         var estimate = workOrder.Estimates.Single();
         var serviceLine = estimate.ServiceLines.Single();
+        var beforeStart = DateTime.UtcNow;
         workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
-        workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
-        var completedAtFromServiceFlow = workOrder.CompletedAt;
+        var afterStart = DateTime.UtcNow;
 
-        workOrder.Complete();
+        workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
 
         Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
         Assert.NotNull(workOrder.StartedAt);
         Assert.NotNull(workOrder.CompletedAt);
-        Assert.Equal(completedAtFromServiceFlow, workOrder.CompletedAt);
+        Assert.InRange(workOrder.StartedAt.Value, beforeStart, afterStart);
         Assert.True(workOrder.CompletedAt.Value >= workOrder.StartedAt.Value);
     }
 
@@ -204,25 +181,18 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void Complete_CalledTwice_ShouldNotOverwriteCompletedAt_OrDuplicateCompletedTransitionEvent()
+    public void CompleteEstimateService_CalledTwice_ShouldThrowBusinessRuleViolationException()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
         var estimate = workOrder.Estimates.Single();
         var serviceLine = estimate.ServiceLines.Single();
         workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
         workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
-        var originalCompletedAt = workOrder.CompletedAt;
-        var completedTransitionsBeforeSecondCall = workOrder.DomainEvents
-            .OfType<WorkOrderStatusChanged>()
-            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.Completed);
 
-        workOrder.Complete();
+        var exception = Assert.Throws<BusinessRuleViolationException>(
+            () => workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id));
 
-        var completedTransitionsAfterSecondCall = workOrder.DomainEvents
-            .OfType<WorkOrderStatusChanged>()
-            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.Completed);
-        Assert.Equal(originalCompletedAt, workOrder.CompletedAt);
-        Assert.Equal(completedTransitionsBeforeSecondCall, completedTransitionsAfterSecondCall);
+        Assert.Equal("Work order must be in progress before completing services.", exception.Message);
     }
 
     [Fact]

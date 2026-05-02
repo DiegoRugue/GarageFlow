@@ -3,7 +3,6 @@ using GarageFlow.Application.WorkOrders.AddEstimateInventoryItem;
 using GarageFlow.Application.WorkOrders.AddEstimateService;
 using GarageFlow.Application.WorkOrders.ApproveMyEstimate;
 using GarageFlow.Application.WorkOrders.CancelWorkOrder;
-using GarageFlow.Application.WorkOrders.CompleteWorkOrder;
 using GarageFlow.Application.WorkOrders.CreateEstimate;
 using GarageFlow.Application.WorkOrders.CreateWorkOrder;
 using GarageFlow.Application.WorkOrders.DeliverWorkOrder;
@@ -585,23 +584,6 @@ public class WorkOrderHandlersTests
             async () => await handler.Handle(new DeliverWorkOrderCommand(workOrder.Id.Value), CancellationToken.None));
 
         Assert.Equal("Only completed work orders can be delivered.", exception.Message);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task CompleteWorkOrder_ShouldThrowBusinessRuleViolationException_WhenNoEstimateIsApproved()
-    {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CompleteWorkOrderHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
-
-        var exception = await Assert.ThrowsAsync<BusinessRuleViolationException>(
-            async () => await handler.Handle(new CompleteWorkOrderCommand(workOrder.Id.Value), CancellationToken.None));
-
-        Assert.Equal("Work order requires exactly one approved estimate before completion.", exception.Message);
         unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);

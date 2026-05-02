@@ -232,6 +232,20 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task CompleteWorkOrder_ShouldReturn404_WhenDirectCompletionRouteIsRemoved()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        var workOrder = await CreateWorkOrderAsync(staffClient, seededVehicle.CustomerId, seededVehicle.VehicleId);
+
+        var response = await staffClient.PostAsync($"/work-orders/{workOrder.Id}/complete", content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task Staff_ShouldAddInventoryItem_AndDecreaseStock()
     {
         using var staffClient = await _fixture.CreateAuthenticatedClientAsync();

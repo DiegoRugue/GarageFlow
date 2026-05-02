@@ -3,7 +3,6 @@ using GarageFlow.Api.WorkOrders.AddEstimateInventoryItem;
 using GarageFlow.Api.WorkOrders.AddEstimateService;
 using GarageFlow.Api.WorkOrders.ApproveMyEstimate;
 using GarageFlow.Api.WorkOrders.CancelWorkOrder;
-using GarageFlow.Api.WorkOrders.CompleteWorkOrder;
 using GarageFlow.Api.WorkOrders.CreateEstimate;
 using GarageFlow.Api.WorkOrders.CreateWorkOrder;
 using GarageFlow.Api.WorkOrders.DeliverWorkOrder;
@@ -36,7 +35,6 @@ public static class WorkOrderEndpoints
         staffRoutes.MapSubmitEstimateEndpoint();
         staffRoutes.MapStartDiagnosisEndpoint();
         staffRoutes.MapStartWorkEndpoint();
-        staffRoutes.MapCompleteWorkOrderEndpoint();
         staffRoutes.MapDeliverWorkOrderEndpoint();
         staffRoutes.MapCancelWorkOrderEndpoint();
 
