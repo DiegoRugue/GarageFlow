@@ -16,6 +16,11 @@ public sealed class SubmitEstimateHandler(
     ICustomerApprovalEmailSender emailSender,
     ILogger<SubmitEstimateHandler>? logger = null) : IRequestHandler<SubmitEstimateCommand, Unit>
 {
+    private static readonly Action<ILogger, Guid, Guid, Exception?> LogApprovalEmailFailure = LoggerMessage.Define<Guid, Guid>(
+        LogLevel.Error,
+        new EventId(1, nameof(LogApprovalEmailFailure)),
+        "Failed to send approval email after commit for work order {WorkOrderId} and estimate {EstimateId}.");
+
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
     private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     private readonly ICustomerApprovalEmailSender _emailSender = emailSender ?? throw new ArgumentNullException(nameof(emailSender));
@@ -66,11 +71,11 @@ public sealed class SubmitEstimateHandler(
             }
             catch (Exception ex)
             {
-                _logger.LogError(
-                    ex,
-                    "Failed to send approval email after commit for work order {WorkOrderId} and estimate {EstimateId}.",
+                LogApprovalEmailFailure(
+                    _logger,
                     request.WorkOrderId,
-                    request.EstimateId);
+                    request.EstimateId,
+                    ex);
             }
         }
 
