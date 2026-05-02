@@ -8,6 +8,8 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
     /// <inheritdoc />
     public partial class EstimateServiceLineExecution : Migration
     {
+        private static readonly string[] ServiceLineServiceIdCompletedAtIndexColumns = ["ServiceId", "CompletedAt"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -44,7 +46,7 @@ namespace GarageFlow.Infrastructure.DataAccess.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_WorkOrderEstimateServiceLines_ServiceId_CompletedAt",
                 table: "WorkOrderEstimateServiceLines",
-                columns: new[] { "ServiceId", "CompletedAt" });
+                columns: ServiceLineServiceIdCompletedAtIndexColumns);
         }
 
         /// <inheritdoc />
