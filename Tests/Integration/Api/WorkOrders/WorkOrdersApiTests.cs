@@ -243,6 +243,48 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task StartEstimateService_ShouldReturn403_WhenAuthenticatedUserIsCustomer()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            _fixture,
+            staffClient,
+            seededVehicle.CustomerId,
+            "Customer.Start.Service.Forbidden#123");
+
+        var response = await customerClient.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/start",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task CompleteEstimateService_ShouldReturn403_WhenAuthenticatedUserIsCustomer()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            _fixture,
+            staffClient,
+            seededVehicle.CustomerId,
+            "Customer.Complete.Service.Forbidden#123");
+
+        var response = await customerClient.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/complete",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task Staff_ShouldStartAndCompleteEstimateService_AndSeeServiceExecutionDetails()
     {
         using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
@@ -425,6 +467,38 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task Staff_ShouldReceive409_WhenSubmittingInventoryOnlyEstimate()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var attendantClient = await CreateAuthenticatedAttendantClientAsync(_fixture);
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+
+        var createdWorkOrder = await CreateWorkOrderAsync(staffClient, seededVehicle.CustomerId, seededVehicle.VehicleId);
+        var createdEstimate = await CreateEstimateAsync(staffClient, createdWorkOrder.Id);
+        var inventoryItem = await CreateInventoryItemAsync(
+            attendantClient,
+            new InventoryItemBuilder()
+                .WithName($"InventoryOnly-{Guid.NewGuid():N}")
+                .WithDescription("Inventory-only line")
+                .WithCost(40m)
+                .WithPrice(80m)
+                .WithStockQuantity(6));
+
+        var addInventoryResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/inventory-items",
+            new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: 1));
+        HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
+
+        var submitResponse = await staffClient.PostAsync(
+            $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/submit",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(submitResponse, HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Customer_ShouldListOnlyOwnWorkOrders()
     {
         using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
@@ -502,6 +576,16 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: 1));
         HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
 
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Approve own service {Guid.NewGuid():N}")
+                .WithPrice(150m));
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+
         var submitEstimateResponse = await staffClient.PostAsync(
             $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/submit",
             content: null);
@@ -556,6 +640,16 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: 2));
         HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
 
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Approve other service {Guid.NewGuid():N}")
+                .WithPrice(95m));
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{secondWorkOrder.Id}/estimates/{secondEstimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+
         var submitEstimateResponse = await staffClient.PostAsync(
             $"/work-orders/{secondWorkOrder.Id}/estimates/{secondEstimate.Id}/submit",
             content: null);
@@ -607,6 +701,16 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/inventory-items",
             new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: reservedQuantity));
         HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
+
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Reject own service {Guid.NewGuid():N}")
+                .WithPrice(210m));
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
 
         var stockAfterReservationResponse = await attendantClient.GetAsync($"/inventory-items/{inventoryItem.Id}");
         HttpResponseAssertions.AssertStatus(stockAfterReservationResponse, HttpStatusCode.OK);
