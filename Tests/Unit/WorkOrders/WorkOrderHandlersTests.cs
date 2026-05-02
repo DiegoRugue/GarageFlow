@@ -452,6 +452,7 @@ public class WorkOrderHandlersTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new SubmitEstimateHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
@@ -472,6 +473,7 @@ public class WorkOrderHandlersTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var sequence = new MockSequence();
@@ -618,6 +620,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(customerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -653,6 +656,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(customerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -707,6 +711,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(ownerCustomerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -748,6 +753,7 @@ public class WorkOrderHandlersTests
             EstimateItemQuantity.Create(2),
             Price.Create(110m),
             Price.Create(180m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -804,6 +810,7 @@ public class WorkOrderHandlersTests
             EstimateItemQuantity.Create(2),
             Price.Create(110m),
             Price.Create(180m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -859,6 +866,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(ownerCustomerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -1043,6 +1051,7 @@ public class WorkOrderHandlersTests
             EstimateItemQuantity.Create(1),
             Price.Create(10m),
             Price.Create(15m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);

@@ -231,6 +231,14 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             StartedAt = serviceLine.StartedAt;
         }
 
+        RaiseDomainEvent(new EstimateServiceLineStarted(
+            WorkOrderId: Id,
+            EstimateId: estimate.Id,
+            EstimateServiceLineId: serviceLine.Id,
+            ServiceId: serviceLine.ServiceId,
+            Status: serviceLine.Status,
+            StartedAt: serviceLine.StartedAt!.Value));
+
         UpdatedAt = DateTime.UtcNow;
     }
 
@@ -245,6 +253,14 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         var serviceLine = GetEstimateServiceLineOrThrow(estimate, lineId);
 
         serviceLine.Complete();
+
+        RaiseDomainEvent(new EstimateServiceLineCompleted(
+            WorkOrderId: Id,
+            EstimateId: estimate.Id,
+            EstimateServiceLineId: serviceLine.Id,
+            ServiceId: serviceLine.ServiceId,
+            Status: serviceLine.Status,
+            CompletedAt: serviceLine.CompletedAt!.Value));
 
         if (estimate.ServiceLines.All(line => line.Status == EstimateServiceLineStatus.Completed))
         {
@@ -261,10 +277,11 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     private void CompleteFromServiceLines(DateTime? completedAt)
     {
-        var approvedEstimatesCount = _estimates.Count(estimate => estimate.Status == EstimateStatus.Approved);
-        if (approvedEstimatesCount != 1)
+        var approvedEstimate = GetSingleApprovedEstimateOrThrow();
+        if (approvedEstimate.ServiceLines.Count == 0 ||
+            approvedEstimate.ServiceLines.Any(line => line.Status != EstimateServiceLineStatus.Completed))
         {
-            throw new BusinessRuleViolationException("Work order requires exactly one approved estimate before completion.");
+            throw new BusinessRuleViolationException("All approved estimate service lines must be completed before completion.");
         }
 
         if (Status == WorkOrderStatus.Completed)
@@ -312,6 +329,17 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         }
 
         return estimate;
+    }
+
+    private Estimate GetSingleApprovedEstimateOrThrow()
+    {
+        var approvedEstimates = _estimates.Where(estimate => estimate.Status == EstimateStatus.Approved).ToList();
+        if (approvedEstimates.Count != 1)
+        {
+            throw new BusinessRuleViolationException("Work order requires exactly one approved estimate before completion.");
+        }
+
+        return approvedEstimates[0];
     }
 
     private static EstimateServiceLine GetEstimateServiceLineOrThrow(Estimate estimate, EstimateServiceLineId lineId)
