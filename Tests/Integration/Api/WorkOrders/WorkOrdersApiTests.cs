@@ -222,6 +222,56 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task Staff_ShouldStartAndCompleteEstimateService_AndSeeServiceExecutionDetails()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        var workOrder = await CreateWorkOrderAsync(staffClient, seededVehicle.CustomerId, seededVehicle.VehicleId);
+        var estimate = await CreateEstimateAsync(staffClient, workOrder.Id);
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Execution service {Guid.NewGuid():N}")
+                .WithPrice(125m));
+
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+
+        await SubmitAndApproveEstimateAsync(_fixture, staffClient, seededVehicle.CustomerId, workOrder.Id, estimate.Id);
+
+        var approvedDetails = await GetWorkOrderDetailsAsync(staffClient, workOrder.Id);
+        var serviceLineId = Assert.Single(approvedDetails.Estimates.Single().ServiceLines).Id;
+
+        var startResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/start",
+            content: null);
+        HttpResponseAssertions.AssertStatus(startResponse, HttpStatusCode.NoContent);
+
+        var inProgressDetails = await GetWorkOrderDetailsAsync(staffClient, workOrder.Id);
+        var inProgressService = Assert.Single(inProgressDetails.Estimates.Single().ServiceLines);
+        Assert.Equal("InProgress", inProgressService.Status);
+        Assert.NotNull(inProgressService.StartedAt);
+        Assert.Null(inProgressService.CompletedAt);
+        Assert.Equal("InProgress", inProgressDetails.Status);
+
+        var completeResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/complete",
+            content: null);
+        HttpResponseAssertions.AssertStatus(completeResponse, HttpStatusCode.NoContent);
+
+        var completedDetails = await GetWorkOrderDetailsAsync(staffClient, workOrder.Id);
+        var completedService = Assert.Single(completedDetails.Estimates.Single().ServiceLines);
+        Assert.Equal("Completed", completedService.Status);
+        Assert.NotNull(completedService.StartedAt);
+        Assert.NotNull(completedService.CompletedAt);
+        Assert.Equal("Completed", completedDetails.Status);
+    }
+
+    [Fact]
     public async Task Staff_ShouldCreateWorkOrder_WithCreatedStatus()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
@@ -717,6 +767,37 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
 
         var activeLogin = await client.LoginAndAttachBearerTokenAsync(email, newPassword);
         Assert.False(activeLogin.MustChangePassword);
+    }
+
+    private static async Task SubmitAndApproveEstimateAsync(
+        GarageFlowApiFixture fixture,
+        HttpClient staffClient,
+        Guid customerId,
+        Guid workOrderId,
+        Guid estimateId)
+    {
+        var submitResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrderId}/estimates/{estimateId}/submit",
+            content: null);
+        HttpResponseAssertions.AssertStatus(submitResponse, HttpStatusCode.NoContent);
+
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            fixture,
+            staffClient,
+            customerId,
+            "Customer.Submit.Approve#123");
+
+        var approveResponse = await customerClient.PostAsync(
+            $"/me/work-orders/{workOrderId}/estimates/{estimateId}/approve",
+            content: null);
+        HttpResponseAssertions.AssertStatus(approveResponse, HttpStatusCode.NoContent);
+    }
+
+    private static async Task<WorkOrderDetailsResponse> GetWorkOrderDetailsAsync(HttpClient client, Guid workOrderId)
+    {
+        var response = await client.GetAsync($"/work-orders/{workOrderId}");
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        return await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(response);
     }
 
     private static async Task<CreateWorkOrderResponse> CreateWorkOrderAsync(HttpClient client, Guid customerId, Guid vehicleId)

@@ -168,7 +168,10 @@ public sealed class WorkOrderRepository(GarageFlowDbContext dbContext) : IWorkOr
                         line.ServiceId.Value,
                         line.DescriptionSnapshot.Value,
                         line.UnitPrice.Value,
-                        line.TotalPrice.Value))
+                        line.TotalPrice.Value,
+                        line.Status.ToString(),
+                        line.StartedAt,
+                        line.CompletedAt))
                     .ToList();
 
                 return new WorkOrderEstimateReadModel(

@@ -1202,7 +1202,10 @@ public class WorkOrderHandlersTests
                             ServiceId: Guid.NewGuid(),
                             DescriptionSnapshot: "Diagnostics",
                             UnitPrice: 150m,
-                            TotalPrice: 150m)
+                            TotalPrice: 150m,
+                            Status: "Pending",
+                            StartedAt: null,
+                            CompletedAt: null)
                     ])
             ]);
 
@@ -1382,7 +1385,10 @@ public class WorkOrderHandlersTests
                             ServiceId: Guid.NewGuid(),
                             DescriptionSnapshot: "Electrical diagnosis",
                             UnitPrice: 180m,
-                            TotalPrice: 180m)
+                            TotalPrice: 180m,
+                            Status: "Pending",
+                            StartedAt: null,
+                            CompletedAt: null)
                     ])
             ]);
 

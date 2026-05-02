@@ -113,7 +113,10 @@ internal static class WorkOrderResponseMapper
             line.ServiceId,
             line.Description,
             line.UnitPrice,
-            line.TotalPrice);
+            line.TotalPrice,
+            line.Status,
+            line.StartedAt,
+            line.CompletedAt);
     }
 
     private static CustomerWorkOrderServiceLineResponse MapCustomerServiceLine(CustomerWorkOrderServiceLineDto line)
@@ -124,7 +127,10 @@ internal static class WorkOrderResponseMapper
             line.ServiceId,
             line.Description,
             line.UnitPrice,
-            line.TotalPrice);
+            line.TotalPrice,
+            line.Status,
+            line.StartedAt,
+            line.CompletedAt);
     }
 
     private readonly record struct DetailsShape(
