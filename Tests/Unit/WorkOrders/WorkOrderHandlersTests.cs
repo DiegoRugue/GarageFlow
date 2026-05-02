@@ -1480,6 +1480,23 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
+    public async Task GetAverageServiceTime_ShouldThrowValidationException_WhenServiceIdIsEmpty()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            async () => await handler.Handle(new GetAverageServiceTimeQuery(from, to, Guid.Empty), CancellationToken.None));
+
+        Assert.Equal("Service identifier cannot be empty.", exception.Message);
+        workOrderRepositoryMock.Verify(
+            x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ServiceId?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task GetAverageServiceTime_ShouldReturnAverageDuration_WhenWindowHasCompletedServices()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -1504,7 +1521,7 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
-    public async Task GetAverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedWorkOrders()
+    public async Task GetAverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedServices()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);

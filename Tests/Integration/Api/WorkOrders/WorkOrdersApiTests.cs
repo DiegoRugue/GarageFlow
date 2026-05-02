@@ -80,6 +80,18 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task AverageServiceTime_ShouldReturn400_WhenServiceIdIsEmptyGuid()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to, Guid.Empty));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task AverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedServices()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
