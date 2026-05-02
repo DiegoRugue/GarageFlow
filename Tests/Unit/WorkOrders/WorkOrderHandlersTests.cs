@@ -738,12 +738,18 @@ public class WorkOrderHandlersTests
             unitOfWorkMock.Object,
             emailSenderMock.Object);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await handler.Handle(
-                new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
-                CancellationToken.None));
+        var result = await handler.Handle(
+            new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
+            CancellationToken.None);
 
-        Assert.Equal("Email send failed", exception.Message);
+        Assert.Equal(MediatorUnit.Value, result);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
         unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }

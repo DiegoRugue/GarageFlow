@@ -5,17 +5,21 @@ using GarageFlow.Domain.WorkOrders.Enums;
 using GarageFlow.Domain.WorkOrders.Repositories;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using Mediator;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GarageFlow.Application.WorkOrders.SubmitEstimate;
 
 public sealed class SubmitEstimateHandler(
     IWorkOrderRepository workOrderRepository,
     IUnitOfWork unitOfWork,
-    ICustomerApprovalEmailSender emailSender) : IRequestHandler<SubmitEstimateCommand, Unit>
+    ICustomerApprovalEmailSender emailSender,
+    ILogger<SubmitEstimateHandler>? logger = null) : IRequestHandler<SubmitEstimateCommand, Unit>
 {
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
     private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     private readonly ICustomerApprovalEmailSender _emailSender = emailSender ?? throw new ArgumentNullException(nameof(emailSender));
+    private readonly ILogger<SubmitEstimateHandler> _logger = logger ?? NullLogger<SubmitEstimateHandler>.Instance;
 
     public async ValueTask<Unit> Handle(SubmitEstimateCommand request, CancellationToken cancellationToken)
     {
@@ -52,11 +56,22 @@ public sealed class SubmitEstimateHandler(
 
         if (shouldSendApprovalEmail)
         {
-            await _emailSender.SendEstimateWaitingApprovalAsync(
-                request.WorkOrderId,
-                request.EstimateId,
-                customerIdForApprovalEmail,
-                cancellationToken);
+            try
+            {
+                await _emailSender.SendEstimateWaitingApprovalAsync(
+                    request.WorkOrderId,
+                    request.EstimateId,
+                    customerIdForApprovalEmail,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to send approval email after commit for work order {WorkOrderId} and estimate {EstimateId}.",
+                    request.WorkOrderId,
+                    request.EstimateId);
+            }
         }
 
         return Unit.Value;
