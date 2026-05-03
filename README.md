@@ -1,0 +1,233 @@
+# GarageFlow
+
+GarageFlow é uma API para gestão de oficinas automotivas, desenvolvida como entrega do Tech Challenge - Fase 1 da pós-graduação em Software Architecture da FIAP.
+
+O projeto adota uma arquitetura em camadas inspirada em Clean Architecture, com DDD no domínio e organização modular por vertical slices/casos de uso. A API foi construída com Minimal APIs, Mediator, EF Core e PostgreSQL. O ambiente local foi preparado para subir a aplicação completa com Docker Compose, incluindo API, banco de dados e pgAdmin.
+
+## Sumário
+
+- [Visão geral](#visão-geral)
+- [Stack](#stack)
+- [Arquitetura](#arquitetura)
+- [Como subir com Docker Compose](#como-subir-com-docker-compose)
+- [URLs úteis](#urls-úteis)
+- [Credenciais locais](#credenciais-locais)
+- [Comandos de desenvolvimento](#comandos-de-desenvolvimento)
+- [Estrutura do repositório](#estrutura-do-repositório)
+
+## Visão geral
+
+A API centraliza fluxos comuns de uma oficina, como cadastro e manutenção de clientes, usuários, veículos, serviços, itens de estoque e ordens de serviço.
+
+Principais módulos implementados:
+
+- Auth
+- Users
+- Customers
+- Vehicles
+- Services
+- InventoryItems
+- WorkOrders
+
+## Stack
+
+- .NET 10
+- ASP.NET Core Minimal APIs
+- Mediator
+- Entity Framework Core 10
+- PostgreSQL com Npgsql
+- pgAdmin
+- Scalar para documentação da API
+- Docker e Docker Compose
+- xUnit, Moq e coverlet collector
+
+## Arquitetura
+
+O GarageFlow foi organizado para combinar fronteiras claras entre camadas com uma estrutura modular por fluxo de negócio. As camadas definem a direção das dependências; os módulos e casos de uso organizam os vertical slices dentro de cada camada.
+
+Direção das dependências:
+
+```text
+Api -> Application -> Domain -> BuildingBlocks
+Infrastructure -> Application, Domain, BuildingBlocks
+```
+
+Responsabilidades principais:
+
+- `Api`: endpoints HTTP, contratos de request/response, autenticação e autorização.
+- `Application`: casos de uso, comandos, queries, handlers e resultados.
+- `Domain`: entidades, value objects, eventos de domínio e contratos de repositório.
+- `Infrastructure`: EF Core, DbContext, migrations, configurações e repositórios.
+- `BuildingBlocks`: primitivas compartilhadas, exceções, eventos e contratos genéricos.
+- `Tests`: projetos de testes unitários, integração e builders compartilhados.
+
+## Como subir com Docker Compose
+
+Pré-requisitos:
+
+- Docker Desktop instalado e em execução.
+- Porta `8080` livre para a API.
+- Porta `5050` livre para o pgAdmin.
+- Porta `5432` livre para o PostgreSQL.
+
+Na raiz do repositório, execute:
+
+```bash
+docker compose up -d --build
+```
+
+Esse comando sobe três serviços:
+
+- `api`: aplicação GarageFlow em `http://localhost:8080`.
+- `postgres`: banco PostgreSQL usado pela API.
+- `pgadmin`: interface web para administrar o banco.
+
+Para acompanhar os logs da API:
+
+```bash
+docker compose logs -f api
+```
+
+Para verificar se a API está respondendo:
+
+```bash
+curl http://localhost:8080/health
+```
+
+Resposta esperada:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+Para parar os containers:
+
+```bash
+docker compose down
+```
+
+Para parar os containers e remover os volumes locais do PostgreSQL e pgAdmin:
+
+```bash
+docker compose down -v
+```
+
+## URLs úteis
+
+| Recurso | URL |
+| --- | --- |
+| API | http://localhost:8080 |
+| Health check | http://localhost:8080/health |
+| Documentação Scalar | http://localhost:8080/scalar/#description/introduction |
+| OpenAPI JSON | http://localhost:8080/openapi/v1.json |
+| pgAdmin | http://localhost:5050/browser/ |
+
+## Credenciais locais
+
+As credenciais abaixo são usadas apenas no ambiente local criado pelo `docker-compose.yml`.
+
+### pgAdmin
+
+| Campo | Valor |
+| --- | --- |
+| Email | `admin@garageflow.dev` |
+| Senha | `admin` |
+
+### PostgreSQL
+
+| Campo | Valor |
+| --- | --- |
+| Host dentro do Docker | `postgres` |
+| Host a partir da máquina local | `localhost` |
+| Porta | `5432` |
+| Database | `garageflow` |
+| Usuário | `garageflow` |
+| Senha | `garageflow` |
+
+Ao criar um servidor no pgAdmin, use:
+
+- `Host name/address`: `postgres`
+- `Port`: `5432`
+- `Maintenance database`: `garageflow`
+- `Username`: `garageflow`
+- `Password`: `garageflow`
+
+### Usuário administrador inicial da API
+
+| Campo | Valor |
+| --- | --- |
+| Nome | `Development Admin` |
+| Email | `admin-dev@garageflow.local` |
+| Senha | `Admin@12345` |
+
+Com a API em execução, use a rota de login documentada no Scalar para obter o token JWT e testar endpoints protegidos.
+
+## Variáveis de ambiente
+
+O `docker-compose.yml` possui valores padrão para desenvolvimento local, mas eles podem ser sobrescritos com um arquivo `.env` na raiz do projeto.
+
+Exemplo:
+
+```env
+API_PORT=8080
+PGADMIN_PORT=5050
+POSTGRES_PORT=5432
+POSTGRES_DB=garageflow
+POSTGRES_USER=garageflow
+POSTGRES_PASSWORD=garageflow
+BOOTSTRAP_ADMIN_EMAIL=admin-dev@garageflow.local
+BOOTSTRAP_ADMIN_PASSWORD=Admin@12345
+```
+
+## Comandos de desenvolvimento
+
+Restaurar e compilar a solução:
+
+```bash
+dotnet build GarageFlow.slnx
+```
+
+Executar testes unitários:
+
+```bash
+dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
+```
+
+Executar testes de integração:
+
+```bash
+dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj
+```
+
+Executar todos os testes:
+
+```bash
+dotnet test GarageFlow.slnx
+```
+
+## Estrutura do repositório
+
+```text
+GarageFlow/
+|-- Api/
+|-- Application/
+|-- BuildingBlocks/
+|-- Domain/
+|-- Infrastructure/
+|-- Tests/
+|   |-- Integration/
+|   |-- Shared/
+|   `-- Unit/
+|-- docker-compose.yml
+|-- Dockerfile
+`-- GarageFlow.slnx
+```
+
+## Observações
+
+- A API aplica migrations automaticamente no boot quando `Database__AutoMigrate=true`.
+- O Dockerfile publica a API em modo `Release` e expõe a porta `8080`.
+- O ambiente local usa JWT com chave de desenvolvimento definida no `docker-compose.yml`.
+- Valores sensíveis devem ser alterados antes de qualquer uso fora do ambiente local.
