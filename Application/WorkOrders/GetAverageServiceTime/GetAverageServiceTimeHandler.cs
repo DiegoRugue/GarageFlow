@@ -1,4 +1,5 @@
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Repositories;
 using Mediator;
 
@@ -16,15 +17,19 @@ public sealed class GetAverageServiceTimeHandler(
             throw new ValidationException("From must be earlier than To.");
         }
 
+        var serviceId = request.ServiceId.HasValue ? ServiceId.From(request.ServiceId.Value) : (ServiceId?)null;
+
         var averageServiceTime = await _workOrderRepository.GetAverageServiceTimeAsync(
             request.From,
             request.To,
+            serviceId,
             cancellationToken);
 
         return new GetAverageServiceTimeResult(
             From: request.From,
             To: request.To,
-            CompletedWorkOrdersCount: averageServiceTime.CompletedWorkOrdersCount,
+            ServiceId: request.ServiceId,
+            CompletedServicesCount: averageServiceTime.CompletedServicesCount,
             AverageDurationMinutes: averageServiceTime.AverageDurationMinutes);
     }
 }

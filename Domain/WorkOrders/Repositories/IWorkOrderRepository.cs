@@ -1,4 +1,5 @@
 using GarageFlow.Domain.Customers.ValueObjects;
+using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 
@@ -34,6 +35,7 @@ public interface IWorkOrderRepository
     Task<AverageServiceTimeReadModel> GetAverageServiceTimeAsync(
         DateTime completedFrom,
         DateTime completedTo,
+        ServiceId? serviceId = null,
         CancellationToken cancellationToken = default);
 
     Task AddAsync(WorkOrder workOrder, CancellationToken cancellationToken = default);

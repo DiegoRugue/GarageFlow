@@ -22,11 +22,7 @@ public sealed class WorkOrderBuilder
     {
         var workOrder = BuildCreated();
         var estimate = workOrder.CreateEstimate();
-        workOrder.AddServiceLine(
-            estimate.Id,
-            ServiceId.New(),
-            Description.Create("Diagnosis labor"),
-            Price.Create(120.00m));
+        AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
         return workOrder;
     }
@@ -42,8 +38,10 @@ public sealed class WorkOrderBuilder
     public WorkOrder BuildCompleted()
     {
         var workOrder = BuildWithApprovedEstimate();
-        workOrder.StartWork();
-        workOrder.Complete();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+        workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
+        workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
         return workOrder;
     }
 
@@ -70,5 +68,14 @@ public sealed class WorkOrderBuilder
             EstimateItemQuantity.Create(2),
             Price.Create(40.00m),
             Price.Create(70.00m));
+    }
+
+    public static void AddDefaultServiceLine(WorkOrder workOrder, EstimateId estimateId)
+    {
+        workOrder.AddServiceLine(
+            estimateId,
+            ServiceId.New(),
+            Description.Create("Diagnosis labor"),
+            Price.Create(120.00m));
     }
 }

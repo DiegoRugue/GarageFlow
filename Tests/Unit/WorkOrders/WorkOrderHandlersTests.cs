@@ -1,9 +1,10 @@
 using GarageFlow.Application.WorkOrders;
+using GarageFlow.Application.WorkOrders.Abstractions;
 using GarageFlow.Application.WorkOrders.AddEstimateInventoryItem;
 using GarageFlow.Application.WorkOrders.AddEstimateService;
 using GarageFlow.Application.WorkOrders.ApproveMyEstimate;
 using GarageFlow.Application.WorkOrders.CancelWorkOrder;
-using GarageFlow.Application.WorkOrders.CompleteWorkOrder;
+using GarageFlow.Application.WorkOrders.CompleteEstimateService;
 using GarageFlow.Application.WorkOrders.CreateEstimate;
 using GarageFlow.Application.WorkOrders.CreateWorkOrder;
 using GarageFlow.Application.WorkOrders.DeliverWorkOrder;
@@ -14,6 +15,7 @@ using GarageFlow.Application.WorkOrders.ListMyWorkOrders;
 using GarageFlow.Application.WorkOrders.ListWorkOrders;
 using GarageFlow.Application.WorkOrders.RejectMyEstimate;
 using GarageFlow.Application.WorkOrders.StartDiagnosis;
+using GarageFlow.Application.WorkOrders.StartEstimateService;
 using GarageFlow.Application.WorkOrders.StartWork;
 using GarageFlow.Application.WorkOrders.SubmitEstimate;
 using GarageFlow.BuildingBlocks.Domain.Exceptions;
@@ -452,9 +454,14 @@ public class WorkOrderHandlersTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new SubmitEstimateHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
 
         var result = await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
 
@@ -472,9 +479,11 @@ public class WorkOrderHandlersTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var sequence = new MockSequence();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
 
         unitOfWorkMock
             .InSequence(sequence)
@@ -491,7 +500,10 @@ public class WorkOrderHandlersTests
             .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new SubmitEstimateHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
 
         await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
 
@@ -501,6 +513,276 @@ public class WorkOrderHandlersTests
         workOrderRepositoryMock.Verify(
             x => x.GetByIdAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task StartEstimateService_ShouldStartServiceLine_AndCommit()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new StartEstimateServiceHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+
+        await handler.Handle(
+            new StartEstimateServiceCommand(workOrder.Id.Value, estimate.Id.Value, serviceLine.Id.Value),
+            CancellationToken.None);
+
+        Assert.Equal(EstimateServiceLineStatus.InProgress, serviceLine.Status);
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
+        workOrderRepositoryMock.Verify(
+            x => x.GetByIdForEstimateMutationAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CompleteEstimateService_ShouldCompleteServiceLine_AndCommit()
+    {
+        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var estimate = workOrder.Estimates.Single();
+        var serviceLine = estimate.ServiceLines.Single();
+        workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new CompleteEstimateServiceHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+
+        await handler.Handle(
+            new CompleteEstimateServiceCommand(workOrder.Id.Value, estimate.Id.Value, serviceLine.Id.Value),
+            CancellationToken.None);
+
+        Assert.Equal(EstimateServiceLineStatus.Completed, serviceLine.Status);
+        Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
+        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task StartEstimateService_ShouldRollback_WhenWorkOrderIsMissing()
+    {
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new StartEstimateServiceHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+        var workOrderId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(
+                new StartEstimateServiceCommand(workOrderId, Guid.NewGuid(), Guid.NewGuid()),
+                CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrderId}' was not found.", exception.Message);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CompleteEstimateService_ShouldRollback_WhenWorkOrderIsMissing()
+    {
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var handler = new CompleteEstimateServiceHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
+        var workOrderId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(
+                new CompleteEstimateServiceCommand(workOrderId, Guid.NewGuid(), Guid.NewGuid()),
+                CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrderId}' was not found.", exception.Message);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldSendApprovalEmail_WhenWorkOrderMovesToWaitingApproval()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+        emailSenderMock
+            .Setup(x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
+
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                workOrder.Id.Value,
+                estimate.Id.Value,
+                workOrder.CustomerId.Value,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldCommitBeforeSendingApprovalEmail_WhenWorkOrderMovesToWaitingApproval()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+        var hasCommittedTransaction = false;
+
+        unitOfWorkMock
+            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        workOrderRepositoryMock
+            .Setup(x => x.GetByIdForEstimateMutationAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(workOrder);
+
+        unitOfWorkMock
+            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .Callback(() => hasCommittedTransaction = true)
+            .Returns(Task.CompletedTask);
+
+        emailSenderMock
+            .Setup(x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .Callback(() => Assert.True(hasCommittedTransaction))
+            .Returns(Task.CompletedTask);
+
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
+
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                workOrder.Id.Value,
+                estimate.Id.Value,
+                workOrder.CustomerId.Value,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldNotSendApprovalEmail_WhenCommitFails()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+
+        unitOfWorkMock
+            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Commit failed"));
+
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await handler.Handle(
+                new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
+                CancellationToken.None));
+
+        Assert.Equal("Commit failed", exception.Message);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldNotRollback_WhenApprovalEmailSendFailsAfterCommit()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+
+        emailSenderMock
+            .Setup(x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Email send failed"));
+
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        var result = await handler.Handle(
+            new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
+            CancellationToken.None);
+
+        Assert.Equal(MediatorUnit.Value, result);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SubmitEstimate_ShouldNotSendApprovalEmail_WhenWorkOrderWasAlreadyWaitingApproval()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var firstEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, firstEstimate.Id);
+        workOrder.SubmitEstimate(firstEstimate.Id);
+        var secondEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, secondEstimate.Id);
+
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var unitOfWorkMock = CreateUnitOfWorkMock();
+        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+        var handler = new SubmitEstimateHandler(
+            workOrderRepositoryMock.Object,
+            unitOfWorkMock.Object,
+            emailSenderMock.Object);
+
+        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, secondEstimate.Id.Value), CancellationToken.None);
+
+        Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
+        emailSenderMock.Verify(
+            x => x.SendEstimateWaitingApprovalAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -589,23 +871,6 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
-    public async Task CompleteWorkOrder_ShouldThrowBusinessRuleViolationException_WhenNoEstimateIsApproved()
-    {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CompleteWorkOrderHandler(workOrderRepositoryMock.Object, unitOfWorkMock.Object);
-
-        var exception = await Assert.ThrowsAsync<BusinessRuleViolationException>(
-            async () => await handler.Handle(new CompleteWorkOrderCommand(workOrder.Id.Value), CancellationToken.None));
-
-        Assert.Equal("Work order requires exactly one approved estimate before completion.", exception.Message);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
     public async Task ApproveMyEstimate_ShouldApproveEstimate_WhenWorkOrderBelongsToCustomer()
     {
         var customerId = CustomerId.New();
@@ -618,6 +883,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(customerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -653,6 +919,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(customerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -707,6 +974,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(ownerCustomerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -748,6 +1016,7 @@ public class WorkOrderHandlersTests
             EstimateItemQuantity.Create(2),
             Price.Create(110m),
             Price.Create(180m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -804,6 +1073,7 @@ public class WorkOrderHandlersTests
             EstimateItemQuantity.Create(2),
             Price.Create(110m),
             Price.Create(180m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -859,6 +1129,7 @@ public class WorkOrderHandlersTests
         var workOrder = WorkOrder.Create(ownerCustomerId, VehicleId.New());
         var estimate = workOrder.CreateEstimate();
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -937,7 +1208,10 @@ public class WorkOrderHandlersTests
                             ServiceId: Guid.NewGuid(),
                             DescriptionSnapshot: "Diagnostics",
                             UnitPrice: 150m,
-                            TotalPrice: 150m)
+                            TotalPrice: 150m,
+                            Status: "Pending",
+                            StartedAt: null,
+                            CompletedAt: null)
                     ])
             ]);
 
@@ -1043,6 +1317,7 @@ public class WorkOrderHandlersTests
             EstimateItemQuantity.Create(1),
             Price.Create(10m),
             Price.Create(15m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         workOrder.SubmitEstimate(estimate.Id);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
@@ -1116,7 +1391,10 @@ public class WorkOrderHandlersTests
                             ServiceId: Guid.NewGuid(),
                             DescriptionSnapshot: "Electrical diagnosis",
                             UnitPrice: 180m,
-                            TotalPrice: 180m)
+                            TotalPrice: 180m,
+                            Status: "Pending",
+                            StartedAt: null,
+                            CompletedAt: null)
                     ])
             ]);
 
@@ -1195,7 +1473,7 @@ public class WorkOrderHandlersTests
     {
         var from = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
-            averageServiceTime: new AverageServiceTimeReadModel(CompletedWorkOrdersCount: 0, AverageDurationMinutes: null));
+            averageServiceTime: new AverageServiceTimeReadModel(CompletedServicesCount: 0, AverageDurationMinutes: null));
         var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
@@ -1203,46 +1481,65 @@ public class WorkOrderHandlersTests
 
         Assert.Equal("From must be earlier than To.", exception.Message);
         workOrderRepositoryMock.Verify(
-            x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
+            x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ServiceId?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
     [Fact]
-    public async Task GetAverageServiceTime_ShouldReturnAverageDuration_WhenWindowHasCompletedWorkOrders()
+    public async Task GetAverageServiceTime_ShouldThrowValidationException_WhenServiceIdIsEmpty()
+    {
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
+        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            async () => await handler.Handle(new GetAverageServiceTimeQuery(from, to, Guid.Empty), CancellationToken.None));
+
+        Assert.Equal("Service identifier cannot be empty.", exception.Message);
+        workOrderRepositoryMock.Verify(
+            x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ServiceId?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task GetAverageServiceTime_ShouldReturnAverageDuration_WhenWindowHasCompletedServices()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 5, 31, 23, 59, 59, DateTimeKind.Utc);
+        var serviceId = Guid.NewGuid();
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
             averageServiceTime: new AverageServiceTimeReadModel(
-                CompletedWorkOrdersCount: 3,
+                CompletedServicesCount: 3,
                 AverageDurationMinutes: 184.5d));
         var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
 
-        var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to), CancellationToken.None);
+        var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to, serviceId), CancellationToken.None);
 
         Assert.Equal(from, result.From);
         Assert.Equal(to, result.To);
-        Assert.Equal(3, result.CompletedWorkOrdersCount);
+        Assert.Equal(serviceId, result.ServiceId);
+        Assert.Equal(3, result.CompletedServicesCount);
         Assert.Equal(184.5d, result.AverageDurationMinutes);
         workOrderRepositoryMock.Verify(
-            x => x.GetAverageServiceTimeAsync(from, to, It.IsAny<CancellationToken>()),
+            x => x.GetAverageServiceTimeAsync(from, to, It.Is<ServiceId?>(id => id!.Value.Value == serviceId), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task GetAverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedWorkOrders()
+    public async Task GetAverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedServices()
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
             averageServiceTime: new AverageServiceTimeReadModel(
-                CompletedWorkOrdersCount: 0,
+                CompletedServicesCount: 0,
                 AverageDurationMinutes: null));
         var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
 
         var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to), CancellationToken.None);
 
-        Assert.Equal(0, result.CompletedWorkOrdersCount);
+        Assert.Equal(0, result.CompletedServicesCount);
         Assert.Null(result.AverageDurationMinutes);
     }
 
@@ -1329,9 +1626,10 @@ public class WorkOrderHandlersTests
             .Setup(x => x.GetAverageServiceTimeAsync(
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
+                It.IsAny<ServiceId?>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(averageServiceTime ?? new AverageServiceTimeReadModel(
-                CompletedWorkOrdersCount: 0,
+                CompletedServicesCount: 0,
                 AverageDurationMinutes: null));
 
         repositoryMock

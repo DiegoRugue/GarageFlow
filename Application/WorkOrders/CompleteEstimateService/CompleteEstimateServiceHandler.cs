@@ -4,29 +4,32 @@ using GarageFlow.Domain.WorkOrders.Repositories;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using Mediator;
 
-namespace GarageFlow.Application.WorkOrders.CompleteWorkOrder;
+namespace GarageFlow.Application.WorkOrders.CompleteEstimateService;
 
-public sealed class CompleteWorkOrderHandler(
+public sealed class CompleteEstimateServiceHandler(
     IWorkOrderRepository workOrderRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<CompleteWorkOrderCommand, Unit>
+    IUnitOfWork unitOfWork) : IRequestHandler<CompleteEstimateServiceCommand, Unit>
 {
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
     private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
-    public async ValueTask<Unit> Handle(CompleteWorkOrderCommand request, CancellationToken cancellationToken)
+    public async ValueTask<Unit> Handle(CompleteEstimateServiceCommand request, CancellationToken cancellationToken)
     {
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
-        var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
-        if (workOrder is null)
-        {
-            throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
-        }
+        var estimateId = EstimateId.From(request.EstimateId);
+        var lineId = EstimateServiceLineId.From(request.LineId);
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            workOrder.Complete();
+            var workOrder = await _workOrderRepository.GetByIdForEstimateMutationAsync(workOrderId, cancellationToken);
+            if (workOrder is null)
+            {
+                throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
+            }
+
+            workOrder.CompleteEstimateService(estimateId, lineId);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
             return Unit.Value;
         }

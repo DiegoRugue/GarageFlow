@@ -3,5 +3,6 @@ namespace GarageFlow.Application.WorkOrders.GetAverageServiceTime;
 public sealed record GetAverageServiceTimeResult(
     DateTime From,
     DateTime To,
-    int CompletedWorkOrdersCount,
+    Guid? ServiceId,
+    int CompletedServicesCount,
     double? AverageDurationMinutes);

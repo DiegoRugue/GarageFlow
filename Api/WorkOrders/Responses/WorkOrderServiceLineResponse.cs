@@ -6,4 +6,7 @@ public sealed record WorkOrderServiceLineResponse(
     Guid ServiceId,
     string Description,
     decimal UnitPrice,
-    decimal TotalPrice);
+    decimal TotalPrice,
+    string Status,
+    DateTime? StartedAt,
+    DateTime? CompletedAt);

@@ -6,4 +6,7 @@ public sealed record WorkOrderServiceLineReadModel(
     Guid ServiceId,
     string DescriptionSnapshot,
     decimal UnitPrice,
-    decimal TotalPrice);
+    decimal TotalPrice,
+    string Status,
+    DateTime? StartedAt,
+    DateTime? CompletedAt);
