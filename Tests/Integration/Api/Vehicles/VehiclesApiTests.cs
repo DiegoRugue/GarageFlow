@@ -114,12 +114,13 @@ public class VehiclesApiTests(GarageFlowApiFixture fixture) : IClassFixture<Gara
         Assert.Equal(modelName, getById.VehicleModelName);
         Assert.Equal(colorName, getById.VehicleColorName);
 
-        var listResponse = await client.GetAsync("/vehicles?page=1&pageSize=10");
+        var listResponse = await client.GetAsync($"/vehicles?page=1&pageSize=10&customerId={dependencies.CustomerId}");
         HttpResponseAssertions.AssertStatus(listResponse, HttpStatusCode.OK);
         var listPayload = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<VehicleResponse>>(listResponse);
         Assert.Equal(1, listPayload.Page);
         Assert.Equal(10, listPayload.PageSize);
         Assert.True(listPayload.TotalCount >= 1);
+        Assert.All(listPayload.Items, item => Assert.Equal(dependencies.CustomerId, item.CustomerId));
         Assert.Contains(
             listPayload.Items,
             item => item.Id == created.Id &&
