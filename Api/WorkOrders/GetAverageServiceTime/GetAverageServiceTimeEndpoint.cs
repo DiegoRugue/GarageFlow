@@ -10,7 +10,7 @@ public static class GetAverageServiceTimeEndpoint
         app.MapGet("/work-orders/average-service-time", GetAverageServiceTime)
             .WithName("GetAverageServiceTime")
             .WithTags("Work Orders")
-            .WithSummary("Get average service time for completed work orders")
+            .WithSummary("Get average execution time for completed estimate services")
             .Produces<GetAverageServiceTimeResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
@@ -23,17 +23,19 @@ public static class GetAverageServiceTimeEndpoint
     private static async Task<IResult> GetAverageServiceTime(
         DateTimeOffset from,
         DateTimeOffset to,
+        Guid? serviceId,
         IMediator mediator,
         CancellationToken cancellationToken)
     {
         var result = await mediator.Send(
-            new GetAverageServiceTimeQuery(from.UtcDateTime, to.UtcDateTime),
+            new GetAverageServiceTimeQuery(from.UtcDateTime, to.UtcDateTime, serviceId),
             cancellationToken);
 
         var response = new GetAverageServiceTimeResponse(
             From: result.From,
             To: result.To,
-            CompletedWorkOrdersCount: result.CompletedWorkOrdersCount,
+            ServiceId: result.ServiceId,
+            CompletedServicesCount: result.CompletedServicesCount,
             AverageDurationMinutes: result.AverageDurationMinutes);
 
         return Results.Ok(response);

@@ -80,7 +80,19 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
-    public async Task AverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedWorkOrders()
+    public async Task AverageServiceTime_ShouldReturn400_WhenServiceIdIsEmptyGuid()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
+
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to, Guid.Empty));
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task AverageServiceTime_ShouldReturnNullAverage_WhenWindowHasNoCompletedServices()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
         var from = DateTime.UtcNow.AddDays(365);
@@ -90,12 +102,13 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
         var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
-        Assert.Equal(0, payload.CompletedWorkOrdersCount);
+        Assert.Equal(0, payload.CompletedServicesCount);
+        Assert.Null(payload.ServiceId);
         Assert.Null(payload.AverageDurationMinutes);
     }
 
     [Fact]
-    public async Task AverageServiceTime_ShouldReturnAverageDuration_ForCompletedWorkOrdersInWindow()
+    public async Task AverageServiceTime_ShouldReturnAverageDuration_ForCompletedServiceLinesInWindow()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
         var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
@@ -138,20 +151,27 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         HttpResponseAssertions.AssertStatus(approveResponse, HttpStatusCode.NoContent);
 
         await client.AuthenticateAsActiveBootstrapAdminAsync();
+        var approvedDetails = await GetWorkOrderDetailsAsync(client, workOrder.Id);
+        var serviceLineId = Assert.Single(approvedDetails.Estimates.Single().ServiceLines).Id;
 
         var from = DateTime.UtcNow.AddMinutes(-1);
-        var startResponse = await client.PostAsync($"/work-orders/{workOrder.Id}/start-work", content: null);
+        var startResponse = await client.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/start",
+            content: null);
         HttpResponseAssertions.AssertStatus(startResponse, HttpStatusCode.NoContent);
 
-        var completeResponse = await client.PostAsync($"/work-orders/{workOrder.Id}/complete", content: null);
+        var completeResponse = await client.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/complete",
+            content: null);
         HttpResponseAssertions.AssertStatus(completeResponse, HttpStatusCode.NoContent);
         var to = DateTime.UtcNow.AddMinutes(1);
 
-        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to));
+        var response = await client.GetAsync(CreateAverageServiceTimeUrl(from, to, service.Id));
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
         var payload = await HttpResponseAssertions.ReadRequiredJsonAsync<AverageServiceTimeResponse>(response);
-        Assert.Equal(1, payload.CompletedWorkOrdersCount);
+        Assert.Equal(service.Id, payload.ServiceId);
+        Assert.Equal(1, payload.CompletedServicesCount);
         Assert.NotNull(payload.AverageDurationMinutes);
         Assert.True(payload.AverageDurationMinutes >= 0);
     }
@@ -185,6 +205,7 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var parameters = endpointMethod.GetParameters();
         Assert.Equal(typeof(DateTimeOffset), parameters[0].ParameterType);
         Assert.Equal(typeof(DateTimeOffset), parameters[1].ParameterType);
+        Assert.Equal(typeof(Guid?), parameters[2].ParameterType);
     }
 
     [Fact]
@@ -195,6 +216,122 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var response = await client.GetAsync("/work-orders?page=1&pageSize=20");
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task StartEstimateService_ShouldReturn401_WhenRequestHasNoToken()
+    {
+        using var client = _fixture.CreateClient();
+
+        var response = await client.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/start",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task CompleteEstimateService_ShouldReturn401_WhenRequestHasNoToken()
+    {
+        using var client = _fixture.CreateClient();
+
+        var response = await client.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/complete",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task StartEstimateService_ShouldReturn403_WhenAuthenticatedUserIsCustomer()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            _fixture,
+            staffClient,
+            seededVehicle.CustomerId,
+            "Customer.Start.Service.Forbidden#123");
+
+        var response = await customerClient.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/start",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task CompleteEstimateService_ShouldReturn403_WhenAuthenticatedUserIsCustomer()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            _fixture,
+            staffClient,
+            seededVehicle.CustomerId,
+            "Customer.Complete.Service.Forbidden#123");
+
+        var response = await customerClient.PostAsync(
+            $"/work-orders/{Guid.NewGuid()}/estimates/{Guid.NewGuid()}/services/{Guid.NewGuid()}/complete",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Staff_ShouldStartAndCompleteEstimateService_AndSeeServiceExecutionDetails()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        var workOrder = await CreateWorkOrderAsync(staffClient, seededVehicle.CustomerId, seededVehicle.VehicleId);
+        var estimate = await CreateEstimateAsync(staffClient, workOrder.Id);
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Execution service {Guid.NewGuid():N}")
+                .WithPrice(125m));
+
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+
+        await SubmitAndApproveEstimateAsync(_fixture, staffClient, seededVehicle.CustomerId, workOrder.Id, estimate.Id);
+
+        var approvedDetails = await GetWorkOrderDetailsAsync(staffClient, workOrder.Id);
+        var serviceLineId = Assert.Single(approvedDetails.Estimates.Single().ServiceLines).Id;
+
+        var startResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/start",
+            content: null);
+        HttpResponseAssertions.AssertStatus(startResponse, HttpStatusCode.NoContent);
+
+        var inProgressDetails = await GetWorkOrderDetailsAsync(staffClient, workOrder.Id);
+        var inProgressService = Assert.Single(inProgressDetails.Estimates.Single().ServiceLines);
+        Assert.Equal("InProgress", inProgressService.Status);
+        Assert.NotNull(inProgressService.StartedAt);
+        Assert.Null(inProgressService.CompletedAt);
+        Assert.Equal("InProgress", inProgressDetails.Status);
+
+        var completeResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services/{serviceLineId}/complete",
+            content: null);
+        HttpResponseAssertions.AssertStatus(completeResponse, HttpStatusCode.NoContent);
+
+        var completedDetails = await GetWorkOrderDetailsAsync(staffClient, workOrder.Id);
+        var completedService = Assert.Single(completedDetails.Estimates.Single().ServiceLines);
+        Assert.Equal("Completed", completedService.Status);
+        Assert.NotNull(completedService.StartedAt);
+        Assert.NotNull(completedService.CompletedAt);
+        Assert.Equal("Completed", completedDetails.Status);
     }
 
     [Fact]
@@ -229,6 +366,20 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             new CreateWorkOrderRequest(firstCustomerVehicle.CustomerId, secondCustomerVehicle.VehicleId));
 
         HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task CompleteWorkOrder_ShouldReturn404_WhenDirectCompletionRouteIsRemoved()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        var workOrder = await CreateWorkOrderAsync(staffClient, seededVehicle.CustomerId, seededVehicle.VehicleId);
+
+        var response = await staffClient.PostAsync($"/work-orders/{workOrder.Id}/complete", content: null);
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -316,6 +467,38 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task Staff_ShouldReceive409_WhenSubmittingInventoryOnlyEstimate()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var attendantClient = await CreateAuthenticatedAttendantClientAsync(_fixture);
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+
+        var createdWorkOrder = await CreateWorkOrderAsync(staffClient, seededVehicle.CustomerId, seededVehicle.VehicleId);
+        var createdEstimate = await CreateEstimateAsync(staffClient, createdWorkOrder.Id);
+        var inventoryItem = await CreateInventoryItemAsync(
+            attendantClient,
+            new InventoryItemBuilder()
+                .WithName($"InventoryOnly-{Guid.NewGuid():N}")
+                .WithDescription("Inventory-only line")
+                .WithCost(40m)
+                .WithPrice(80m)
+                .WithStockQuantity(6));
+
+        var addInventoryResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/inventory-items",
+            new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: 1));
+        HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
+
+        var submitResponse = await staffClient.PostAsync(
+            $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/submit",
+            content: null);
+
+        HttpResponseAssertions.AssertStatus(submitResponse, HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task Customer_ShouldListOnlyOwnWorkOrders()
     {
         using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
@@ -393,6 +576,16 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: 1));
         HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
 
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Approve own service {Guid.NewGuid():N}")
+                .WithPrice(150m));
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+
         var submitEstimateResponse = await staffClient.PostAsync(
             $"/work-orders/{workOrder.Id}/estimates/{estimate.Id}/submit",
             content: null);
@@ -447,6 +640,16 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: 2));
         HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
 
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Approve other service {Guid.NewGuid():N}")
+                .WithPrice(95m));
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{secondWorkOrder.Id}/estimates/{secondEstimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+
         var submitEstimateResponse = await staffClient.PostAsync(
             $"/work-orders/{secondWorkOrder.Id}/estimates/{secondEstimate.Id}/submit",
             content: null);
@@ -498,6 +701,16 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/inventory-items",
             new AddEstimateInventoryItemRequest(inventoryItem.Id, Quantity: reservedQuantity));
         HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
+
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Reject own service {Guid.NewGuid():N}")
+                .WithPrice(210m));
+        var addServiceResponse = await staffClient.PostAsJsonAsync(
+            $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/services",
+            new AddEstimateServiceRequest(service.Id));
+        HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
 
         var stockAfterReservationResponse = await attendantClient.GetAsync($"/inventory-items/{inventoryItem.Id}");
         HttpResponseAssertions.AssertStatus(stockAfterReservationResponse, HttpStatusCode.OK);
@@ -681,6 +894,37 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         Assert.False(activeLogin.MustChangePassword);
     }
 
+    private static async Task SubmitAndApproveEstimateAsync(
+        GarageFlowApiFixture fixture,
+        HttpClient staffClient,
+        Guid customerId,
+        Guid workOrderId,
+        Guid estimateId)
+    {
+        var submitResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrderId}/estimates/{estimateId}/submit",
+            content: null);
+        HttpResponseAssertions.AssertStatus(submitResponse, HttpStatusCode.NoContent);
+
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            fixture,
+            staffClient,
+            customerId,
+            "Customer.Submit.Approve#123");
+
+        var approveResponse = await customerClient.PostAsync(
+            $"/me/work-orders/{workOrderId}/estimates/{estimateId}/approve",
+            content: null);
+        HttpResponseAssertions.AssertStatus(approveResponse, HttpStatusCode.NoContent);
+    }
+
+    private static async Task<WorkOrderDetailsResponse> GetWorkOrderDetailsAsync(HttpClient client, Guid workOrderId)
+    {
+        var response = await client.GetAsync($"/work-orders/{workOrderId}");
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        return await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(response);
+    }
+
     private static async Task<CreateWorkOrderResponse> CreateWorkOrderAsync(HttpClient client, Guid customerId, Guid vehicleId)
     {
         var response = await client.PostAsJsonAsync("/work-orders", new CreateWorkOrderRequest(customerId, vehicleId));
@@ -719,9 +963,18 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
             new DateTimeOffset(to.ToUniversalTime(), TimeSpan.Zero));
     }
 
-    private static string CreateAverageServiceTimeUrl(DateTimeOffset from, DateTimeOffset to)
+    private static string CreateAverageServiceTimeUrl(DateTime from, DateTime to, Guid? serviceId)
     {
-        return $"/work-orders/average-service-time?from={FormatOffset(from)}&to={FormatOffset(to)}";
+        return CreateAverageServiceTimeUrl(
+            new DateTimeOffset(from.ToUniversalTime(), TimeSpan.Zero),
+            new DateTimeOffset(to.ToUniversalTime(), TimeSpan.Zero),
+            serviceId);
+    }
+
+    private static string CreateAverageServiceTimeUrl(DateTimeOffset from, DateTimeOffset to, Guid? serviceId = null)
+    {
+        var serviceIdFilter = serviceId.HasValue ? $"&serviceId={serviceId.Value}" : string.Empty;
+        return $"/work-orders/average-service-time?from={FormatOffset(from)}&to={FormatOffset(to)}{serviceIdFilter}";
     }
 
     private static string FormatOffset(DateTimeOffset value)

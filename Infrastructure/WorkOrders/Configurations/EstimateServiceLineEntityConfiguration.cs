@@ -47,11 +47,28 @@ public sealed class EstimateServiceLineEntityConfiguration : IEntityTypeConfigur
             .HasPrecision(18, 2)
             .IsRequired();
 
+        builder.Property(line => line.Status)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
+        builder.Property(line => line.StartedAt)
+            .IsRequired(false);
+
+        builder.Property(line => line.CompletedAt)
+            .IsRequired(false);
+
         builder.Property(line => line.CreatedAt)
             .IsRequired();
 
         builder.Property(line => line.UpdatedAt)
             .IsRequired();
+
+        builder.HasIndex(line => line.ServiceId);
+
+        builder.HasIndex(line => line.CompletedAt);
+
+        builder.HasIndex(line => new { line.ServiceId, line.CompletedAt });
 
         builder.Ignore(line => line.TotalPrice);
         builder.Ignore(line => line.DomainEvents);
