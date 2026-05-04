@@ -213,7 +213,22 @@ Ao criar um servidor no pgAdmin, use:
 | Email | `admin-dev@garageflow.local` |
 | Senha | `Admin@12345` |
 
-Com a API em execução, use a rota de login documentada no Scalar para obter o token JWT e testar endpoints protegidos.
+O administrador inicial é criado como usuário ativo, mas com troca de senha obrigatória (`MustChangePassword=true`). Para testar endpoints protegidos, faça primeiro o login com a senha inicial e, em seguida, altere a senha pela rota:
+
+```http
+PUT /users/me/password
+```
+
+Exemplo de payload:
+
+```json
+{
+  "currentPassword": "Admin@12345",
+  "newPassword": "Admin.Dev.Active#123"
+}
+```
+
+Depois da troca, faça login novamente com a nova senha e use o token JWT retornado para acessar os endpoints protegidos. Enquanto a senha temporária não for alterada, o acesso às rotas de negócio permanece bloqueado pela regra de usuário ativo.
 
 ## Variáveis de ambiente
 
