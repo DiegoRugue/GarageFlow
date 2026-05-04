@@ -59,8 +59,9 @@ public sealed class VehicleRepositoryTranslationGuardTests
 
         Assert.NotNull(method);
 
-        var query = Assert.IsAssignableFrom<IQueryable<VehicleDetailsReadModel>>(
-            method!.Invoke(repository, new object?[] { null, customerId }));
+        var query = Assert.IsType<IQueryable<VehicleDetailsReadModel>>(
+            method!.Invoke(repository, new object?[] { null, customerId }),
+            exactMatch: false);
 
         var sql = query.ToQueryString();
 
@@ -80,8 +81,9 @@ public sealed class VehicleRepositoryTranslationGuardTests
 
         Assert.NotNull(method);
 
-        var query = Assert.IsAssignableFrom<IQueryable<VehicleDetailsReadModel>>(
-            method!.Invoke(repository, new object?[] { vehicleId, null }));
+        var query = Assert.IsType<IQueryable<VehicleDetailsReadModel>>(
+            method!.Invoke(repository, new object?[] { vehicleId, null }),
+            exactMatch: false);
 
         var sql = query.ToQueryString();
 
