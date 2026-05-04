@@ -13,6 +13,7 @@ O projeto adota uma arquitetura em camadas inspirada em Clean Architecture, com 
 - [Documentação DDD](#documentação-ddd)
 - [Análise de vulnerabilidades](#análise-de-vulnerabilidades)
 - [Como subir com Docker Compose](#como-subir-com-docker-compose)
+- [Seed local de dados](#seed-local-de-dados)
 - [URLs úteis](#urls-úteis)
 - [Credenciais locais](#credenciais-locais)
 - [Comandos de desenvolvimento](#comandos-de-desenvolvimento)
@@ -143,6 +144,27 @@ Para parar os containers e remover os volumes locais do PostgreSQL e pgAdmin:
 docker compose down -v
 ```
 
+## Seed local de dados
+
+No ambiente local com Docker Compose, a API aplica automaticamente o script idempotente em [scripts/seed-local.sql](scripts/seed-local.sql) após as migrations e a criação do usuário administrador inicial.
+
+O comportamento é controlado por `Database__AutoSeed` (ou `DATABASE_AUTO_SEED` no `.env`):
+
+- `true`: aplica o seed automaticamente no boot.
+- `false`: não aplica seed automático.
+
+Por padrão da aplicação, `Database:AutoSeed` é `false` para evitar seed acidental fora de desenvolvimento. No `docker-compose.yml`, o padrão local está definido como `true`.
+
+Também é possível customizar o caminho do script com `Database:SeedScriptPath` (ou `Database__SeedScriptPath` via ambiente). O padrão é `scripts/seed-local.sql`.
+
+Se quiser executar manualmente, com `psql` instalado na máquina:
+
+```bash
+psql "postgresql://garageflow:garageflow@localhost:5432/garageflow" -f scripts/seed-local.sql
+```
+
+O script cria pelo menos 5 clientes, 5 veículos, 5 serviços e 5 ordens de serviço, além dos cadastros auxiliares necessários para veículos e orçamentos.
+
 ## URLs úteis
 
 | Recurso | URL |
@@ -191,7 +213,22 @@ Ao criar um servidor no pgAdmin, use:
 | Email | `admin-dev@garageflow.local` |
 | Senha | `Admin@12345` |
 
-Com a API em execução, use a rota de login documentada no Scalar para obter o token JWT e testar endpoints protegidos.
+O administrador inicial é criado como usuário ativo, mas com troca de senha obrigatória (`MustChangePassword=true`). Para testar endpoints protegidos, faça primeiro o login com a senha inicial e, em seguida, altere a senha pela rota:
+
+```http
+PUT /users/me/password
+```
+
+Exemplo de payload:
+
+```json
+{
+  "currentPassword": "Admin@12345",
+  "newPassword": "Admin.Dev.Active#123"
+}
+```
+
+Depois da troca, faça login novamente com a nova senha e use o token JWT retornado para acessar os endpoints protegidos. Enquanto a senha temporária não for alterada, o acesso às rotas de negócio permanece bloqueado pela regra de usuário ativo.
 
 ## Variáveis de ambiente
 
@@ -206,6 +243,9 @@ POSTGRES_PORT=5432
 POSTGRES_DB=garageflow
 POSTGRES_USER=garageflow
 POSTGRES_PASSWORD=garageflow
+DATABASE_AUTO_MIGRATE=true
+DATABASE_AUTO_SEED=true
+DATABASE_SEED_SCRIPT_PATH=scripts/seed-local.sql
 BOOTSTRAP_ADMIN_EMAIL=admin-dev@garageflow.local
 BOOTSTRAP_ADMIN_PASSWORD=Admin@12345
 ```
@@ -230,11 +270,32 @@ Executar testes de integração:
 dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj
 ```
 
-Executar todos os testes:
+Executar testes E2E reais (projeto fora da solution):
+
+```bash
+dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj
+```
+
+Executar testes E2E reais via script PowerShell:
+
+```powershell
+./scripts/run-e2e.ps1
+```
+
+```powershell
+.\scripts\run-e2e.ps1
+```
+
+Executar todos os testes da solution (unit + integration, sem E2E):
 
 ```bash
 dotnet test GarageFlow.slnx
 ```
+
+Observações:
+
+- Docker precisa estar em execução para os testes E2E, pois a suíte sobe PostgreSQL via Testcontainers.
+- O projeto `Tests/E2E/GarageFlow.Tests.E2E.csproj` fica fora do `GarageFlow.slnx`, então `dotnet test GarageFlow.slnx` continua Docker-free.
 
 ## Estrutura do repositório
 
@@ -245,7 +306,9 @@ GarageFlow/
 |-- BuildingBlocks/
 |-- Domain/
 |-- Infrastructure/
+|-- scripts/
 |-- Tests/
+|   |-- E2E/
 |   |-- Integration/
 |   |-- Shared/
 |   `-- Unit/
@@ -257,6 +320,7 @@ GarageFlow/
 ## Observações
 
 - A API aplica migrations automaticamente no boot quando `Database__AutoMigrate=true`.
+- O seed local automático é controlado por `Database__AutoSeed` (padrão da aplicação: `false`; padrão do Docker Compose local: `true`).
 - O Dockerfile publica a API em modo `Release` e expõe a porta `8080`.
 - O ambiente local usa JWT com chave de desenvolvimento definida no `docker-compose.yml`.
 - Valores sensíveis devem ser alterados antes de qualquer uso fora do ambiente local.

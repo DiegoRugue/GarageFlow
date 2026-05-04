@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.BuildingBlocks.Domain.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
@@ -16,6 +17,8 @@ namespace GarageFlow.Infrastructure.DataAccess;
 
 public static partial class AutoMigrateGarageFlowExtensions
 {
+    private const string DefaultSeedScriptPath = "scripts/seed-local.sql";
+
     public static WebApplication AutoMigrateGarageFlow(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -27,6 +30,9 @@ public static partial class AutoMigrateGarageFlowExtensions
         }
 
         using var scope = app.Services.CreateScope();
+        var logger = scope.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger(typeof(AutoMigrateGarageFlowExtensions));
         var dbContext = scope.ServiceProvider.GetRequiredService<GarageFlowDbContext>();
 
         if (dbContext.Database.IsRelational())
@@ -39,8 +45,68 @@ public static partial class AutoMigrateGarageFlowExtensions
         }
 
         EnsureBootstrapAdmin(scope.ServiceProvider, app.Configuration);
+        ApplyLocalSeed(app, dbContext, logger);
 
         return app;
+    }
+
+    private static void ApplyLocalSeed(WebApplication app, GarageFlowDbContext dbContext, ILogger logger)
+    {
+        var shouldAutoSeed = app.Configuration.GetValue<bool?>("Database:AutoSeed") ?? false;
+        if (!shouldAutoSeed)
+        {
+            LogLocalSeedDisabled(logger);
+            return;
+        }
+
+        if (!dbContext.Database.IsRelational() || !dbContext.Database.IsNpgsql())
+        {
+            LogLocalSeedSkippedUnsupportedProvider(logger, dbContext.Database.ProviderName ?? "<unknown>");
+            return;
+        }
+
+        var configuredSeedScriptPath = app.Configuration["Database:SeedScriptPath"];
+        var seedScriptPath = string.IsNullOrWhiteSpace(configuredSeedScriptPath)
+            ? DefaultSeedScriptPath
+            : configuredSeedScriptPath;
+
+        if (!TryResolveSeedScriptPath(app.Environment.ContentRootPath, seedScriptPath, out var resolvedSeedScriptPath))
+        {
+            LogLocalSeedMissingScript(logger, seedScriptPath, app.Environment.ContentRootPath);
+            throw new InvalidOperationException(
+                $"Database:AutoSeed is enabled, but the seed script was not found. " +
+                $"Set 'Database:SeedScriptPath' to a valid file or disable seeding with 'Database:AutoSeed=false'. " +
+                $"Configured path: '{seedScriptPath}'. Content root: '{app.Environment.ContentRootPath}'.");
+        }
+
+        dbContext.Database.ExecuteSqlRaw(File.ReadAllText(resolvedSeedScriptPath));
+        LogLocalSeedApplied(logger, resolvedSeedScriptPath);
+    }
+
+    private static bool TryResolveSeedScriptPath(string contentRootPath, string configuredSeedScriptPath, out string resolvedPath)
+    {
+        if (Path.IsPathRooted(configuredSeedScriptPath))
+        {
+            var absolutePath = Path.GetFullPath(configuredSeedScriptPath);
+            if (File.Exists(absolutePath))
+            {
+                resolvedPath = absolutePath;
+                return true;
+            }
+
+            resolvedPath = string.Empty;
+            return false;
+        }
+
+        var relativePath = Path.GetFullPath(Path.Combine(contentRootPath, configuredSeedScriptPath));
+        if (File.Exists(relativePath))
+        {
+            resolvedPath = relativePath;
+            return true;
+        }
+
+        resolvedPath = string.Empty;
+        return false;
     }
 
     private static void EnsureBootstrapAdmin(IServiceProvider serviceProvider, IConfiguration configuration)
@@ -120,4 +186,28 @@ public static partial class AutoMigrateGarageFlowExtensions
         Level = LogLevel.Information,
         Message = "Bootstrap admin creation skipped because another instance already created a user.")]
     private static partial void LogBootstrapAdminCreationSkipped(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 3,
+        Level = LogLevel.Information,
+        Message = "Local seed disabled (Database:AutoSeed is false).")]
+    private static partial void LogLocalSeedDisabled(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 4,
+        Level = LogLevel.Information,
+        Message = "Local seed skipped because provider '{ProviderName}' is not relational PostgreSQL.")]
+    private static partial void LogLocalSeedSkippedUnsupportedProvider(ILogger logger, string providerName);
+
+    [LoggerMessage(
+        EventId = 5,
+        Level = LogLevel.Error,
+        Message = "Local seed script not found. Configured path: '{ConfiguredPath}'. Content root: '{ContentRootPath}'.")]
+    private static partial void LogLocalSeedMissingScript(ILogger logger, string configuredPath, string contentRootPath);
+
+    [LoggerMessage(
+        EventId = 6,
+        Level = LogLevel.Information,
+        Message = "Local seed applied from '{ScriptPath}'.")]
+    private static partial void LogLocalSeedApplied(ILogger logger, string scriptPath);
 }

@@ -21,6 +21,7 @@ RUN dotnet publish "Api/GarageFlow.Api.csproj" -c Release -o /app/publish /p:Use
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=publish /app/publish .
+COPY scripts/seed-local.sql /app/scripts/seed-local.sql
 
 RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app

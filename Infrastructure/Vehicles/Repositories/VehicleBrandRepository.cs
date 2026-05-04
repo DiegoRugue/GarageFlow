@@ -47,13 +47,20 @@ public sealed class VehicleBrandRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleBrandName name,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.Value.ToUpperInvariant();
+        if (!_dbContext.Database.IsNpgsql())
+        {
+            var existingNames = await _dbContext.VehicleBrands
+                .AsNoTracking()
+                .Select(vehicleBrand => vehicleBrand.Name)
+                .ToListAsync(cancellationToken);
 
-        return await _dbContext.VehicleBrands
-            .AsNoTracking()
-            .AnyAsync(
-                vehicleBrand => vehicleBrand.Name.Value.Equals(normalizedName, StringComparison.OrdinalIgnoreCase),
-                cancellationToken);
+            return existingNames.Any(existingName =>
+                string.Equals(existingName.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return await _dbContext.Database
+            .SqlQuery<Guid>($@"SELECT ""Id"" AS ""Value"" FROM ""VehicleBrands"" WHERE upper(""Name"") = upper({name.Value})")
+            .AnyAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsByNameAsync(
@@ -61,15 +68,22 @@ public sealed class VehicleBrandRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleBrandId excludingVehicleBrandId,
         CancellationToken cancellationToken = default)
     {
-        var normalizedName = name.Value.ToUpperInvariant();
+        if (!_dbContext.Database.IsNpgsql())
+        {
+            var existingBrands = await _dbContext.VehicleBrands
+                .AsNoTracking()
+                .Select(vehicleBrand => new { vehicleBrand.Id, vehicleBrand.Name })
+                .ToListAsync(cancellationToken);
 
-        return await _dbContext.VehicleBrands
-            .AsNoTracking()
-            .AnyAsync(
-                vehicleBrand =>
-                    vehicleBrand.Name.Value.Equals(normalizedName, StringComparison.OrdinalIgnoreCase) &&
-                    vehicleBrand.Id != excludingVehicleBrandId,
-                cancellationToken);
+            return existingBrands.Any(existingBrand =>
+                existingBrand.Id != excludingVehicleBrandId
+                && string.Equals(existingBrand.Name.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return await _dbContext.Database
+            .SqlQuery<Guid>(
+                $@"SELECT ""Id"" AS ""Value"" FROM ""VehicleBrands"" WHERE upper(""Name"") = upper({name.Value}) AND ""Id"" <> {excludingVehicleBrandId.Value}")
+            .AnyAsync(cancellationToken);
     }
 
     public void Remove(VehicleBrand vehicleBrand)

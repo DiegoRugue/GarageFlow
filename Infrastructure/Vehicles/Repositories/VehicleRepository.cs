@@ -20,11 +20,8 @@ public sealed class VehicleRepository(GarageFlowDbContext dbContext) : IVehicleR
 
     public async Task<VehicleDetailsReadModel?> GetDetailsByIdAsync(VehicleId id, CancellationToken cancellationToken = default)
     {
-        var query = CreateVehicleDetailsQuery();
-
-        return await query.FirstOrDefaultAsync(
-            vehicle => vehicle.Id == id.Value,
-            cancellationToken);
+        return await CreateVehicleDetailsQuery(vehicleId: id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<(IReadOnlyList<Vehicle> Items, int TotalCount)> ListAsync(
@@ -52,15 +49,7 @@ public sealed class VehicleRepository(GarageFlowDbContext dbContext) : IVehicleR
         CustomerId? customerId = null,
         CancellationToken cancellationToken = default)
     {
-        var query = CreateVehicleDetailsQuery();
-
-        if (customerId is not null)
-        {
-            query = query.Where(vehicle => vehicle.CustomerId == customerId.Value.Value);
-        }
-
-        query = query.OrderBy(vehicle => vehicle.CreatedAt)
-            .ThenBy(vehicle => vehicle.Id);
+        var query = CreateVehicleDetailsQuery(customerId: customerId);
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
@@ -75,22 +64,34 @@ public sealed class VehicleRepository(GarageFlowDbContext dbContext) : IVehicleR
         CustomerId customerId,
         CancellationToken cancellationToken = default)
     {
-        var query = CreateVehicleDetailsQuery()
-            .Where(vehicle => vehicle.CustomerId == customerId.Value)
-            .OrderBy(vehicle => vehicle.CreatedAt)
-            .ThenBy(vehicle => vehicle.Id);
+        var query = CreateVehicleDetailsQuery(customerId: customerId);
 
         return await query.ToListAsync(cancellationToken);
     }
 
-    private IQueryable<VehicleDetailsReadModel> CreateVehicleDetailsQuery()
+    private IQueryable<VehicleDetailsReadModel> CreateVehicleDetailsQuery(
+        VehicleId? vehicleId = null,
+        CustomerId? customerId = null)
     {
-        return from vehicle in _dbContext.Vehicles.AsNoTracking()
+        var vehicles = _dbContext.Vehicles.AsNoTracking();
+
+        if (vehicleId is not null)
+        {
+            vehicles = vehicles.Where(vehicle => vehicle.Id == vehicleId);
+        }
+
+        if (customerId is not null)
+        {
+            vehicles = vehicles.Where(vehicle => vehicle.CustomerId == customerId);
+        }
+
+        return from vehicle in vehicles
                join brand in _dbContext.VehicleBrands.AsNoTracking() on vehicle.VehicleBrandId equals brand.Id
                join model in _dbContext.VehicleModels.AsNoTracking()
                    on new { vehicle.VehicleModelId, vehicle.VehicleBrandId }
                    equals new { VehicleModelId = model.Id, model.VehicleBrandId }
                join color in _dbContext.VehicleColors.AsNoTracking() on vehicle.VehicleColorId equals color.Id
+               orderby vehicle.CreatedAt, vehicle.Id
                select new VehicleDetailsReadModel(
                    vehicle.Id.Value,
                    vehicle.CustomerId.Value,
