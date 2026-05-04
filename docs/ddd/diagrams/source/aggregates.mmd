@@ -1,0 +1,92 @@
+classDiagram
+    direction LR
+
+    class Customer {
+        +CustomerId Id
+        +TaxDocument TaxDocument
+        +FullName FullName
+        +Email Email
+        +PhoneNumber PhoneNumber
+        +Update()
+        +Delete()
+    }
+
+    class Vehicle {
+        +VehicleId Id
+        +CustomerId CustomerId
+        +LicensePlate LicensePlate
+        +VehicleBrandId BrandId
+        +VehicleModelId ModelId
+        +VehicleYear Year
+        +Update()
+        +Delete()
+    }
+
+    class Service {
+        +ServiceId Id
+        +Description Description
+        +ServicePrice Price
+        +Update()
+        +Delete()
+    }
+
+    class InventoryItem {
+        +InventoryItemId Id
+        +InventoryItemName Name
+        +InventoryItemType Type
+        +Price Cost
+        +Price Price
+        +StockQuantity StockQuantity
+        +IncreaseStock()
+        +DecreaseStock()
+    }
+
+    class WorkOrder {
+        +WorkOrderId Id
+        +CustomerId CustomerId
+        +VehicleId VehicleId
+        +WorkOrderStatus Status
+        +CreateEstimate()
+        +SubmitEstimate()
+        +ApproveEstimate()
+        +StartWork()
+        +Complete()
+        +Deliver()
+    }
+
+    class Estimate {
+        +EstimateId Id
+        +EstimateStatus Status
+        +TotalAmount TotalAmount
+        +AddServiceLine()
+        +AddInventoryLine()
+        +Submit()
+        +Approve()
+        +Reject()
+    }
+
+    class EstimateServiceLine {
+        +EstimateServiceLineId Id
+        +ServiceId ServiceId
+        +Price UnitPrice
+        +EstimateServiceLineStatus Status
+        +Start()
+        +Complete()
+    }
+
+    class EstimateInventoryLine {
+        +EstimateInventoryLineId Id
+        +InventoryItemId InventoryItemId
+        +Quantity Quantity
+        +Price UnitCost
+        +Price UnitPrice
+    }
+
+    Customer "1" --> "0..*" Vehicle : owns
+    Customer "1" --> "0..*" WorkOrder : requests
+    Vehicle "1" --> "0..*" WorkOrder : serviced by
+    WorkOrder "1" *-- "0..*" Estimate : contains
+    Estimate "1" *-- "0..*" EstimateServiceLine : service lines
+    Estimate "1" *-- "0..*" EstimateInventoryLine : inventory lines
+    EstimateServiceLine --> Service : snapshot from
+    EstimateInventoryLine --> InventoryItem : snapshot from

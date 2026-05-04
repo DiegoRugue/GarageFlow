@@ -1,0 +1,24 @@
+stateDiagram-v2
+    [*] --> Created: Criar OS
+    Created: Recebida / Created
+    Diagnosing: Em diagnóstico / Diagnosing
+    WaitingApproval: Aguardando aprovação / WaitingApproval
+    Approved: Orçamento aprovado / Approved
+    InProgress: Em execução / InProgress
+    Completed: Finalizada / Completed
+    Delivered: Entregue / Delivered
+    Cancelled: Cancelada / Cancelled
+
+    Created --> Diagnosing: Iniciar diagnóstico
+    Created --> Diagnosing: Submeter orçamento sem diagnóstico prévio
+    Diagnosing --> WaitingApproval: Submeter orçamento
+    Created --> Cancelled: Cancelar
+    Diagnosing --> Cancelled: Cancelar
+    WaitingApproval --> Approved: Cliente aprova orçamento
+    WaitingApproval --> Cancelled: Cancelar
+    Approved --> InProgress: Iniciar execução ou iniciar serviço
+    Approved --> Cancelled: Cancelar
+    InProgress --> Completed: Todos os serviços aprovados concluídos
+    Completed --> Delivered: Entregar veículo
+    Cancelled --> [*]
+    Delivered --> [*]

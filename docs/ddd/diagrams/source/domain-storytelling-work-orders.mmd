@@ -1,0 +1,18 @@
+flowchart LR
+    customer["Cliente"]
+    consultant["Consultor"]
+    system["GarageFlow"]
+    technician["Técnico"]
+    workOrder["Ordem de Serviço"]
+    vehicle["Veículo"]
+    estimate["Orçamento"]
+
+    customer -- "1. solicita atendimento" --> consultant
+    consultant -- "2. identifica cliente" --> system
+    consultant -- "3. cadastra ou seleciona" --> vehicle
+    system -- "4. cria" --> workOrder
+    technician -- "5. inicia diagnóstico" --> workOrder
+    system -- "6. gera" --> estimate
+    customer -- "7. aprova ou rejeita" --> estimate
+    technician -- "8. executa serviço" --> workOrder
+    consultant -- "9. entrega veículo" --> customer

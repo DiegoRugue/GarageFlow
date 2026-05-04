@@ -1,0 +1,32 @@
+flowchart LR
+    classDef actor fill:#f4e8ff,stroke:#7e22ce,color:#3b0764,stroke-width:2px
+    classDef command fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px
+    classDef event fill:#fed7aa,stroke:#ea580c,color:#7c2d12,stroke-width:2px
+    classDef aggregate fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:2px
+    classDef policy fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+    Admin["Administrador / atendente"]:::actor
+    Tecnico["Técnico / consultor"]:::actor
+
+    CadastrarItem["Comando: cadastrar peça ou insumo"]:::command
+    ItemCadastrado["Evento: item de estoque cadastrado"]:::event
+    InventoryItem["Agregado: InventoryItem"]:::aggregate
+    AtualizarItem["Comando: atualizar dados do item"]:::command
+    ItemAtualizado["Evento: item de estoque atualizado"]:::event
+    AjustarEstoque["Comando: ajustar estoque"]:::command
+    EstoqueAtualizado["Evento: estoque atualizado"]:::event
+
+    ConsultarItem["Comando: consultar item para orçamento"]:::command
+    ValidarDisponibilidade["Política: validar quantidade e disponibilidade"]:::policy
+    AdicionarItemOrcamento["Comando: adicionar item ao orçamento"]:::command
+    LinhaItemAdicionada["Evento: item adicionado ao orçamento"]:::event
+    Estimate["Entidade do agregado WorkOrder: Estimate"]:::aggregate
+    CalcularTotal["Política: recalcular total do orçamento"]:::policy
+    OrcamentoAtualizado["Evento: orçamento atualizado"]:::event
+
+    Admin --> CadastrarItem --> ItemCadastrado --> InventoryItem
+    Admin --> AtualizarItem --> ItemAtualizado --> InventoryItem
+    Admin --> AjustarEstoque --> EstoqueAtualizado --> InventoryItem
+    Tecnico --> ConsultarItem --> ValidarDisponibilidade --> AdicionarItemOrcamento --> LinhaItemAdicionada --> Estimate
+    LinhaItemAdicionada --> CalcularTotal --> OrcamentoAtualizado
+    InventoryItem -. fornece custo, preço e estoque .-> ValidarDisponibilidade

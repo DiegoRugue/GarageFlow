@@ -8,7 +8,10 @@ O projeto adota uma arquitetura em camadas inspirada em Clean Architecture, com 
 
 - [Visão geral](#visão-geral)
 - [Stack](#stack)
+- [Justificativa do banco de dados](#justificativa-do-banco-de-dados)
 - [Arquitetura](#arquitetura)
+- [Documentação DDD](#documentação-ddd)
+- [Análise de vulnerabilidades](#análise-de-vulnerabilidades)
 - [Como subir com Docker Compose](#como-subir-com-docker-compose)
 - [URLs úteis](#urls-úteis)
 - [Credenciais locais](#credenciais-locais)
@@ -41,6 +44,12 @@ Principais módulos implementados:
 - Docker e Docker Compose
 - xUnit, Moq e coverlet collector
 
+## Justificativa do banco de dados
+
+O GarageFlow utiliza PostgreSQL por ser um banco relacional robusto, open source e maduro para cenários transacionais. O domínio da oficina depende de consistência entre clientes, veículos, ordens de serviço, orçamentos, peças, insumos e movimentações de estoque; por isso, recursos como transações ACID, constraints, chaves estrangeiras, índices e integridade referencial são importantes para manter as regras do negócio protegidas também na camada de persistência.
+
+A escolha também se alinha bem ao stack técnico do projeto: o PostgreSQL possui suporte estável no Entity Framework Core via Npgsql, funciona de forma simples em ambientes Docker e é adequado para evoluir o MVP sem trocar a base de dados quando surgirem necessidades como relatórios, auditoria, consultas administrativas e otimização de leitura.
+
 ## Arquitetura
 
 O GarageFlow foi organizado para combinar fronteiras claras entre camadas com uma estrutura modular por fluxo de negócio. As camadas definem a direção das dependências; os módulos e casos de uso organizam os vertical slices dentro de cada camada.
@@ -60,6 +69,26 @@ Responsabilidades principais:
 - `Infrastructure`: EF Core, DbContext, migrations, configurações e repositórios.
 - `BuildingBlocks`: primitivas compartilhadas, exceções, eventos e contratos genéricos.
 - `Tests`: projetos de testes unitários, integração e builders compartilhados.
+
+## Documentação DDD
+
+| Artefato | Caminho |
+| --- | --- |
+| Event Storming: criação e acompanhamento da OS | [event-storming-work-orders.png](docs/ddd/diagrams/images/event-storming-work-orders.png) |
+| Event Storming: gestão de peças e insumos | [event-storming-inventory.png](docs/ddd/diagrams/images/event-storming-inventory.png) |
+| Domain Storytelling: ordem de serviço | [domain-storytelling-work-orders.png](docs/ddd/diagrams/images/domain-storytelling-work-orders.png) |
+| Domain Storytelling: peças e insumos | [domain-storytelling-inventory.png](docs/ddd/diagrams/images/domain-storytelling-inventory.png) |
+| Mapa de contextos e módulos | [bounded-contexts.png](docs/ddd/diagrams/images/bounded-contexts.png) |
+| Modelo de agregados | [aggregates.png](docs/ddd/diagrams/images/aggregates.png) |
+| Máquina de estados da OS | [work-order-state-machine.png](docs/ddd/diagrams/images/work-order-state-machine.png) |
+| Linguagem ubíqua | [ubiquitous-language.md](docs/ddd/ubiquitous-language.md) |
+
+## Análise de vulnerabilidades
+
+| Ferramenta | Relatório |
+| --- | --- |
+| OWASP ZAP / Checkmarx | [ZAP by Checkmarx Scanning Report.pdf](<docs/security/vulnerability-scan/ZAP by Checkmarx Scanning Report.pdf>) |
+| SonarQube Cloud | [Overview - GarageFlow in Diego Ruguê SonarQube Cloud.pdf](<docs/security/vulnerability-scan/Overview - GarageFlow in Diego Ruguê SonarQube Cloud.pdf>) |
 
 ## Como subir com Docker Compose
 

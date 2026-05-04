@@ -1,0 +1,16 @@
+flowchart LR
+    admin["Administrador"]
+    system["GarageFlow"]
+    inventoryItem["Peça ou Insumo"]
+    stock["Estoque"]
+    consultant["Consultor / Técnico"]
+    estimate["Orçamento"]
+    workOrder["Ordem de Serviço"]
+
+    admin -- "1. cadastra" --> inventoryItem
+    system -- "2. registra quantidade" --> stock
+    consultant -- "3. consulta disponibilidade" --> stock
+    consultant -- "4. adiciona item" --> estimate
+    system -- "5. recalcula total" --> estimate
+    estimate -- "6. compõe" --> workOrder
+    system -- "7. atualiza estoque" --> stock

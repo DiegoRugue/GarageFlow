@@ -1,0 +1,49 @@
+flowchart LR
+    classDef actor fill:#f4e8ff,stroke:#7e22ce,color:#3b0764,stroke-width:2px
+    classDef command fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px
+    classDef event fill:#fed7aa,stroke:#ea580c,color:#7c2d12,stroke-width:2px
+    classDef aggregate fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:2px
+    classDef policy fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:2px
+
+    Cliente["Cliente"]:::actor
+    Consultor["Consultor da oficina"]:::actor
+    Sistema["Sistema GarageFlow"]:::actor
+
+    IdentificarCliente["Comando: identificar cliente por CPF/CNPJ"]:::command
+    ClienteIdentificado["Evento: cliente identificado"]:::event
+    VincularVeiculo["Comando: cadastrar ou selecionar veículo"]:::command
+    VeiculoVinculado["Evento: veículo vinculado à OS"]:::event
+    CriarOS["Comando: criar ordem de serviço"]:::command
+    OSCriada["Evento: OS criada / recebida"]:::event
+    WorkOrder["Agregado: WorkOrder"]:::aggregate
+
+    IniciarDiagnostico["Comando: iniciar diagnóstico"]:::command
+    DiagnosticoIniciado["Evento: diagnóstico iniciado"]:::event
+    CriarOrcamento["Comando: criar orçamento"]:::command
+    OrcamentoCriado["Evento: orçamento criado"]:::event
+    Estimate["Entidade do agregado: Estimate"]:::aggregate
+    AdicionarLinhas["Comando: adicionar serviços, peças e insumos"]:::command
+    LinhasAdicionadas["Eventos: serviços e itens adicionados"]:::event
+    CalcularTotal["Política: calcular total do orçamento"]:::policy
+    SubmeterOrcamento["Comando: submeter orçamento"]:::command
+    OrcamentoSubmetido["Evento: orçamento submetido ao cliente"]:::event
+
+    AprovarOuRejeitar["Comando: aprovar ou rejeitar orçamento"]:::command
+    OrcamentoAprovado["Evento: orçamento aprovado"]:::event
+    OrcamentoRejeitado["Evento: orçamento rejeitado"]:::event
+    IniciarExecucao["Comando: iniciar execução"]:::command
+    ServicoIniciado["Evento: serviço iniciado"]:::event
+    ConcluirServico["Comando: concluir serviço"]:::command
+    ServicoConcluido["Evento: serviço concluído"]:::event
+    FinalizarOS["Comando: finalizar OS"]:::command
+    OSFinalizada["Evento: OS finalizada"]:::event
+    EntregarVeiculo["Comando: entregar veículo"]:::command
+    VeiculoEntregue["Evento: veículo entregue"]:::event
+
+    Consultor --> IdentificarCliente --> ClienteIdentificado --> VincularVeiculo --> VeiculoVinculado --> CriarOS --> OSCriada --> WorkOrder
+    WorkOrder --> IniciarDiagnostico --> DiagnosticoIniciado --> CriarOrcamento --> OrcamentoCriado --> Estimate
+    Estimate --> AdicionarLinhas --> LinhasAdicionadas --> CalcularTotal --> SubmeterOrcamento --> OrcamentoSubmetido --> Cliente
+    Cliente --> AprovarOuRejeitar
+    AprovarOuRejeitar --> OrcamentoAprovado --> IniciarExecucao --> ServicoIniciado --> ConcluirServico --> ServicoConcluido --> FinalizarOS --> OSFinalizada --> EntregarVeiculo --> VeiculoEntregue
+    AprovarOuRejeitar --> OrcamentoRejeitado --> CriarOrcamento
+    Sistema -. altera status automaticamente .-> WorkOrder
