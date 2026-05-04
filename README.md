@@ -230,6 +230,23 @@ Exemplo de payload:
 
 Depois da troca, faça login novamente com a nova senha e use o token JWT retornado para acessar os endpoints protegidos. Enquanto a senha temporária não for alterada, o acesso às rotas de negócio permanece bloqueado pela regra de usuário ativo.
 
+### Senha inicial de usuários criados pela API
+
+Usuários criados pela API, como atendentes criados em `POST /users` e clientes ativados em `POST /customers/{id}/portal-user`, recebem uma senha inicial temporária calculada a partir do nome completo e da data de nascimento:
+
+```text
+<ultimo-sobrenome-em-minusculo><ano-de-nascimento>
+```
+
+Exemplos:
+
+| Nome completo | Data de nascimento | Senha inicial |
+| --- | --- | --- |
+| `Maria Oliveira` | `1991-01-10` | `oliveira1991` |
+| `João Carlos Santos` | `1985-05-20` | `santos1985` |
+
+Esses usuários também são criados com `MustChangePassword=true`. O primeiro login serve apenas para obter um token temporário e chamar `PUT /users/me/password`; depois disso, faça login novamente com a nova senha para acessar endpoints protegidos por políticas de usuário ativo.
+
 ## Variáveis de ambiente
 
 O `docker-compose.yml` possui valores padrão para desenvolvimento local, mas eles podem ser sobrescritos com um arquivo `.env` na raiz do projeto.
