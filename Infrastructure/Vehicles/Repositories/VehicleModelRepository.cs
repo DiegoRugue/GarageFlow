@@ -69,17 +69,22 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleModelName name,
         CancellationToken cancellationToken = default)
     {
-#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
-        var normalizedName = name.Value.ToUpperInvariant();
+        if (!_dbContext.Database.IsNpgsql())
+        {
+            var existingModels = await _dbContext.VehicleModels
+                .AsNoTracking()
+                .Select(vehicleModel => new { vehicleModel.VehicleBrandId, vehicleModel.Name })
+                .ToListAsync(cancellationToken);
 
-        return await _dbContext.VehicleModels
-            .AsNoTracking()
-            .AnyAsync(
-                vehicleModel =>
-                    vehicleModel.VehicleBrandId == vehicleBrandId &&
-                    vehicleModel.Name.Value.ToUpperInvariant() == normalizedName,
-                cancellationToken);
-#pragma warning restore CA1862
+            return existingModels.Any(existingModel =>
+                existingModel.VehicleBrandId == vehicleBrandId
+                && string.Equals(existingModel.Name.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return await _dbContext.Database
+            .SqlQuery<Guid>(
+                $@"SELECT ""Id"" AS ""Value"" FROM ""VehicleModels"" WHERE ""VehicleBrandId"" = {vehicleBrandId.Value} AND upper(""Name"") = upper({name.Value})")
+            .AnyAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsByNameAsync(
@@ -88,18 +93,23 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleModelId excludingVehicleModelId,
         CancellationToken cancellationToken = default)
     {
-#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
-        var normalizedName = name.Value.ToUpperInvariant();
+        if (!_dbContext.Database.IsNpgsql())
+        {
+            var existingModels = await _dbContext.VehicleModels
+                .AsNoTracking()
+                .Select(vehicleModel => new { vehicleModel.Id, vehicleModel.VehicleBrandId, vehicleModel.Name })
+                .ToListAsync(cancellationToken);
 
-        return await _dbContext.VehicleModels
-            .AsNoTracking()
-            .AnyAsync(
-                vehicleModel =>
-                    vehicleModel.VehicleBrandId == vehicleBrandId &&
-                    vehicleModel.Name.Value.ToUpperInvariant() == normalizedName &&
-                    vehicleModel.Id != excludingVehicleModelId,
-                cancellationToken);
-#pragma warning restore CA1862
+            return existingModels.Any(existingModel =>
+                existingModel.Id != excludingVehicleModelId
+                && existingModel.VehicleBrandId == vehicleBrandId
+                && string.Equals(existingModel.Name.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return await _dbContext.Database
+            .SqlQuery<Guid>(
+                $@"SELECT ""Id"" AS ""Value"" FROM ""VehicleModels"" WHERE ""VehicleBrandId"" = {vehicleBrandId.Value} AND upper(""Name"") = upper({name.Value}) AND ""Id"" <> {excludingVehicleModelId.Value}")
+            .AnyAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsByVehicleBrandIdAsync(

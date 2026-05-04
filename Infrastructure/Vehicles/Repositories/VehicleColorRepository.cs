@@ -47,15 +47,20 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleColorName name,
         CancellationToken cancellationToken = default)
     {
-#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
-        var normalizedName = name.Value.ToUpperInvariant();
+        if (!_dbContext.Database.IsNpgsql())
+        {
+            var existingNames = await _dbContext.VehicleColors
+                .AsNoTracking()
+                .Select(vehicleColor => vehicleColor.Name)
+                .ToListAsync(cancellationToken);
 
-        return await _dbContext.VehicleColors
-            .AsNoTracking()
-            .AnyAsync(
-                vehicleColor => vehicleColor.Name.Value.ToUpperInvariant() == normalizedName,
-                cancellationToken);
-#pragma warning restore CA1862
+            return existingNames.Any(existingName =>
+                string.Equals(existingName.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return await _dbContext.Database
+            .SqlQuery<Guid>($@"SELECT ""Id"" AS ""Value"" FROM ""VehicleColors"" WHERE upper(""Name"") = upper({name.Value})")
+            .AnyAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsByNameAsync(
@@ -63,17 +68,22 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
         VehicleColorId excludingVehicleColorId,
         CancellationToken cancellationToken = default)
     {
-#pragma warning disable CA1862 // EF Core query translation does not support StringComparison overloads.
-        var normalizedName = name.Value.ToUpperInvariant();
+        if (!_dbContext.Database.IsNpgsql())
+        {
+            var existingColors = await _dbContext.VehicleColors
+                .AsNoTracking()
+                .Select(vehicleColor => new { vehicleColor.Id, vehicleColor.Name })
+                .ToListAsync(cancellationToken);
 
-        return await _dbContext.VehicleColors
-            .AsNoTracking()
-            .AnyAsync(
-                vehicleColor =>
-                    vehicleColor.Name.Value.ToUpperInvariant() == normalizedName &&
-                    vehicleColor.Id != excludingVehicleColorId,
-                cancellationToken);
-#pragma warning restore CA1862
+            return existingColors.Any(existingColor =>
+                existingColor.Id != excludingVehicleColorId
+                && string.Equals(existingColor.Name.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return await _dbContext.Database
+            .SqlQuery<Guid>(
+                $@"SELECT ""Id"" AS ""Value"" FROM ""VehicleColors"" WHERE upper(""Name"") = upper({name.Value}) AND ""Id"" <> {excludingVehicleColorId.Value}")
+            .AnyAsync(cancellationToken);
     }
 
     public void Remove(VehicleColor vehicleColor)

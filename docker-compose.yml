@@ -41,6 +41,8 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       Database__Provider: ${DATABASE_PROVIDER:-Postgres}
       Database__AutoMigrate: ${DATABASE_AUTO_MIGRATE:-true}
+      Database__AutoSeed: ${DATABASE_AUTO_SEED:-true}
+      Database__SeedScriptPath: ${DATABASE_SEED_SCRIPT_PATH:-scripts/seed-local.sql}
       ConnectionStrings__GarageFlow: "Host=${POSTGRES_HOST:-postgres};Port=5432;Database=${POSTGRES_DB:-garageflow};Username=${POSTGRES_USER:-garageflow};Password=${POSTGRES_PASSWORD:-garageflow}"
       Auth__Jwt__Issuer: ${AUTH_JWT_ISSUER:-GarageFlow}
       Auth__Jwt__Audience: ${AUTH_JWT_AUDIENCE:-GarageFlow.Api}

@@ -159,3 +159,41 @@ jobs:
       - name: SonarQube End
         if: always() && steps.sonar-config.outputs.enabled == 'true' && steps.sonar-begin.outcome == 'success'
         run: dotnet sonarscanner end /d:sonar.token="${{ env.SONAR_TOKEN }}"
+
+  e2e-real-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_NOLOGO: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore Solution
+        run: dotnet restore GarageFlow.slnx
+
+      - name: Build Solution
+        run: dotnet build GarageFlow.slnx --no-restore
+
+      - name: Restore E2E Project
+        run: dotnet restore Tests/E2E/GarageFlow.Tests.E2E.csproj
+
+      - name: Build E2E Project
+        run: dotnet build Tests/E2E/GarageFlow.Tests.E2E.csproj --no-restore
+
+      - name: Run E2E Tests
+        run: dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj --no-build --logger "trx;LogFileName=e2e.trx"
+
+      - name: Upload E2E TRX
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: Tests/E2E/TestResults/**/*.trx
+          if-no-files-found: ignore

@@ -1,0 +1,273 @@
+-- GarageFlow local development seed.
+-- Run after EF Core migrations have created the schema.
+-- The script is idempotent for its own deterministic seed IDs.
+
+BEGIN;
+
+INSERT INTO "Customers" (
+    "Id",
+    "TaxDocument",
+    "FullName",
+    "Email",
+    "PhoneNumber",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('10000000-0000-0000-0000-000000000001', '52998224725', 'GF Seed Ana Souza', 'ana.souza.seed@garageflow.local', '11987654321', '2026-05-04 12:00:00+00', '2026-05-04 12:00:00+00'),
+    ('10000000-0000-0000-0000-000000000002', '11144477735', 'GF Seed Bruno Lima', 'bruno.lima.seed@garageflow.local', '21987654322', '2026-05-04 12:05:00+00', '2026-05-04 12:05:00+00'),
+    ('10000000-0000-0000-0000-000000000003', '12345678909', 'GF Seed Carla Mendes', 'carla.mendes.seed@garageflow.local', '31987654323', '2026-05-04 12:10:00+00', '2026-05-04 12:10:00+00'),
+    ('10000000-0000-0000-0000-000000000004', '15350946056', 'GF Seed Diego Costa', 'diego.costa.seed@garageflow.local', '41987654324', '2026-05-04 12:15:00+00', '2026-05-04 12:15:00+00'),
+    ('10000000-0000-0000-0000-000000000005', '93541134780', 'GF Seed Elisa Rocha', 'elisa.rocha.seed@garageflow.local', '51987654325', '2026-05-04 12:20:00+00', '2026-05-04 12:20:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "TaxDocument" = EXCLUDED."TaxDocument",
+    "FullName" = EXCLUDED."FullName",
+    "Email" = EXCLUDED."Email",
+    "PhoneNumber" = EXCLUDED."PhoneNumber",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "VehicleBrands" (
+    "Id",
+    "Name",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('21000000-0000-0000-0000-000000000001', 'GF Seed Honda', '2026-05-04 12:00:00+00', '2026-05-04 12:00:00+00'),
+    ('21000000-0000-0000-0000-000000000002', 'GF Seed Toyota', '2026-05-04 12:05:00+00', '2026-05-04 12:05:00+00'),
+    ('21000000-0000-0000-0000-000000000003', 'GF Seed Chevrolet', '2026-05-04 12:10:00+00', '2026-05-04 12:10:00+00'),
+    ('21000000-0000-0000-0000-000000000004', 'GF Seed Fiat', '2026-05-04 12:15:00+00', '2026-05-04 12:15:00+00'),
+    ('21000000-0000-0000-0000-000000000005', 'GF Seed Volkswagen', '2026-05-04 12:20:00+00', '2026-05-04 12:20:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "Name" = EXCLUDED."Name",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "VehicleModels" (
+    "Id",
+    "VehicleBrandId",
+    "Name",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('22000000-0000-0000-0000-000000000001', '21000000-0000-0000-0000-000000000001', 'GF Seed Civic', '2026-05-04 12:00:00+00', '2026-05-04 12:00:00+00'),
+    ('22000000-0000-0000-0000-000000000002', '21000000-0000-0000-0000-000000000002', 'GF Seed Corolla', '2026-05-04 12:05:00+00', '2026-05-04 12:05:00+00'),
+    ('22000000-0000-0000-0000-000000000003', '21000000-0000-0000-0000-000000000003', 'GF Seed Onix', '2026-05-04 12:10:00+00', '2026-05-04 12:10:00+00'),
+    ('22000000-0000-0000-0000-000000000004', '21000000-0000-0000-0000-000000000004', 'GF Seed Argo', '2026-05-04 12:15:00+00', '2026-05-04 12:15:00+00'),
+    ('22000000-0000-0000-0000-000000000005', '21000000-0000-0000-0000-000000000005', 'GF Seed Polo', '2026-05-04 12:20:00+00', '2026-05-04 12:20:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "VehicleBrandId" = EXCLUDED."VehicleBrandId",
+    "Name" = EXCLUDED."Name",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "VehicleColors" (
+    "Id",
+    "Name",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('23000000-0000-0000-0000-000000000001', 'GF Seed Branco', '2026-05-04 12:00:00+00', '2026-05-04 12:00:00+00'),
+    ('23000000-0000-0000-0000-000000000002', 'GF Seed Preto', '2026-05-04 12:05:00+00', '2026-05-04 12:05:00+00'),
+    ('23000000-0000-0000-0000-000000000003', 'GF Seed Prata', '2026-05-04 12:10:00+00', '2026-05-04 12:10:00+00'),
+    ('23000000-0000-0000-0000-000000000004', 'GF Seed Vermelho', '2026-05-04 12:15:00+00', '2026-05-04 12:15:00+00'),
+    ('23000000-0000-0000-0000-000000000005', 'GF Seed Azul', '2026-05-04 12:20:00+00', '2026-05-04 12:20:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "Name" = EXCLUDED."Name",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "Vehicles" (
+    "Id",
+    "CustomerId",
+    "Year",
+    "VehicleBrandId",
+    "VehicleModelId",
+    "VehicleColorId",
+    "LicensePlate",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 2020, '21000000-0000-0000-0000-000000000001', '22000000-0000-0000-0000-000000000001', '23000000-0000-0000-0000-000000000001', 'GFA1A01', '2026-05-04 12:30:00+00', '2026-05-04 12:30:00+00'),
+    ('20000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 2021, '21000000-0000-0000-0000-000000000002', '22000000-0000-0000-0000-000000000002', '23000000-0000-0000-0000-000000000002', 'GFB2B02', '2026-05-04 12:35:00+00', '2026-05-04 12:35:00+00'),
+    ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 2019, '21000000-0000-0000-0000-000000000003', '22000000-0000-0000-0000-000000000003', '23000000-0000-0000-0000-000000000003', 'GFC3C03', '2026-05-04 12:40:00+00', '2026-05-04 12:40:00+00'),
+    ('20000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000004', 2022, '21000000-0000-0000-0000-000000000004', '22000000-0000-0000-0000-000000000004', '23000000-0000-0000-0000-000000000004', 'GFD4D04', '2026-05-04 12:45:00+00', '2026-05-04 12:45:00+00'),
+    ('20000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000005', 2023, '21000000-0000-0000-0000-000000000005', '22000000-0000-0000-0000-000000000005', '23000000-0000-0000-0000-000000000005', 'GFE5E05', '2026-05-04 12:50:00+00', '2026-05-04 12:50:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "CustomerId" = EXCLUDED."CustomerId",
+    "Year" = EXCLUDED."Year",
+    "VehicleBrandId" = EXCLUDED."VehicleBrandId",
+    "VehicleModelId" = EXCLUDED."VehicleModelId",
+    "VehicleColorId" = EXCLUDED."VehicleColorId",
+    "LicensePlate" = EXCLUDED."LicensePlate",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "Services" (
+    "Id",
+    "Description",
+    "Price",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('30000000-0000-0000-0000-000000000001', 'GF Seed Troca de oleo e filtro', 180.00, '2026-05-04 13:00:00+00', '2026-05-04 13:00:00+00'),
+    ('30000000-0000-0000-0000-000000000002', 'GF Seed Alinhamento e balanceamento', 240.00, '2026-05-04 13:05:00+00', '2026-05-04 13:05:00+00'),
+    ('30000000-0000-0000-0000-000000000003', 'GF Seed Revisao de freios', 420.00, '2026-05-04 13:10:00+00', '2026-05-04 13:10:00+00'),
+    ('30000000-0000-0000-0000-000000000004', 'GF Seed Diagnostico eletronico', 160.00, '2026-05-04 13:15:00+00', '2026-05-04 13:15:00+00'),
+    ('30000000-0000-0000-0000-000000000005', 'GF Seed Higienizacao do ar condicionado', 210.00, '2026-05-04 13:20:00+00', '2026-05-04 13:20:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "Description" = EXCLUDED."Description",
+    "Price" = EXCLUDED."Price",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "InventoryItems" (
+    "Id",
+    "Name",
+    "Description",
+    "Type",
+    "Cost",
+    "Price",
+    "StockQuantity",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('31000000-0000-0000-0000-000000000001', 'GF Seed Oleo 5W30', 'GF Seed oleo sintetico 5W30', 'Supply', 42.00, 68.00, 40, '2026-05-04 13:30:00+00', '2026-05-04 13:30:00+00'),
+    ('31000000-0000-0000-0000-000000000002', 'GF Seed Filtro de oleo', 'GF Seed filtro de oleo motor', 'Part', 24.00, 45.00, 25, '2026-05-04 13:35:00+00', '2026-05-04 13:35:00+00'),
+    ('31000000-0000-0000-0000-000000000003', 'GF Seed Pastilha de freio', 'GF Seed jogo de pastilhas dianteiras', 'Part', 95.00, 165.00, 15, '2026-05-04 13:40:00+00', '2026-05-04 13:40:00+00'),
+    ('31000000-0000-0000-0000-000000000004', 'GF Seed Fluido de freio', 'GF Seed fluido DOT 4', 'Supply', 28.00, 52.00, 30, '2026-05-04 13:45:00+00', '2026-05-04 13:45:00+00'),
+    ('31000000-0000-0000-0000-000000000005', 'GF Seed Filtro cabine', 'GF Seed filtro do ar condicionado', 'Part', 38.00, 74.00, 20, '2026-05-04 13:50:00+00', '2026-05-04 13:50:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "Name" = EXCLUDED."Name",
+    "Description" = EXCLUDED."Description",
+    "Type" = EXCLUDED."Type",
+    "Cost" = EXCLUDED."Cost",
+    "Price" = EXCLUDED."Price",
+    "StockQuantity" = EXCLUDED."StockQuantity",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "WorkOrders" (
+    "Id",
+    "CustomerId",
+    "VehicleId",
+    "Status",
+    "StartedAt",
+    "CompletedAt",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('40000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Created', NULL, NULL, '2026-05-04 14:00:00+00', '2026-05-04 14:00:00+00'),
+    ('40000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002', 'Diagnosing', NULL, NULL, '2026-05-04 14:05:00+00', '2026-05-04 14:10:00+00'),
+    ('40000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', 'WaitingApproval', NULL, NULL, '2026-05-04 14:15:00+00', '2026-05-04 14:25:00+00'),
+    ('40000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000004', 'InProgress', '2026-05-04 14:40:00+00', NULL, '2026-05-04 14:30:00+00', '2026-05-04 14:40:00+00'),
+    ('40000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000005', 'Completed', '2026-05-04 14:55:00+00', '2026-05-04 16:10:00+00', '2026-05-04 14:45:00+00', '2026-05-04 16:10:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "CustomerId" = EXCLUDED."CustomerId",
+    "VehicleId" = EXCLUDED."VehicleId",
+    "Status" = EXCLUDED."Status",
+    "StartedAt" = EXCLUDED."StartedAt",
+    "CompletedAt" = EXCLUDED."CompletedAt",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "WorkOrderEstimates" (
+    "Id",
+    "WorkOrderId",
+    "Status",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('41000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001', 'Draft', '2026-05-04 14:01:00+00', '2026-05-04 14:01:00+00'),
+    ('41000000-0000-0000-0000-000000000002', '40000000-0000-0000-0000-000000000002', 'Draft', '2026-05-04 14:06:00+00', '2026-05-04 14:10:00+00'),
+    ('41000000-0000-0000-0000-000000000003', '40000000-0000-0000-0000-000000000003', 'Pending', '2026-05-04 14:16:00+00', '2026-05-04 14:25:00+00'),
+    ('41000000-0000-0000-0000-000000000004', '40000000-0000-0000-0000-000000000004', 'Approved', '2026-05-04 14:31:00+00', '2026-05-04 14:39:00+00'),
+    ('41000000-0000-0000-0000-000000000005', '40000000-0000-0000-0000-000000000005', 'Approved', '2026-05-04 14:46:00+00', '2026-05-04 14:54:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "WorkOrderId" = EXCLUDED."WorkOrderId",
+    "Status" = EXCLUDED."Status",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "WorkOrderEstimateServiceLines" (
+    "Id",
+    "EstimateId",
+    "ServiceId",
+    "DescriptionSnapshot",
+    "UnitPrice",
+    "Status",
+    "StartedAt",
+    "CompletedAt",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('42000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'GF Seed Troca de oleo e filtro', 180.00, 'Pending', NULL, NULL, '2026-05-04 14:02:00+00', '2026-05-04 14:02:00+00'),
+    ('42000000-0000-0000-0000-000000000002', '41000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002', 'GF Seed Alinhamento e balanceamento', 240.00, 'Pending', NULL, NULL, '2026-05-04 14:07:00+00', '2026-05-04 14:07:00+00'),
+    ('42000000-0000-0000-0000-000000000003', '41000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000003', 'GF Seed Revisao de freios', 420.00, 'Pending', NULL, NULL, '2026-05-04 14:17:00+00', '2026-05-04 14:17:00+00'),
+    ('42000000-0000-0000-0000-000000000004', '41000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000004', 'GF Seed Diagnostico eletronico', 160.00, 'InProgress', '2026-05-04 14:40:00+00', NULL, '2026-05-04 14:32:00+00', '2026-05-04 14:40:00+00'),
+    ('42000000-0000-0000-0000-000000000005', '41000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000005', 'GF Seed Higienizacao do ar condicionado', 210.00, 'Completed', '2026-05-04 14:55:00+00', '2026-05-04 16:10:00+00', '2026-05-04 14:47:00+00', '2026-05-04 16:10:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "EstimateId" = EXCLUDED."EstimateId",
+    "ServiceId" = EXCLUDED."ServiceId",
+    "DescriptionSnapshot" = EXCLUDED."DescriptionSnapshot",
+    "UnitPrice" = EXCLUDED."UnitPrice",
+    "Status" = EXCLUDED."Status",
+    "StartedAt" = EXCLUDED."StartedAt",
+    "CompletedAt" = EXCLUDED."CompletedAt",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+INSERT INTO "WorkOrderEstimateInventoryLines" (
+    "Id",
+    "EstimateId",
+    "InventoryItemId",
+    "DescriptionSnapshot",
+    "Quantity",
+    "UnitCost",
+    "UnitPrice",
+    "CreatedAt",
+    "UpdatedAt")
+VALUES
+    ('43000000-0000-0000-0000-000000000001', '41000000-0000-0000-0000-000000000001', '31000000-0000-0000-0000-000000000001', 'GF Seed oleo sintetico 5W30', 4, 42.00, 68.00, '2026-05-04 14:03:00+00', '2026-05-04 14:03:00+00'),
+    ('43000000-0000-0000-0000-000000000002', '41000000-0000-0000-0000-000000000002', '31000000-0000-0000-0000-000000000002', 'GF Seed filtro de oleo motor', 1, 24.00, 45.00, '2026-05-04 14:08:00+00', '2026-05-04 14:08:00+00'),
+    ('43000000-0000-0000-0000-000000000003', '41000000-0000-0000-0000-000000000003', '31000000-0000-0000-0000-000000000003', 'GF Seed jogo de pastilhas dianteiras', 1, 95.00, 165.00, '2026-05-04 14:18:00+00', '2026-05-04 14:18:00+00'),
+    ('43000000-0000-0000-0000-000000000004', '41000000-0000-0000-0000-000000000004', '31000000-0000-0000-0000-000000000004', 'GF Seed fluido DOT 4', 2, 28.00, 52.00, '2026-05-04 14:33:00+00', '2026-05-04 14:33:00+00'),
+    ('43000000-0000-0000-0000-000000000005', '41000000-0000-0000-0000-000000000005', '31000000-0000-0000-0000-000000000005', 'GF Seed filtro do ar condicionado', 1, 38.00, 74.00, '2026-05-04 14:48:00+00', '2026-05-04 14:48:00+00')
+ON CONFLICT ("Id") DO UPDATE
+SET
+    "EstimateId" = EXCLUDED."EstimateId",
+    "InventoryItemId" = EXCLUDED."InventoryItemId",
+    "DescriptionSnapshot" = EXCLUDED."DescriptionSnapshot",
+    "Quantity" = EXCLUDED."Quantity",
+    "UnitCost" = EXCLUDED."UnitCost",
+    "UnitPrice" = EXCLUDED."UnitPrice",
+    "CreatedAt" = EXCLUDED."CreatedAt",
+    "UpdatedAt" = EXCLUDED."UpdatedAt";
+
+COMMIT;
+
+SELECT 'Customers' AS "Table", COUNT(*) AS "SeedRows"
+FROM "Customers"
+WHERE "Id" BETWEEN '10000000-0000-0000-0000-000000000001' AND '10000000-0000-0000-0000-000000000005'
+UNION ALL
+SELECT 'Vehicles', COUNT(*)
+FROM "Vehicles"
+WHERE "Id" BETWEEN '20000000-0000-0000-0000-000000000001' AND '20000000-0000-0000-0000-000000000005'
+UNION ALL
+SELECT 'Services', COUNT(*)
+FROM "Services"
+WHERE "Id" BETWEEN '30000000-0000-0000-0000-000000000001' AND '30000000-0000-0000-0000-000000000005'
+UNION ALL
+SELECT 'WorkOrders', COUNT(*)
+FROM "WorkOrders"
+WHERE "Id" BETWEEN '40000000-0000-0000-0000-000000000001' AND '40000000-0000-0000-0000-000000000005'
+ORDER BY "Table";
