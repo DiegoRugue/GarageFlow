@@ -80,6 +80,12 @@ jobs:
       - name: Build
         run: dotnet build GarageFlow.slnx --no-restore
 
+      - name: Restore E2E Project
+        run: dotnet restore Tests/E2E/GarageFlow.Tests.E2E.csproj
+
+      - name: Build E2E Project
+        run: dotnet build Tests/E2E/GarageFlow.Tests.E2E.csproj --no-restore
+
       - name: Architecture Tests
         run: >
           dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
@@ -106,6 +112,15 @@ jobs:
           --results-directory TestResults/Integration
           --
           RunConfiguration.MaxCpuCount=1
+
+      - name: E2E Coverage Tests Against PostgreSQL
+        run: >
+          dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj
+          --no-build
+          --settings coverlet.runsettings
+          --collect:"XPlat Code Coverage"
+          --results-directory TestResults/E2E
+          --logger "trx;LogFileName=e2e.trx"
 
       - name: Validate Coverage Threshold (80%)
         shell: bash
