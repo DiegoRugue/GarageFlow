@@ -72,8 +72,9 @@ jobs:
           /d:sonar.host.url="${{ env.SONAR_HOST_URL }}"
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
           /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
+          /d:sonar.exclusions="**/Tests/E2E/**"
           /d:sonar.coverage.exclusions="**/Tests/E2E/**,**/Infrastructure/DataAccess/Migrations/**,**/Infrastructure/DataAccess/GarageFlowDbContextFactory.cs"
-          /d:sonar.cpd.exclusions="**/Infrastructure/DataAccess/Migrations/**"
+          /d:sonar.cpd.exclusions="**/Tests/E2E/**,**/Infrastructure/DataAccess/Migrations/**"
           /d:sonar.qualitygate.wait=true
 
       - name: Build
