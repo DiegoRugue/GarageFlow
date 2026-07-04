@@ -1,4 +1,4 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.Vehicles.UseCases.UpdateVehicle;
 
@@ -8,4 +8,4 @@ public sealed record UpdateVehicleCommand(
     int Year,
     Guid CustomerId,
     Guid VehicleModelId,
-    Guid VehicleColorId) : IRequest<UpdateVehicleResult>;
+    Guid VehicleColorId) : ICommand<UpdateVehicleResult>;

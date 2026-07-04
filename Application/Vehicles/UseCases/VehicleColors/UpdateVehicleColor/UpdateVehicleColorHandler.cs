@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -7,11 +6,9 @@ using Mediator;
 namespace GarageFlow.Application.Vehicles.UseCases.VehicleColors.UpdateVehicleColor;
 
 public sealed class UpdateVehicleColorHandler(
-    IVehicleColorRepository vehicleColorRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateVehicleColorCommand, UpdateVehicleColorResult>
+    IVehicleColorRepository vehicleColorRepository) : IRequestHandler<UpdateVehicleColorCommand, UpdateVehicleColorResult>
 {
     private readonly IVehicleColorRepository _vehicleColorRepository = vehicleColorRepository ?? throw new ArgumentNullException(nameof(vehicleColorRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<UpdateVehicleColorResult> Handle(UpdateVehicleColorCommand request, CancellationToken cancellationToken)
     {
@@ -30,22 +27,11 @@ public sealed class UpdateVehicleColorHandler(
             throw new BusinessRuleViolationException($"A vehicle color with name '{normalizedName}' already exists.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        vehicleColor.Update(normalizedName);
 
-        try
-        {
-            vehicleColor.Update(normalizedName);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new UpdateVehicleColorResult(
-                Id: vehicleColor.Id.Value,
-                Name: vehicleColor.Name,
-                CreatedAt: vehicleColor.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new UpdateVehicleColorResult(
+            Id: vehicleColor.Id.Value,
+            Name: vehicleColor.Name,
+            CreatedAt: vehicleColor.CreatedAt);
     }
 }

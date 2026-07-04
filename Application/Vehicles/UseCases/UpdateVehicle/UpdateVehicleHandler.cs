@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Application.Vehicles.Ports;
@@ -12,14 +11,12 @@ public sealed class UpdateVehicleHandler(
     IVehicleRepository vehicleRepository,
     ICustomerRepository customerRepository,
     IVehicleModelRepository vehicleModelRepository,
-    IVehicleColorRepository vehicleColorRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateVehicleCommand, UpdateVehicleResult>
+    IVehicleColorRepository vehicleColorRepository) : IRequestHandler<UpdateVehicleCommand, UpdateVehicleResult>
 {
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
     private readonly IVehicleModelRepository _vehicleModelRepository = vehicleModelRepository ?? throw new ArgumentNullException(nameof(vehicleModelRepository));
     private readonly IVehicleColorRepository _vehicleColorRepository = vehicleColorRepository ?? throw new ArgumentNullException(nameof(vehicleColorRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<UpdateVehicleResult> Handle(UpdateVehicleCommand request, CancellationToken cancellationToken)
     {
@@ -60,27 +57,16 @@ public sealed class UpdateVehicleHandler(
             throw new BusinessRuleViolationException($"A vehicle with license plate '{licensePlate.Value}' already exists.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        vehicle.Update(customerId, vehicleYear, vehicleModel.VehicleBrandId, vehicleModelId, vehicleColorId, licensePlate);
 
-        try
-        {
-            vehicle.Update(customerId, vehicleYear, vehicleModel.VehicleBrandId, vehicleModelId, vehicleColorId, licensePlate);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new UpdateVehicleResult(
-                Id: vehicle.Id.Value,
-                CustomerId: vehicle.CustomerId.Value,
-                Year: vehicle.Year.Value,
-                VehicleBrandId: vehicle.VehicleBrandId.Value,
-                VehicleModelId: vehicle.VehicleModelId.Value,
-                VehicleColorId: vehicle.VehicleColorId.Value,
-                Plate: vehicle.LicensePlate.Value,
-                CreatedAt: vehicle.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new UpdateVehicleResult(
+            Id: vehicle.Id.Value,
+            CustomerId: vehicle.CustomerId.Value,
+            Year: vehicle.Year.Value,
+            VehicleBrandId: vehicle.VehicleBrandId.Value,
+            VehicleModelId: vehicle.VehicleModelId.Value,
+            VehicleColorId: vehicle.VehicleColorId.Value,
+            Plate: vehicle.LicensePlate.Value,
+            CreatedAt: vehicle.CreatedAt);
     }
 }

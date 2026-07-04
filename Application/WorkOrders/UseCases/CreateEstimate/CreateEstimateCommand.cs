@@ -1,5 +1,5 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.WorkOrders.UseCases.CreateEstimate;
 
-public sealed record CreateEstimateCommand(Guid WorkOrderId) : IRequest<CreateEstimateResult>;
+public sealed record CreateEstimateCommand(Guid WorkOrderId) : ICommand<CreateEstimateResult>;

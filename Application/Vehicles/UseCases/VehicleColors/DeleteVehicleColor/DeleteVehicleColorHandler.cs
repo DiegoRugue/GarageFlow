@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -8,12 +7,10 @@ namespace GarageFlow.Application.Vehicles.UseCases.VehicleColors.DeleteVehicleCo
 
 public sealed class DeleteVehicleColorHandler(
     IVehicleColorRepository vehicleColorRepository,
-    IVehicleRepository vehicleRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<DeleteVehicleColorCommand, Unit>
+    IVehicleRepository vehicleRepository) : IRequestHandler<DeleteVehicleColorCommand, Unit>
 {
     private readonly IVehicleColorRepository _vehicleColorRepository = vehicleColorRepository ?? throw new ArgumentNullException(nameof(vehicleColorRepository));
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<Unit> Handle(DeleteVehicleColorCommand request, CancellationToken cancellationToken)
     {
@@ -30,20 +27,9 @@ public sealed class DeleteVehicleColorHandler(
             throw new BusinessRuleViolationException($"Vehicle color with ID '{request.Id}' cannot be deleted because it has related vehicles.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        vehicleColor.Delete();
+        _vehicleColorRepository.Remove(vehicleColor);
 
-        try
-        {
-            vehicleColor.Delete();
-            _vehicleColorRepository.Remove(vehicleColor);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return Unit.Value;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return Unit.Value;
     }
 }

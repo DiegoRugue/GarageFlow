@@ -1,6 +1,5 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using Mediator;
@@ -8,11 +7,9 @@ using Mediator;
 namespace GarageFlow.Application.Customers.UseCases.UpdateCustomer;
 
 public sealed class UpdateCustomerHandler(
-    ICustomerRepository customerRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateCustomerCommand, UpdateCustomerResult>
+    ICustomerRepository customerRepository) : IRequestHandler<UpdateCustomerCommand, UpdateCustomerResult>
 {
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<UpdateCustomerResult> Handle(UpdateCustomerCommand request, CancellationToken cancellationToken)
     {
@@ -27,26 +24,15 @@ public sealed class UpdateCustomerHandler(
             throw new NotFoundException($"Customer with ID '{request.Id}' was not found.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        customer.Update(fullName, email, phoneNumber);
 
-        try
-        {
-            customer.Update(fullName, email, phoneNumber);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new UpdateCustomerResult(
-                Id: customer.Id.Value,
-                TaxDocument: customer.TaxDocument.Value,
-                TaxDocumentType: customer.TaxDocument.DocumentType.ToString(),
-                FullName: customer.FullName.Value,
-                Email: customer.Email.Value,
-                PhoneNumber: customer.PhoneNumber.Value,
-                CreatedAt: customer.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new UpdateCustomerResult(
+            Id: customer.Id.Value,
+            TaxDocument: customer.TaxDocument.Value,
+            TaxDocumentType: customer.TaxDocument.DocumentType.ToString(),
+            FullName: customer.FullName.Value,
+            Email: customer.Email.Value,
+            PhoneNumber: customer.PhoneNumber.Value,
+            CreatedAt: customer.CreatedAt);
     }
 }

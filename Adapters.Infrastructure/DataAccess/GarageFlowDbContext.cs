@@ -11,6 +11,7 @@ using GarageFlow.Adapters.Infrastructure.Services.Configurations;
 using GarageFlow.Adapters.Infrastructure.Users.Configurations;
 using GarageFlow.Adapters.Infrastructure.Vehicles.Configurations;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Configurations;
+using GarageFlow.SharedKernel.Domain.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -101,5 +102,26 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     public new Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public IReadOnlyList<DomainEvent> DequeueDomainEvents()
+    {
+        var entities = ChangeTracker
+            .Entries()
+            .Select(entry => entry.Entity)
+            .OfType<IHasDomainEvents>()
+            .Where(entity => entity.DomainEvents.Count > 0)
+            .ToList();
+
+        var domainEvents = entities
+            .SelectMany(entity => entity.DomainEvents)
+            .ToList();
+
+        foreach (var entity in entities)
+        {
+            entity.ClearDomainEvents();
+        }
+
+        return domainEvents;
     }
 }

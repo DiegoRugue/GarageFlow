@@ -1,5 +1,5 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.WorkOrders.UseCases.StartWork;
 
-public sealed record StartWorkCommand(Guid WorkOrderId) : IRequest<Unit>;
+public sealed record StartWorkCommand(Guid WorkOrderId) : ICommand;

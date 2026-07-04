@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -7,11 +6,9 @@ using Mediator;
 namespace GarageFlow.Application.Vehicles.UseCases.VehicleBrands.UpdateVehicleBrand;
 
 public sealed class UpdateVehicleBrandHandler(
-    IVehicleBrandRepository vehicleBrandRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateVehicleBrandCommand, UpdateVehicleBrandResult>
+    IVehicleBrandRepository vehicleBrandRepository) : IRequestHandler<UpdateVehicleBrandCommand, UpdateVehicleBrandResult>
 {
     private readonly IVehicleBrandRepository _vehicleBrandRepository = vehicleBrandRepository ?? throw new ArgumentNullException(nameof(vehicleBrandRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<UpdateVehicleBrandResult> Handle(UpdateVehicleBrandCommand request, CancellationToken cancellationToken)
     {
@@ -30,22 +27,11 @@ public sealed class UpdateVehicleBrandHandler(
             throw new BusinessRuleViolationException($"A vehicle brand with name '{normalizedName}' already exists.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        vehicleBrand.Update(normalizedName);
 
-        try
-        {
-            vehicleBrand.Update(normalizedName);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new UpdateVehicleBrandResult(
-                Id: vehicleBrand.Id.Value,
-                Name: vehicleBrand.Name,
-                CreatedAt: vehicleBrand.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new UpdateVehicleBrandResult(
+            Id: vehicleBrand.Id.Value,
+            Name: vehicleBrand.Name,
+            CreatedAt: vehicleBrand.CreatedAt);
     }
 }

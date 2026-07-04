@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -9,13 +8,11 @@ namespace GarageFlow.Application.Vehicles.UseCases.VehicleModels.UpdateVehicleMo
 public sealed class UpdateVehicleModelHandler(
     IVehicleModelRepository vehicleModelRepository,
     IVehicleBrandRepository vehicleBrandRepository,
-    IVehicleRepository vehicleRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateVehicleModelCommand, UpdateVehicleModelResult>
+    IVehicleRepository vehicleRepository) : IRequestHandler<UpdateVehicleModelCommand, UpdateVehicleModelResult>
 {
     private readonly IVehicleModelRepository _vehicleModelRepository = vehicleModelRepository ?? throw new ArgumentNullException(nameof(vehicleModelRepository));
     private readonly IVehicleBrandRepository _vehicleBrandRepository = vehicleBrandRepository ?? throw new ArgumentNullException(nameof(vehicleBrandRepository));
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<UpdateVehicleModelResult> Handle(UpdateVehicleModelCommand request, CancellationToken cancellationToken)
     {
@@ -51,23 +48,12 @@ public sealed class UpdateVehicleModelHandler(
             throw new BusinessRuleViolationException($"A vehicle model with name '{normalizedName}' already exists for vehicle brand with ID '{request.VehicleBrandId}'.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        vehicleModel.Update(vehicleBrandId, normalizedName);
 
-        try
-        {
-            vehicleModel.Update(vehicleBrandId, normalizedName);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new UpdateVehicleModelResult(
-                Id: vehicleModel.Id.Value,
-                VehicleBrandId: vehicleModel.VehicleBrandId.Value,
-                Name: vehicleModel.Name,
-                CreatedAt: vehicleModel.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new UpdateVehicleModelResult(
+            Id: vehicleModel.Id.Value,
+            VehicleBrandId: vehicleModel.VehicleBrandId.Value,
+            Name: vehicleModel.Name,
+            CreatedAt: vehicleModel.CreatedAt);
     }
 }

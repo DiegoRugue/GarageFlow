@@ -1,6 +1,5 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Users.Ports;
 using GarageFlow.Domain.Users.ValueObjects;
 using Mediator;
@@ -8,11 +7,9 @@ using Mediator;
 namespace GarageFlow.Application.Users.UseCases.UpdateMyProfile;
 
 public sealed class UpdateMyProfileHandler(
-    IUserRepository userRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateMyProfileCommand, UpdateMyProfileResult>
+    IUserRepository userRepository) : IRequestHandler<UpdateMyProfileCommand, UpdateMyProfileResult>
 {
     private readonly IUserRepository _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<UpdateMyProfileResult> Handle(UpdateMyProfileCommand request, CancellationToken cancellationToken)
     {
@@ -34,27 +31,16 @@ public sealed class UpdateMyProfileHandler(
             throw new BusinessRuleViolationException($"A user with email '{normalizedEmail.Value}' already exists.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        user.UpdateProfile(fullName, normalizedEmail, birthDate);
 
-        try
-        {
-            user.UpdateProfile(fullName, normalizedEmail, birthDate);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new UpdateMyProfileResult(
-                Id: user.Id.Value,
-                FullName: user.FullName.Value,
-                Email: user.Email.Value,
-                BirthDate: user.BirthDate.Value,
-                Role: (int)user.Role,
-                MustChangePassword: user.MustChangePassword,
-                CreatedAt: user.CreatedAt,
-                UpdatedAt: user.UpdatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new UpdateMyProfileResult(
+            Id: user.Id.Value,
+            FullName: user.FullName.Value,
+            Email: user.Email.Value,
+            BirthDate: user.BirthDate.Value,
+            Role: (int)user.Role,
+            MustChangePassword: user.MustChangePassword,
+            CreatedAt: user.CreatedAt,
+            UpdatedAt: user.UpdatedAt);
     }
 }

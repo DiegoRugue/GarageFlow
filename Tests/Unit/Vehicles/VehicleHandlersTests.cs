@@ -38,8 +38,7 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         var result = await handler.Handle(
             new CreateVehicleCommand(
@@ -61,10 +60,6 @@ public class VehicleHandlersTests
         Assert.Equal(customer.Id, vehicles[0].CustomerId);
         Assert.Equal(2024, vehicles[0].Year);
         Assert.Equal("ABC1234", vehicles[0].LicensePlate.Value);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -83,15 +78,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new CreateVehicleCommand("ABC1234", 2024, Guid.NewGuid(), vehicleModel.Id.Value, vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -109,15 +101,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new CreateVehicleCommand("ABC1234", 2024, customer.Id.Value, Guid.NewGuid(), vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -136,15 +125,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new CreateVehicleCommand("ABC1234", 2024, customer.Id.Value, vehicleModel.Id.Value, Guid.NewGuid()),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -165,16 +151,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(
                 new CreateVehicleCommand("ABC1234", 2024, customer.Id.Value, vehicleModel.Id.Value, vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -195,16 +177,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(
                 new CreateVehicleCommand("abc-1234", 2024, customer.Id.Value, vehicleModel.Id.Value, vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -228,17 +206,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await handler.Handle(
                 new CreateVehicleCommand("ABC1234", 2024, customer.Id.Value, vehicleModel.Id.Value, vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -391,8 +364,7 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         var result = await handler.Handle(
             new UpdateVehicleCommand(
@@ -417,10 +389,6 @@ public class VehicleHandlersTests
         Assert.Equal(secondModel.Id, vehicle.VehicleModelId);
         Assert.Equal(secondColor.Id, vehicle.VehicleColorId);
         Assert.Equal("XYZ1A23", vehicle.LicensePlate.Value);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -440,15 +408,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new UpdateVehicleCommand(Guid.NewGuid(), "ABC1234", 2024, customer.Id.Value, vehicleModel.Id.Value, vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -469,15 +434,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new UpdateVehicleCommand(vehicle.Id.Value, "ABC1234", 2024, Guid.NewGuid(), vehicleModel.Id.Value, vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -498,15 +460,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new UpdateVehicleCommand(vehicle.Id.Value, "ABC1234", 2024, customer.Id.Value, Guid.NewGuid(), vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -527,15 +486,12 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new UpdateVehicleCommand(vehicle.Id.Value, "ABC1234", 2024, customer.Id.Value, vehicleModel.Id.Value, Guid.NewGuid()),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -557,8 +513,7 @@ public class VehicleHandlersTests
             vehicleRepositoryMock.Object,
             customerRepositoryMock.Object,
             vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
+            vehicleColorRepositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(
@@ -570,44 +525,8 @@ public class VehicleHandlersTests
                     VehicleModelId: vehicleModel.Id.Value,
                     VehicleColorId: vehicleColor.Id.Value),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Handle_ShouldRollbackUpdate_WhenExceptionOccursAfterTransactionBegins()
-    {
-        var customer = new CustomerBuilder().Build();
-        var vehicleBrand = VehicleBrand.Create("Fiat");
-        var vehicleModel = VehicleModel.Create(vehicleBrand.Id, "Uno");
-        var vehicleColor = VehicleColor.Create("Black");
-        var vehicle = Vehicle.Create(customer.Id, 2024, vehicleBrand.Id, vehicleModel.Id, vehicleColor.Id, LicensePlate.Create("ABC1234"));
-
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock([vehicle]);
-        var customerRepositoryMock = CreateCustomerRepositoryMock([customer]);
-        var vehicleModelRepositoryMock = CreateVehicleModelRepositoryMock([vehicleModel]);
-        var vehicleColorRepositoryMock = CreateVehicleColorRepositoryMock([vehicleColor]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Commit failed"));
-
-        var handler = new UpdateVehicleHandler(
-            vehicleRepositoryMock.Object,
-            customerRepositoryMock.Object,
-            vehicleModelRepositoryMock.Object,
-            vehicleColorRepositoryMock.Object,
-            unitOfWorkMock.Object);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await handler.Handle(
-                new UpdateVehicleCommand(vehicle.Id.Value, "XYZ1A23", 2024, customer.Id.Value, vehicleModel.Id.Value, vehicleColor.Id.Value),
-                CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
 
     [Fact]
     public async Task Handle_ShouldDeleteVehicle_WhenIdExists()
@@ -619,15 +538,12 @@ public class VehicleHandlersTests
         var vehicle = Vehicle.Create(customerId, 2024, vehicleBrand.Id, vehicleModel.Id, vehicleColor.Id, LicensePlate.Create("ABC1234"));
         var vehicleRepositoryMock = CreateVehicleRepositoryMock([vehicle]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteVehicleHandler(vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteVehicleHandler(vehicleRepositoryMock.Object);
 
         await handler.Handle(new DeleteVehicleCommand(vehicle.Id.Value), CancellationToken.None);
         var deleted = await vehicleRepositoryMock.Object.GetByIdAsync(vehicle.Id, CancellationToken.None);
 
         Assert.Null(deleted);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         vehicleRepositoryMock.Verify(x => x.Remove(It.Is<Vehicle>(v => v.Id == vehicle.Id)), Times.Once);
     }
 
@@ -636,12 +552,10 @@ public class VehicleHandlersTests
     {
         var vehicleRepositoryMock = CreateVehicleRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteVehicleHandler(vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteVehicleHandler(vehicleRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new DeleteVehicleCommand(Guid.NewGuid()), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -658,14 +572,10 @@ public class VehicleHandlersTests
             .Throws(new InvalidOperationException("Remove failed"));
 
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteVehicleHandler(vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteVehicleHandler(vehicleRepositoryMock.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await handler.Handle(new DeleteVehicleCommand(vehicle.Id.Value), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static Mock<IVehicleRepository> CreateVehicleRepositoryMock(

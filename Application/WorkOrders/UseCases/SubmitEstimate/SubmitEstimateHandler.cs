@@ -33,6 +33,7 @@ public sealed class SubmitEstimateHandler(
         var shouldSendApprovalEmail = false;
         var customerIdForApprovalEmail = Guid.Empty;
 
+        // This handler sends the customer approval email only after the estimate mutation is committed.
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         try

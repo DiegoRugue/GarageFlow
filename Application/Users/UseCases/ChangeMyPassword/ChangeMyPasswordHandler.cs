@@ -1,6 +1,5 @@
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Users.Ports;
 using GarageFlow.Domain.Users.ValueObjects;
 using Mediator;
@@ -9,12 +8,10 @@ namespace GarageFlow.Application.Users.UseCases.ChangeMyPassword;
 
 public sealed class ChangeMyPasswordHandler(
     IUserRepository userRepository,
-    IPasswordHashService passwordHashService,
-    IUnitOfWork unitOfWork) : IRequestHandler<ChangeMyPasswordCommand, Unit>
+    IPasswordHashService passwordHashService) : IRequestHandler<ChangeMyPasswordCommand, Unit>
 {
     private readonly IUserRepository _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
     private readonly IPasswordHashService _passwordHashService = passwordHashService ?? throw new ArgumentNullException(nameof(passwordHashService));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<Unit> Handle(ChangeMyPasswordCommand request, CancellationToken cancellationToken)
     {
@@ -42,19 +39,8 @@ public sealed class ChangeMyPasswordHandler(
 
         var newPasswordHash = _passwordHashService.Hash(request.NewPassword);
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        user.ChangePassword(newPasswordHash);
 
-        try
-        {
-            user.ChangePassword(newPasswordHash);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return Unit.Value;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return Unit.Value;
     }
 }

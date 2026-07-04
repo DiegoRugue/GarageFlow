@@ -1,3 +1,5 @@
+using GarageFlow.SharedKernel.Domain.Events;
+
 namespace GarageFlow.SharedKernel.Persistence;
 
 public interface IUnitOfWork
@@ -9,4 +11,6 @@ public interface IUnitOfWork
     Task RollbackTransactionAsync(CancellationToken cancellationToken = default);
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    IReadOnlyList<DomainEvent> DequeueDomainEvents();
 }

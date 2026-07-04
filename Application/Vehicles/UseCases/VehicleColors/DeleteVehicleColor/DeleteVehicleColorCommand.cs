@@ -1,5 +1,5 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.Vehicles.UseCases.VehicleColors.DeleteVehicleColor;
 
-public sealed record DeleteVehicleColorCommand(Guid Id) : IRequest<Unit>;
+public sealed record DeleteVehicleColorCommand(Guid Id) : ICommand;

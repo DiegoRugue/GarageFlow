@@ -1,5 +1,5 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.Vehicles.UseCases.VehicleBrands.DeleteVehicleBrand;
 
-public sealed record DeleteVehicleBrandCommand(Guid Id) : IRequest<Unit>;
+public sealed record DeleteVehicleBrandCommand(Guid Id) : ICommand;

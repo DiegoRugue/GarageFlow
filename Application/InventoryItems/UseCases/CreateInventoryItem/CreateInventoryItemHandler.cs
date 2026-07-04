@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.InventoryItems.Enums;
 using GarageFlow.Application.InventoryItems.Ports;
@@ -10,11 +9,9 @@ using Mediator;
 namespace GarageFlow.Application.InventoryItems.UseCases.CreateInventoryItem;
 
 public sealed class CreateInventoryItemHandler(
-    IInventoryItemRepository inventoryItemRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<CreateInventoryItemCommand, CreateInventoryItemResult>
+    IInventoryItemRepository inventoryItemRepository) : IRequestHandler<CreateInventoryItemCommand, CreateInventoryItemResult>
 {
     private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<CreateInventoryItemResult> Handle(CreateInventoryItemCommand request, CancellationToken cancellationToken)
     {
@@ -31,35 +28,24 @@ public sealed class CreateInventoryItemHandler(
 
         var inventoryItemType = (InventoryItemType)request.Type;
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        var inventoryItem = InventoryItem.Create(
+            name,
+            description,
+            inventoryItemType,
+            cost,
+            price,
+            stockQuantity);
 
-        try
-        {
-            var inventoryItem = InventoryItem.Create(
-                name,
-                description,
-                inventoryItemType,
-                cost,
-                price,
-                stockQuantity);
+        await _inventoryItemRepository.AddAsync(inventoryItem, cancellationToken);
 
-            await _inventoryItemRepository.AddAsync(inventoryItem, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new CreateInventoryItemResult(
-                Id: inventoryItem.Id.Value,
-                Name: inventoryItem.Name.Value,
-                Description: inventoryItem.Description.Value,
-                Type: (int)inventoryItem.Type,
-                Cost: inventoryItem.Cost.Value,
-                Price: inventoryItem.Price.Value,
-                StockQuantity: inventoryItem.StockQuantity.Value,
-                CreatedAt: inventoryItem.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new CreateInventoryItemResult(
+            Id: inventoryItem.Id.Value,
+            Name: inventoryItem.Name.Value,
+            Description: inventoryItem.Description.Value,
+            Type: (int)inventoryItem.Type,
+            Cost: inventoryItem.Cost.Value,
+            Price: inventoryItem.Price.Value,
+            StockQuantity: inventoryItem.StockQuantity.Value,
+            CreatedAt: inventoryItem.CreatedAt);
     }
 }

@@ -1,4 +1,4 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.InventoryItems.UseCases.UpdateInventoryItem;
 
@@ -8,4 +8,4 @@ public sealed record UpdateInventoryItemCommand(
     string Description,
     int Type,
     decimal Cost,
-    decimal Price) : IRequest<UpdateInventoryItemResult>;
+    decimal Price) : ICommand<UpdateInventoryItemResult>;

@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
@@ -8,11 +7,9 @@ using Mediator;
 namespace GarageFlow.Application.Vehicles.UseCases.VehicleColors.CreateVehicleColor;
 
 public sealed class CreateVehicleColorHandler(
-    IVehicleColorRepository vehicleColorRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<CreateVehicleColorCommand, CreateVehicleColorResult>
+    IVehicleColorRepository vehicleColorRepository) : IRequestHandler<CreateVehicleColorCommand, CreateVehicleColorResult>
 {
     private readonly IVehicleColorRepository _vehicleColorRepository = vehicleColorRepository ?? throw new ArgumentNullException(nameof(vehicleColorRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<CreateVehicleColorResult> Handle(CreateVehicleColorCommand request, CancellationToken cancellationToken)
     {
@@ -26,22 +23,11 @@ public sealed class CreateVehicleColorHandler(
 
         var vehicleColor = VehicleColor.Create(colorName);
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        await _vehicleColorRepository.AddAsync(vehicleColor, cancellationToken);
 
-        try
-        {
-            await _vehicleColorRepository.AddAsync(vehicleColor, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new CreateVehicleColorResult(
-                Id: vehicleColor.Id.Value,
-                Name: vehicleColor.Name,
-                CreatedAt: vehicleColor.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new CreateVehicleColorResult(
+            Id: vehicleColor.Id.Value,
+            Name: vehicleColor.Name,
+            CreatedAt: vehicleColor.CreatedAt);
     }
 }

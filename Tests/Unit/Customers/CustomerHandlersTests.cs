@@ -25,7 +25,7 @@ public class CustomerHandlersTests
         var customers = new List<Customer>();
         var repositoryMock = CreateRepositoryMock(customers);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateCustomerHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateCustomerHandler(repositoryMock.Object);
 
         var command = new CreateCustomerCommand(
             TaxDocument: "529.982.247-25",
@@ -43,9 +43,6 @@ public class CustomerHandlersTests
         Assert.Equal("11987654321", result.PhoneNumber);
 
         Assert.Single(customers);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -158,7 +155,7 @@ public class CustomerHandlersTests
         var repositoryMock = CreateRepositoryMock([customer]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
 
-        var handler = new UpdateCustomerHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateCustomerHandler(repositoryMock.Object);
         var command = new UpdateCustomerCommand(
             Id: customer.Id.Value,
             FullName: "John Updated",
@@ -171,10 +168,6 @@ public class CustomerHandlersTests
         Assert.Equal("John Updated", result.FullName);
         Assert.Equal("john.updated@example.com", result.Email);
         Assert.Equal("11912345678", result.PhoneNumber);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -185,16 +178,13 @@ public class CustomerHandlersTests
         var vehicleRepositoryMock = CreateVehicleRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
 
-        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
         var command = new DeleteCustomerCommand(customer.Id.Value);
 
         await handler.Handle(command, CancellationToken.None);
         var deleted = await repositoryMock.Object.GetByIdAsync(customer.Id, CancellationToken.None);
 
         Assert.Null(deleted);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.Is<Customer>(c => c.Id == customer.Id)), Times.Once);
     }
 
@@ -205,13 +195,11 @@ public class CustomerHandlersTests
         var repositoryMock = CreateRepositoryMock([customer]);
         var vehicleRepositoryMock = CreateVehicleRepositoryMock(existsByCustomerId: true);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
         var command = new DeleteCustomerCommand(customer.Id.Value);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(command, CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         vehicleRepositoryMock.Verify(
             x => x.ExistsByCustomerIdAsync(It.Is<CustomerId>(id => id == customer.Id), It.IsAny<CancellationToken>()),
             Times.Once);

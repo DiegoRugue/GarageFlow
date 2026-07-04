@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -8,12 +7,10 @@ namespace GarageFlow.Application.Vehicles.UseCases.VehicleBrands.DeleteVehicleBr
 
 public sealed class DeleteVehicleBrandHandler(
     IVehicleBrandRepository vehicleBrandRepository,
-    IVehicleModelRepository vehicleModelRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<DeleteVehicleBrandCommand, Unit>
+    IVehicleModelRepository vehicleModelRepository) : IRequestHandler<DeleteVehicleBrandCommand, Unit>
 {
     private readonly IVehicleBrandRepository _vehicleBrandRepository = vehicleBrandRepository ?? throw new ArgumentNullException(nameof(vehicleBrandRepository));
     private readonly IVehicleModelRepository _vehicleModelRepository = vehicleModelRepository ?? throw new ArgumentNullException(nameof(vehicleModelRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<Unit> Handle(DeleteVehicleBrandCommand request, CancellationToken cancellationToken)
     {
@@ -30,20 +27,9 @@ public sealed class DeleteVehicleBrandHandler(
             throw new BusinessRuleViolationException($"Vehicle brand with ID '{request.Id}' cannot be deleted because it has related vehicle models.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        vehicleBrand.Delete();
+        _vehicleBrandRepository.Remove(vehicleBrand);
 
-        try
-        {
-            vehicleBrand.Delete();
-            _vehicleBrandRepository.Remove(vehicleBrand);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return Unit.Value;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return Unit.Value;
     }
 }

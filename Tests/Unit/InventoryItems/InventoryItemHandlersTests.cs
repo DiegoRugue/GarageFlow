@@ -25,7 +25,7 @@ public class InventoryItemHandlersTests
         var inventoryItems = new List<InventoryItem>();
         var repositoryMock = CreateInventoryItemRepositoryMock(inventoryItems);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateInventoryItemHandler(repositoryMock.Object);
 
         var command = new CreateInventoryItemCommand(
             Name: "Brake Pads",
@@ -46,10 +46,6 @@ public class InventoryItemHandlersTests
         Assert.Equal(12, result.StockQuantity);
         Assert.Single(inventoryItems);
         Assert.Equal("Brake Pads", inventoryItems[0].Name.Value);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -61,7 +57,7 @@ public class InventoryItemHandlersTests
             .ThrowsAsync(new InvalidOperationException("Add failed"));
 
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateInventoryItemHandler(repositoryMock.Object);
         var command = new CreateInventoryItemCommand(
             Name: "Brake Pads",
             Description: "High-quality ceramic brake pad set.",
@@ -72,10 +68,6 @@ public class InventoryItemHandlersTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await handler.Handle(command, CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -83,7 +75,7 @@ public class InventoryItemHandlersTests
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -95,10 +87,6 @@ public class InventoryItemHandlersTests
                     Price: 59.80m,
                     StockQuantity: 12),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -106,7 +94,7 @@ public class InventoryItemHandlersTests
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -118,10 +106,6 @@ public class InventoryItemHandlersTests
                     Price: 59.80m,
                     StockQuantity: 12),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -129,7 +113,7 @@ public class InventoryItemHandlersTests
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -141,10 +125,6 @@ public class InventoryItemHandlersTests
                     Price: 59.999m,
                     StockQuantity: 12),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -230,7 +210,7 @@ public class InventoryItemHandlersTests
 
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemHandler(repositoryMock.Object);
 
         var result = await handler.Handle(
             new UpdateInventoryItemCommand(
@@ -248,10 +228,6 @@ public class InventoryItemHandlersTests
         Assert.Equal((int)InventoryItemType.Supply, result.Type);
         Assert.Equal(30m, result.Cost);
         Assert.Equal(55m, result.Price);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -259,7 +235,7 @@ public class InventoryItemHandlersTests
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
@@ -271,37 +247,8 @@ public class InventoryItemHandlersTests
                     30m,
                     55m),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Handle_ShouldRollbackUpdate_WhenExceptionOccursAfterTransactionBegins()
-    {
-        var item = new InventoryItemBuilder().Build();
-        var repositoryMock = CreateInventoryItemRepositoryMock([item]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Commit failed"));
-
-        var handler = new UpdateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await handler.Handle(
-                new UpdateInventoryItemCommand(
-                    item.Id.Value,
-                    "Synthetic Brake Pads",
-                    "Ceramic set.",
-                    (int)InventoryItemType.Supply,
-                    30m,
-                    55m),
-                CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
 
     [Fact]
     public async Task Handle_ShouldNotBeginTransaction_WhenUpdateDescriptionIsInvalid()
@@ -309,7 +256,7 @@ public class InventoryItemHandlersTests
         var item = new InventoryItemBuilder().Build();
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -321,10 +268,6 @@ public class InventoryItemHandlersTests
                     30m,
                     55m),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -333,7 +276,7 @@ public class InventoryItemHandlersTests
         var item = new InventoryItemBuilder().Build();
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -345,10 +288,6 @@ public class InventoryItemHandlersTests
                     -1m,
                     55m),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -357,7 +296,7 @@ public class InventoryItemHandlersTests
         var item = new InventoryItemBuilder().Build();
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -369,10 +308,6 @@ public class InventoryItemHandlersTests
                     30m,
                     55.999m),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -381,16 +316,13 @@ public class InventoryItemHandlersTests
         var item = new InventoryItemBuilder().Build();
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteInventoryItemHandler(repositoryMock.Object);
 
         await handler.Handle(new DeleteInventoryItemCommand(item.Id.Value), CancellationToken.None);
 
         var deleted = await repositoryMock.Object.GetByIdAsync(item.Id, CancellationToken.None);
 
         Assert.Null(deleted);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.Is<InventoryItem>(i => i.Id == item.Id)), Times.Once);
     }
 
@@ -399,12 +331,10 @@ public class InventoryItemHandlersTests
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new DeleteInventoryItemCommand(Guid.NewGuid()), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.IsAny<InventoryItem>()), Times.Never);
     }
 
@@ -418,14 +348,10 @@ public class InventoryItemHandlersTests
             .Throws(new InvalidOperationException("Remove failed"));
 
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteInventoryItemHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await handler.Handle(new DeleteInventoryItemCommand(item.Id.Value), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -434,15 +360,12 @@ public class InventoryItemHandlersTests
         var item = new InventoryItemBuilder().WithStockQuantity(15).Build();
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemStockHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemStockHandler(repositoryMock.Object);
 
         var result = await handler.Handle(new UpdateInventoryItemStockCommand(item.Id.Value, 42), CancellationToken.None);
 
         Assert.Equal(item.Id.Value, result.Id);
         Assert.Equal(42, result.StockQuantity);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -450,14 +373,12 @@ public class InventoryItemHandlersTests
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemStockHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemStockHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
                 new UpdateInventoryItemStockCommand(Guid.NewGuid(), 10),
                 CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -466,43 +387,20 @@ public class InventoryItemHandlersTests
         var item = new InventoryItemBuilder().Build();
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemStockHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemStockHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(new UpdateInventoryItemStockCommand(item.Id.Value, -5), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.GetByIdAsync(It.IsAny<InventoryItemId>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Handle_ShouldRollbackUpdateStock_WhenCommitFailsAfterTransactionBegins()
-    {
-        var item = new InventoryItemBuilder().WithStockQuantity(15).Build();
-        var repositoryMock = CreateInventoryItemRepositoryMock([item]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Commit failed"));
-
-        var handler = new UpdateInventoryItemStockHandler(repositoryMock.Object, unitOfWorkMock.Object);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await handler.Handle(new UpdateInventoryItemStockCommand(item.Id.Value, 33), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
 
     [Fact]
     public async Task Handle_ShouldNotBeginTransaction_WhenCreateTypeIsInvalid()
     {
         var repositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateInventoryItemHandler(repositoryMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -516,7 +414,6 @@ public class InventoryItemHandlersTests
                 CancellationToken.None));
 
         Assert.Equal("Inventory item type '999' is invalid.", exception.Message);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.AddAsync(It.IsAny<InventoryItem>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -526,7 +423,7 @@ public class InventoryItemHandlersTests
         var item = new InventoryItemBuilder().Build();
         var repositoryMock = CreateInventoryItemRepositoryMock([item]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateInventoryItemHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateInventoryItemHandler(repositoryMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -540,7 +437,6 @@ public class InventoryItemHandlersTests
                 CancellationToken.None));
 
         Assert.Equal("Inventory item type '999' is invalid.", exception.Message);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static Mock<IInventoryItemRepository> CreateInventoryItemRepositoryMock(List<InventoryItem>? initialInventoryItems = null)

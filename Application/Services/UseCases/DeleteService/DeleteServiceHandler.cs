@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Services.Ports;
 using GarageFlow.Domain.Services.ValueObjects;
 using Mediator;
@@ -7,11 +6,9 @@ using Mediator;
 namespace GarageFlow.Application.Services.UseCases.DeleteService;
 
 public sealed class DeleteServiceHandler(
-    IServiceRepository serviceRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<DeleteServiceCommand, Unit>
+    IServiceRepository serviceRepository) : IRequestHandler<DeleteServiceCommand, Unit>
 {
     private readonly IServiceRepository _serviceRepository = serviceRepository ?? throw new ArgumentNullException(nameof(serviceRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<Unit> Handle(DeleteServiceCommand request, CancellationToken cancellationToken)
     {
@@ -22,20 +19,9 @@ public sealed class DeleteServiceHandler(
             throw new NotFoundException($"Service with ID '{request.Id}' was not found.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        service.Delete();
+        _serviceRepository.Remove(service);
 
-        try
-        {
-            service.Delete();
-            _serviceRepository.Remove(service);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return Unit.Value;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return Unit.Value;
     }
 }

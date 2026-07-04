@@ -30,8 +30,7 @@ public class UserHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new CreateUserHandler(
             repositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         var command = new CreateUserCommand(
             FullName: "Alice Smith",
@@ -48,40 +47,8 @@ public class UserHandlersTests
         Assert.Equal((int)UserRole.Attendant, result.Role);
         Assert.True(result.MustChangePassword);
         passwordHashServiceMock.Verify(x => x.Hash(It.IsAny<string>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Handle_ShouldRollbackTransaction_WhenCreateUserCommitFails()
-    {
-        var repositoryMock = CreateRepositoryMock();
-        var passwordHashServiceMock = new Mock<IPasswordHashService>();
-        passwordHashServiceMock
-            .Setup(x => x.Hash(It.IsAny<string>()))
-            .Returns("hashed-password");
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Commit failed."));
-        var handler = new CreateUserHandler(
-            repositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
-
-        var command = new CreateUserCommand(
-            FullName: "Alice Smith",
-            Email: "alice.smith@example.com",
-            BirthDate: new DateOnly(1992, 3, 15),
-            Role: (int)UserRole.Attendant);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => handler.Handle(command, CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
 
     [Fact]
     public async Task Handle_ShouldReturnEmptyResult_WhenListUsersFindsNoData()
@@ -141,13 +108,9 @@ public class UserHandlersTests
         var user = new UserBuilder().Build();
         var repositoryMock = CreateRepositoryMock([user]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteUserHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteUserHandler(repositoryMock.Object);
 
         await handler.Handle(new DeleteUserCommand(user.Id.Value), CancellationToken.None);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.Is<User>(existing => existing.Id == user.Id)), Times.Once);
     }
 
@@ -156,32 +119,13 @@ public class UserHandlersTests
     {
         var repositoryMock = CreateRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteUserHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteUserHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             () => handler.Handle(new DeleteUserCommand(Guid.NewGuid()), CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.IsAny<User>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Handle_ShouldRollbackTransaction_WhenDeleteUserCommitFails()
-    {
-        var user = new UserBuilder().Build();
-        var repositoryMock = CreateRepositoryMock([user]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Commit failed."));
-        var handler = new DeleteUserHandler(repositoryMock.Object, unitOfWorkMock.Object);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => handler.Handle(new DeleteUserCommand(user.Id.Value), CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
 
     [Fact]
     public async Task Handle_ShouldThrowBusinessRuleViolationException_WhenCreatingUserWithDuplicateEmail()
@@ -194,8 +138,7 @@ public class UserHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new CreateUserHandler(
             repositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         var command = new CreateUserCommand(
             FullName: "New User",
@@ -205,8 +148,6 @@ public class UserHandlersTests
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(command, CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         passwordHashServiceMock.Verify(x => x.Hash(It.IsAny<string>()), Times.Never);
     }
 
@@ -218,8 +159,7 @@ public class UserHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new CreateUserHandler(
             userRepositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(() => handler.Handle(
             new CreateUserCommand(
@@ -228,8 +168,6 @@ public class UserHandlersTests
                 BirthDate: new DateOnly(1990, 1, 1),
                 Role: (int)UserRole.Customer),
             CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -288,7 +226,7 @@ public class UserHandlersTests
             .Build();
         var repositoryMock = CreateRepositoryMock([user]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateMyProfileHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateMyProfileHandler(repositoryMock.Object);
 
         var result = await handler.Handle(
             new UpdateMyProfileCommand(
@@ -303,10 +241,6 @@ public class UserHandlersTests
         Assert.Equal("updated.user@example.com", result.Email);
         Assert.Equal(new DateOnly(1992, 5, 11), result.BirthDate);
         Assert.Equal((int)user.Role, result.Role);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -327,8 +261,7 @@ public class UserHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ChangeMyPasswordHandler(
             repositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         await handler.Handle(
             new ChangeMyPasswordCommand(
@@ -339,9 +272,6 @@ public class UserHandlersTests
 
         Assert.Equal("new-hash", user.PasswordHash);
         Assert.False(user.MustChangePassword);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -352,8 +282,7 @@ public class UserHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new CreateUserHandler(
             repositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => handler.Handle(
             new CreateUserCommand(
@@ -364,7 +293,6 @@ public class UserHandlersTests
             CancellationToken.None).AsTask());
 
         Assert.Equal("User role '999' is invalid.", exception.Message);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         passwordHashServiceMock.Verify(x => x.Hash(It.IsAny<string>()), Times.Never);
     }
 

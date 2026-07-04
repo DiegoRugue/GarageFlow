@@ -1,6 +1,5 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Services.Ports;
 using GarageFlow.Domain.Services.ValueObjects;
 using Mediator;
@@ -8,11 +7,9 @@ using Mediator;
 namespace GarageFlow.Application.Services.UseCases.UpdateService;
 
 public sealed class UpdateServiceHandler(
-    IServiceRepository serviceRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateServiceCommand, UpdateServiceResult>
+    IServiceRepository serviceRepository) : IRequestHandler<UpdateServiceCommand, UpdateServiceResult>
 {
     private readonly IServiceRepository _serviceRepository = serviceRepository ?? throw new ArgumentNullException(nameof(serviceRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<UpdateServiceResult> Handle(UpdateServiceCommand request, CancellationToken cancellationToken)
     {
@@ -26,23 +23,12 @@ public sealed class UpdateServiceHandler(
             throw new NotFoundException($"Service with ID '{request.Id}' was not found.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        service.Update(description, price);
 
-        try
-        {
-            service.Update(description, price);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new UpdateServiceResult(
-                Id: service.Id.Value,
-                Description: service.Description.Value,
-                Price: service.Price.Value,
-                CreatedAt: service.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new UpdateServiceResult(
+            Id: service.Id.Value,
+            Description: service.Description.Value,
+            Price: service.Price.Value,
+            CreatedAt: service.CreatedAt);
     }
 }

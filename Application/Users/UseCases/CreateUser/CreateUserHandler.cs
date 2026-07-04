@@ -1,7 +1,6 @@
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Application.Users.Ports;
@@ -12,12 +11,10 @@ namespace GarageFlow.Application.Users.UseCases.CreateUser;
 
 public sealed class CreateUserHandler(
     IUserRepository userRepository,
-    IPasswordHashService passwordHashService,
-    IUnitOfWork unitOfWork) : IRequestHandler<CreateUserCommand, CreateUserResult>
+    IPasswordHashService passwordHashService) : IRequestHandler<CreateUserCommand, CreateUserResult>
 {
     private readonly IUserRepository _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
     private readonly IPasswordHashService _passwordHashService = passwordHashService ?? throw new ArgumentNullException(nameof(passwordHashService));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<CreateUserResult> Handle(CreateUserCommand request, CancellationToken cancellationToken)
     {
@@ -47,33 +44,22 @@ public sealed class CreateUserHandler(
         var initialPassword = User.GenerateInitialPassword(fullName, birthDate);
         var passwordHash = _passwordHashService.Hash(initialPassword);
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        var user = User.Create(
+            fullName: fullName,
+            email: normalizedEmail,
+            birthDate: birthDate,
+            role: role,
+            passwordHash: passwordHash);
 
-        try
-        {
-            var user = User.Create(
-                fullName: fullName,
-                email: normalizedEmail,
-                birthDate: birthDate,
-                role: role,
-                passwordHash: passwordHash);
+        await _userRepository.AddAsync(user, cancellationToken);
 
-            await _userRepository.AddAsync(user, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new CreateUserResult(
-                Id: user.Id.Value,
-                FullName: user.FullName.Value,
-                Email: user.Email.Value,
-                BirthDate: user.BirthDate.Value,
-                Role: (int)user.Role,
-                MustChangePassword: user.MustChangePassword,
-                CreatedAt: user.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new CreateUserResult(
+            Id: user.Id.Value,
+            FullName: user.FullName.Value,
+            Email: user.Email.Value,
+            BirthDate: user.BirthDate.Value,
+            Role: (int)user.Role,
+            MustChangePassword: user.MustChangePassword,
+            CreatedAt: user.CreatedAt);
     }
 }

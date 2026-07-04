@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using Mediator;
@@ -7,11 +6,9 @@ using Mediator;
 namespace GarageFlow.Application.WorkOrders.UseCases.StartDiagnosis;
 
 public sealed class StartDiagnosisHandler(
-    IWorkOrderRepository workOrderRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<StartDiagnosisCommand, Unit>
+    IWorkOrderRepository workOrderRepository) : IRequestHandler<StartDiagnosisCommand, Unit>
 {
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<Unit> Handle(StartDiagnosisCommand request, CancellationToken cancellationToken)
     {
@@ -22,18 +19,7 @@ public sealed class StartDiagnosisHandler(
             throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
-
-        try
-        {
-            workOrder.StartDiagnosis();
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-            return Unit.Value;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        workOrder.StartDiagnosis();
+        return Unit.Value;
     }
 }

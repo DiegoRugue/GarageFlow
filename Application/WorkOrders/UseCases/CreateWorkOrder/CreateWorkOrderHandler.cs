@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Application.Vehicles.Ports;
@@ -13,13 +12,11 @@ namespace GarageFlow.Application.WorkOrders.UseCases.CreateWorkOrder;
 public sealed class CreateWorkOrderHandler(
     IWorkOrderRepository workOrderRepository,
     ICustomerRepository customerRepository,
-    IVehicleRepository vehicleRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<CreateWorkOrderCommand, CreateWorkOrderResult>
+    IVehicleRepository vehicleRepository) : IRequestHandler<CreateWorkOrderCommand, CreateWorkOrderResult>
 {
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<CreateWorkOrderResult> Handle(CreateWorkOrderCommand request, CancellationToken cancellationToken)
     {
@@ -42,25 +39,14 @@ public sealed class CreateWorkOrderHandler(
             throw new BusinessRuleViolationException("Vehicle does not belong to the customer.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        var workOrder = WorkOrder.Create(customerId, vehicleId);
+        await _workOrderRepository.AddAsync(workOrder, cancellationToken);
 
-        try
-        {
-            var workOrder = WorkOrder.Create(customerId, vehicleId);
-            await _workOrderRepository.AddAsync(workOrder, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new CreateWorkOrderResult(
-                Id: workOrder.Id.Value,
-                CustomerId: workOrder.CustomerId.Value,
-                VehicleId: workOrder.VehicleId.Value,
-                Status: workOrder.Status.ToString(),
-                CreatedAt: workOrder.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new CreateWorkOrderResult(
+            Id: workOrder.Id.Value,
+            CustomerId: workOrder.CustomerId.Value,
+            VehicleId: workOrder.VehicleId.Value,
+            Status: workOrder.Status.ToString(),
+            CreatedAt: workOrder.CreatedAt);
     }
 }

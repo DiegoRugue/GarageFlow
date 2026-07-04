@@ -1,5 +1,5 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.Vehicles.UseCases.DeleteVehicle;
 
-public sealed record DeleteVehicleCommand(Guid Id) : IRequest<Unit>;
+public sealed record DeleteVehicleCommand(Guid Id) : ICommand;

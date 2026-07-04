@@ -33,8 +33,7 @@ public class ActivateCustomerPortalUserHandlerTests
         var handler = new ActivateCustomerPortalUserHandler(
             customerRepositoryMock.Object,
             userRepositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         var result = await handler.Handle(
             new ActivateCustomerPortalUserCommand(customer.Id.Value, new DateOnly(1990, 1, 1)),
@@ -45,9 +44,6 @@ public class ActivateCustomerPortalUserHandlerTests
         Assert.Single(users);
         Assert.Equal(customer.Id, users[0].CustomerId);
         Assert.True(users[0].MustChangePassword);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -60,14 +56,11 @@ public class ActivateCustomerPortalUserHandlerTests
         var handler = new ActivateCustomerPortalUserHandler(
             customerRepositoryMock.Object,
             userRepositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(() => handler.Handle(
             new ActivateCustomerPortalUserCommand(Guid.NewGuid(), new DateOnly(1990, 1, 1)),
             CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -91,14 +84,11 @@ public class ActivateCustomerPortalUserHandlerTests
         var handler = new ActivateCustomerPortalUserHandler(
             customerRepositoryMock.Object,
             userRepositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(() => handler.Handle(
             new ActivateCustomerPortalUserCommand(customer.Id.Value, new DateOnly(1990, 1, 1)),
             CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -120,14 +110,11 @@ public class ActivateCustomerPortalUserHandlerTests
         var handler = new ActivateCustomerPortalUserHandler(
             customerRepositoryMock.Object,
             userRepositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(() => handler.Handle(
             new ActivateCustomerPortalUserCommand(customer.Id.Value, new DateOnly(1990, 1, 1)),
             CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -151,16 +138,13 @@ public class ActivateCustomerPortalUserHandlerTests
         var handler = new ActivateCustomerPortalUserHandler(
             customerRepositoryMock.Object,
             userRepositoryMock.Object,
-            passwordHashServiceMock.Object,
-            unitOfWorkMock.Object);
+            passwordHashServiceMock.Object);
 
         var invalidFutureBirthDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
 
         await Assert.ThrowsAsync<ValidationException>(() => handler.Handle(
             new ActivateCustomerPortalUserCommand(customer.Id.Value, invalidFutureBirthDate),
             CancellationToken.None).AsTask());
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static Mock<IUserRepository> CreateUserRepositoryMock(List<User>? initialUsers = null)

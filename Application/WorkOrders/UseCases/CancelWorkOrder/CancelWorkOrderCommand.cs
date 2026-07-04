@@ -1,5 +1,5 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.WorkOrders.UseCases.CancelWorkOrder;
 
-public sealed record CancelWorkOrderCommand(Guid WorkOrderId) : IRequest<Unit>;
+public sealed record CancelWorkOrderCommand(Guid WorkOrderId) : ICommand;

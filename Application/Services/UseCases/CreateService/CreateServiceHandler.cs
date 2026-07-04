@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Application.Services.Ports;
 using Mediator;
@@ -7,35 +6,22 @@ using Mediator;
 namespace GarageFlow.Application.Services.UseCases.CreateService;
 
 public sealed class CreateServiceHandler(
-    IServiceRepository serviceRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<CreateServiceCommand, CreateServiceResult>
+    IServiceRepository serviceRepository) : IRequestHandler<CreateServiceCommand, CreateServiceResult>
 {
     private readonly IServiceRepository _serviceRepository = serviceRepository ?? throw new ArgumentNullException(nameof(serviceRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<CreateServiceResult> Handle(CreateServiceCommand request, CancellationToken cancellationToken)
     {
         var description = Description.Create(request.Description);
         var price = Price.Create(request.Price);
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        var service = Service.Create(description, price);
+        await _serviceRepository.AddAsync(service, cancellationToken);
 
-        try
-        {
-            var service = Service.Create(description, price);
-            await _serviceRepository.AddAsync(service, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new CreateServiceResult(
-                Id: service.Id.Value,
-                Description: service.Description.Value,
-                Price: service.Price.Value,
-                CreatedAt: service.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new CreateServiceResult(
+            Id: service.Id.Value,
+            Description: service.Description.Value,
+            Price: service.Price.Value,
+            CreatedAt: service.CreatedAt);
     }
 }

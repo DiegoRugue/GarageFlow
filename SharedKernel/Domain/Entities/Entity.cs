@@ -2,7 +2,7 @@ using GarageFlow.SharedKernel.Domain.Events;
 
 namespace GarageFlow.SharedKernel.Domain.Entities;
 
-public abstract class Entity<TId> where TId : struct
+public abstract class Entity<TId> : IHasDomainEvents where TId : struct
 {
     private readonly List<DomainEvent> _domainEvents = [];
 

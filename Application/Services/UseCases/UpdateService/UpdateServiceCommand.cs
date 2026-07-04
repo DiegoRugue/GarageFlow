@@ -1,9 +1,9 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.Services.UseCases.UpdateService;
 
 public sealed record UpdateServiceCommand(
     Guid Id,
     string Description,
-    decimal Price) : IRequest<UpdateServiceResult>;
+    decimal Price) : ICommand<UpdateServiceResult>;
 

@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
@@ -7,11 +6,9 @@ using Mediator;
 namespace GarageFlow.Application.Vehicles.UseCases.DeleteVehicle;
 
 public sealed class DeleteVehicleHandler(
-    IVehicleRepository vehicleRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<DeleteVehicleCommand, Unit>
+    IVehicleRepository vehicleRepository) : IRequestHandler<DeleteVehicleCommand, Unit>
 {
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<Unit> Handle(DeleteVehicleCommand request, CancellationToken cancellationToken)
     {
@@ -22,20 +19,9 @@ public sealed class DeleteVehicleHandler(
             throw new NotFoundException($"Vehicle with ID '{request.Id}' was not found.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        vehicle.Delete();
+        _vehicleRepository.Remove(vehicle);
 
-        try
-        {
-            vehicle.Delete();
-            _vehicleRepository.Remove(vehicle);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return Unit.Value;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return Unit.Value;
     }
 }

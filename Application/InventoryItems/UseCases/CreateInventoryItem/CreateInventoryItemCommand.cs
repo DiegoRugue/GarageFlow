@@ -1,4 +1,4 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.InventoryItems.UseCases.CreateInventoryItem;
 
@@ -8,4 +8,4 @@ public sealed record CreateInventoryItemCommand(
     int Type,
     decimal Cost,
     decimal Price,
-    int StockQuantity) : IRequest<CreateInventoryItemResult>;
+    int StockQuantity) : ICommand<CreateInventoryItemResult>;

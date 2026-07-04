@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.InventoryItems.Ports;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using Mediator;
@@ -7,11 +6,9 @@ using Mediator;
 namespace GarageFlow.Application.InventoryItems.UseCases.DeleteInventoryItem;
 
 public sealed class DeleteInventoryItemHandler(
-    IInventoryItemRepository inventoryItemRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<DeleteInventoryItemCommand, Unit>
+    IInventoryItemRepository inventoryItemRepository) : IRequestHandler<DeleteInventoryItemCommand, Unit>
 {
     private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<Unit> Handle(DeleteInventoryItemCommand request, CancellationToken cancellationToken)
     {
@@ -22,20 +19,9 @@ public sealed class DeleteInventoryItemHandler(
             throw new NotFoundException($"Inventory item with ID '{request.Id}' was not found.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        inventoryItem.Delete();
+        _inventoryItemRepository.Remove(inventoryItem);
 
-        try
-        {
-            inventoryItem.Delete();
-            _inventoryItemRepository.Remove(inventoryItem);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return Unit.Value;
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return Unit.Value;
     }
 }

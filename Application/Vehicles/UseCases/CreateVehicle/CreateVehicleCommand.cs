@@ -1,4 +1,4 @@
-using Mediator;
+using GarageFlow.Application.Common.Messaging;
 
 namespace GarageFlow.Application.Vehicles.UseCases.CreateVehicle;
 
@@ -7,4 +7,4 @@ public sealed record CreateVehicleCommand(
     int Year,
     Guid CustomerId,
     Guid VehicleModelId,
-    Guid VehicleColorId) : IRequest<CreateVehicleResult>;
+    Guid VehicleColorId) : ICommand<CreateVehicleResult>;

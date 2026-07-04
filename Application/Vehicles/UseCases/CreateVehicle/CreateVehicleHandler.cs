@@ -1,5 +1,4 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
@@ -13,14 +12,12 @@ public sealed class CreateVehicleHandler(
     IVehicleRepository vehicleRepository,
     ICustomerRepository customerRepository,
     IVehicleModelRepository vehicleModelRepository,
-    IVehicleColorRepository vehicleColorRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<CreateVehicleCommand, CreateVehicleResult>
+    IVehicleColorRepository vehicleColorRepository) : IRequestHandler<CreateVehicleCommand, CreateVehicleResult>
 {
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
     private readonly IVehicleModelRepository _vehicleModelRepository = vehicleModelRepository ?? throw new ArgumentNullException(nameof(vehicleModelRepository));
     private readonly IVehicleColorRepository _vehicleColorRepository = vehicleColorRepository ?? throw new ArgumentNullException(nameof(vehicleColorRepository));
-    private readonly IUnitOfWork _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
 
     public async ValueTask<CreateVehicleResult> Handle(CreateVehicleCommand request, CancellationToken cancellationToken)
     {
@@ -54,28 +51,17 @@ public sealed class CreateVehicleHandler(
             throw new BusinessRuleViolationException($"A vehicle with license plate '{licensePlate.Value}' already exists.");
         }
 
-        await _unitOfWork.BeginTransactionAsync(cancellationToken);
+        var vehicle = Vehicle.Create(customerId, vehicleYear, vehicleModel.VehicleBrandId, vehicleModelId, vehicleColorId, licensePlate);
+        await _vehicleRepository.AddAsync(vehicle, cancellationToken);
 
-        try
-        {
-            var vehicle = Vehicle.Create(customerId, vehicleYear, vehicleModel.VehicleBrandId, vehicleModelId, vehicleColorId, licensePlate);
-            await _vehicleRepository.AddAsync(vehicle, cancellationToken);
-            await _unitOfWork.CommitTransactionAsync(cancellationToken);
-
-            return new CreateVehicleResult(
-                Id: vehicle.Id.Value,
-                CustomerId: vehicle.CustomerId.Value,
-                Year: vehicle.Year.Value,
-                VehicleBrandId: vehicle.VehicleBrandId.Value,
-                VehicleModelId: vehicle.VehicleModelId.Value,
-                VehicleColorId: vehicle.VehicleColorId.Value,
-                Plate: vehicle.LicensePlate.Value,
-                CreatedAt: vehicle.CreatedAt);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
-            throw;
-        }
+        return new CreateVehicleResult(
+            Id: vehicle.Id.Value,
+            CustomerId: vehicle.CustomerId.Value,
+            Year: vehicle.Year.Value,
+            VehicleBrandId: vehicle.VehicleBrandId.Value,
+            VehicleModelId: vehicle.VehicleModelId.Value,
+            VehicleColorId: vehicle.VehicleColorId.Value,
+            Plate: vehicle.LicensePlate.Value,
+            CreatedAt: vehicle.CreatedAt);
     }
 }
