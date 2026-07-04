@@ -26,7 +26,14 @@ public sealed class CreateUserHandler(
         var normalizedEmail = Email.Create(email.Value.ToLowerInvariant());
         var birthDate = UserBirthDate.Create(request.BirthDate);
 
-        if (request.Role == UserRole.Customer)
+        if (!Enum.IsDefined(typeof(UserRole), request.Role))
+        {
+            throw new ValidationException($"User role '{request.Role}' is invalid.");
+        }
+
+        var role = (UserRole)request.Role;
+
+        if (role == UserRole.Customer)
         {
             throw new ValidationException("Customer users must be created through customer portal activation.");
         }
@@ -48,7 +55,7 @@ public sealed class CreateUserHandler(
                 fullName: fullName,
                 email: normalizedEmail,
                 birthDate: birthDate,
-                role: request.Role,
+                role: role,
                 passwordHash: passwordHash);
 
             await _userRepository.AddAsync(user, cancellationToken);
@@ -59,7 +66,7 @@ public sealed class CreateUserHandler(
                 FullName: user.FullName.Value,
                 Email: user.Email.Value,
                 BirthDate: user.BirthDate.Value,
-                Role: user.Role,
+                Role: (int)user.Role,
                 MustChangePassword: user.MustChangePassword,
                 CreatedAt: user.CreatedAt);
         }

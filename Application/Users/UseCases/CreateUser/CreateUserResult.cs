@@ -1,5 +1,3 @@
-using GarageFlow.Domain.Users.Enums;
-
 namespace GarageFlow.Application.Users.UseCases.CreateUser;
 
 public sealed record CreateUserResult(
@@ -7,6 +5,6 @@ public sealed record CreateUserResult(
     string FullName,
     string Email,
     DateOnly BirthDate,
-    UserRole Role,
+    int Role,
     bool MustChangePassword,
     DateTime CreatedAt);

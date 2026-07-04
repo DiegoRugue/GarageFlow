@@ -1,5 +1,3 @@
-using GarageFlow.Domain.Users.Enums;
-
 namespace GarageFlow.Application.Users.UseCases.UpdateMyProfile;
 
 public sealed record UpdateMyProfileResult(
@@ -7,7 +5,7 @@ public sealed record UpdateMyProfileResult(
     string FullName,
     string Email,
     DateOnly BirthDate,
-    UserRole Role,
+    int Role,
     bool MustChangePassword,
     DateTime CreatedAt,
     DateTime UpdatedAt);

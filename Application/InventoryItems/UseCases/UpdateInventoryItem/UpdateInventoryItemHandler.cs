@@ -2,6 +2,7 @@ using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.InventoryItems.Ports;
+using GarageFlow.Domain.InventoryItems.Enums;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using Mediator;
 
@@ -21,6 +22,13 @@ public sealed class UpdateInventoryItemHandler(
         var cost = Price.Create(request.Cost);
         var price = Price.Create(request.Price);
 
+        if (!Enum.IsDefined(typeof(InventoryItemType), request.Type))
+        {
+            throw new ValidationException($"Inventory item type '{request.Type}' is invalid.");
+        }
+
+        var inventoryItemType = (InventoryItemType)request.Type;
+
         var inventoryItemId = InventoryItemId.From(request.Id);
         var inventoryItem = await _inventoryItemRepository.GetByIdAsync(inventoryItemId, cancellationToken);
         if (inventoryItem is null)
@@ -32,14 +40,14 @@ public sealed class UpdateInventoryItemHandler(
 
         try
         {
-            inventoryItem.Update(name, description, request.Type, cost, price);
+            inventoryItem.Update(name, description, inventoryItemType, cost, price);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
             return new UpdateInventoryItemResult(
                 Id: inventoryItem.Id.Value,
                 Name: inventoryItem.Name.Value,
                 Description: inventoryItem.Description.Value,
-                Type: inventoryItem.Type,
+                Type: (int)inventoryItem.Type,
                 Cost: inventoryItem.Cost.Value,
                 Price: inventoryItem.Price.Value,
                 StockQuantity: inventoryItem.StockQuantity.Value,

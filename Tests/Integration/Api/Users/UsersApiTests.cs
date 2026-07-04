@@ -33,7 +33,7 @@ public class UsersApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageF
         var createdUser = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateUserResponse>(createResponse);
         Assert.NotEqual(Guid.Empty, createdUser.Id);
         Assert.Equal(createRequest.Email, createdUser.Email);
-        Assert.Equal(UserRole.Attendant, createdUser.Role);
+        Assert.Equal((int)UserRole.Attendant, createdUser.Role);
         Assert.True(createdUser.MustChangePassword);
 
         var listResponse = await client.GetAsync("/users?page=1&pageSize=20");
@@ -132,7 +132,7 @@ public class UsersApiTests(GarageFlowApiFixture fixture) : IClassFixture<GarageF
         Assert.Equal("Profile User Updated", updatedProfile.FullName);
         Assert.Equal($"profile.user.updated.{uniqueToken}@example.com", updatedProfile.Email);
         Assert.Equal(new DateOnly(1993, 8, 13), updatedProfile.BirthDate);
-        Assert.Equal(UserRole.Attendant, updatedProfile.Role);
+        Assert.Equal((int)UserRole.Attendant, updatedProfile.Role);
 
         const string newPassword = "Profile.User.New#123";
         var changePasswordResponse = await client.PutAsJsonAsync(

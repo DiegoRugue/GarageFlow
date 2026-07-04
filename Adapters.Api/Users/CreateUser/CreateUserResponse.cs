@@ -1,5 +1,3 @@
-using GarageFlow.Domain.Users.Enums;
-
 namespace GarageFlow.Adapters.Api.Users.CreateUser;
 
 public sealed record CreateUserResponse(
@@ -7,6 +5,6 @@ public sealed record CreateUserResponse(
     string FullName,
     string Email,
     DateOnly BirthDate,
-    UserRole Role,
+    int Role,
     bool MustChangePassword,
     DateTime CreatedAt);

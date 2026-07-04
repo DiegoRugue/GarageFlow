@@ -1,5 +1,3 @@
-using GarageFlow.Domain.Users.Enums;
-
 namespace GarageFlow.Tests.Integration.Api.Users.Contracts;
 
 public sealed record UserListItemResponse(
@@ -7,7 +5,7 @@ public sealed record UserListItemResponse(
     string FullName,
     string Email,
     DateOnly BirthDate,
-    UserRole Role,
+    int Role,
     bool MustChangePassword,
     DateTime CreatedAt,
     DateTime UpdatedAt);

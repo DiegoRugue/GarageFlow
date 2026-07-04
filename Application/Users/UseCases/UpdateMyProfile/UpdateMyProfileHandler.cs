@@ -46,7 +46,7 @@ public sealed class UpdateMyProfileHandler(
                 FullName: user.FullName.Value,
                 Email: user.Email.Value,
                 BirthDate: user.BirthDate.Value,
-                Role: user.Role,
+                Role: (int)user.Role,
                 MustChangePassword: user.MustChangePassword,
                 CreatedAt: user.CreatedAt,
                 UpdatedAt: user.UpdatedAt);

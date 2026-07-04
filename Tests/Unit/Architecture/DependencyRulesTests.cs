@@ -11,6 +11,7 @@ public class DependencyRulesTests
     private const string SharedKernelNamespace = "GarageFlow.SharedKernel";
     private const string DomainNamespace = "GarageFlow.Domain";
     private const string InfrastructureNamespace = "GarageFlow.Adapters.Infrastructure";
+    private const string HostNamespace = "GarageFlow.Host";
     private static readonly string RepositoryRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     [Fact]
@@ -119,6 +120,20 @@ public class DependencyRulesTests
             .GetResult();
 
         AssertRule(result, nameof(Api_ModuleRegistrationTypes_ShouldNotDependOnDomainOrInfrastructure));
+    }
+
+    [Fact]
+    public void ApiAdapter_ShouldNotDependOnDomainInfrastructureHostOrSharedKernel()
+    {
+        var result = Types
+            .InAssembly(LoadAssembly("GarageFlow.Adapters.Api", "Adapters.Api"))
+            .That()
+            .ResideInNamespaceStartingWith(ApiNamespace)
+            .ShouldNot()
+            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, SharedKernelNamespace, HostNamespace)
+            .GetResult();
+
+        AssertRule(result, nameof(ApiAdapter_ShouldNotDependOnDomainInfrastructureHostOrSharedKernel));
     }
 
     [Fact]

@@ -1,12 +1,10 @@
-using GarageFlow.Domain.InventoryItems.Enums;
-
 namespace GarageFlow.Application.InventoryItems.UseCases.UpdateInventoryItem;
 
 public sealed record UpdateInventoryItemResult(
     Guid Id,
     string Name,
     string Description,
-    InventoryItemType Type,
+    int Type,
     decimal Cost,
     decimal Price,
     int StockQuantity,

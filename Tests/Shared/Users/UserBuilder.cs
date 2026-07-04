@@ -81,7 +81,7 @@ public sealed class UserBuilder
             FullName: _fullName,
             Email: _email,
             BirthDate: _birthDate,
-            Role: _role);
+            Role: (int)_role);
     }
 
     public UpdateMyProfileRequest BuildUpdateMyProfileRequest()
@@ -97,7 +97,7 @@ public sealed record CreateUserRequest(
     string FullName,
     string Email,
     DateOnly BirthDate,
-    UserRole Role);
+    int Role);
 
 public sealed record UpdateMyProfileRequest(
     string FullName,

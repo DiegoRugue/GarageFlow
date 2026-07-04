@@ -24,7 +24,7 @@ public sealed class GetInventoryItemByIdHandler(
             Id: inventoryItem.Id.Value,
             Name: inventoryItem.Name.Value,
             Description: inventoryItem.Description.Value,
-            Type: inventoryItem.Type,
+            Type: (int)inventoryItem.Type,
             Cost: inventoryItem.Cost.Value,
             Price: inventoryItem.Price.Value,
             StockQuantity: inventoryItem.StockQuantity.Value,
