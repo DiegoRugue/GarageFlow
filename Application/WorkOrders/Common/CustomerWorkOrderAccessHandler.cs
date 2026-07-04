@@ -1,10 +1,10 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Enums;
-using GarageFlow.Domain.Users.Repositories;
+using GarageFlow.Application.Users.Ports;
 using GarageFlow.Domain.Users.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 
 namespace GarageFlow.Application.WorkOrders.Common;

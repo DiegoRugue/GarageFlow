@@ -109,37 +109,28 @@ public class ModuleConventionTests
     }
 
     [Fact]
-    public void Domain_RepositoryContracts_ShouldFollowInterfaceNaming()
+    public void Domain_ShouldNotContainRepositoryOrReadModelFolders()
     {
-        var invalidFiles = new List<string>();
-        var missingPaths = new List<string>();
+        var invalidPaths = new List<string>();
 
         foreach (var module in BusinessModules)
         {
             var repositoryPath = Path.Combine(RepositoryRoot, "Domain", module, "Repositories");
-            if (!Directory.Exists(repositoryPath))
+            if (Directory.Exists(repositoryPath))
             {
-                missingPaths.Add(ToRelativePath(repositoryPath));
-                continue;
+                invalidPaths.Add(ToRelativePath(repositoryPath));
             }
 
-            var repositoryFiles = Directory.GetFiles(repositoryPath, "*.cs", SearchOption.TopDirectoryOnly);
-
-            foreach (var file in repositoryFiles)
+            var readModelsPath = Path.Combine(RepositoryRoot, "Domain", module, "ReadModels");
+            if (Directory.Exists(readModelsPath))
             {
-                var fileName = Path.GetFileName(file);
-                if (!fileName.StartsWith('I') && !fileName.EndsWith("ReadModel.cs", StringComparison.Ordinal))
-                {
-                    invalidFiles.Add(ToRelativePath(file));
-                }
+                invalidPaths.Add(ToRelativePath(readModelsPath));
             }
         }
 
-        AssertNoMissingPaths(missingPaths, nameof(Domain_RepositoryContracts_ShouldFollowInterfaceNaming));
-
         Assert.True(
-            invalidFiles.Count == 0,
-            $"Domain repository contracts outside naming convention: {string.Join(", ", invalidFiles)}");
+            invalidPaths.Count == 0,
+            $"Domain must not contain repository/read-model folders: {string.Join(", ", invalidPaths)}");
     }
 
     [Fact]

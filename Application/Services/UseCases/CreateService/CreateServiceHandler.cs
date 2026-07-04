@@ -1,7 +1,7 @@
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Services.Entities;
-using GarageFlow.Domain.Services.Repositories;
+using GarageFlow.Application.Services.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.Services.UseCases.CreateService;

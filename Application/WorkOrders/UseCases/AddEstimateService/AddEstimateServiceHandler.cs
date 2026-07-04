@@ -1,8 +1,8 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Persistence;
-using GarageFlow.Domain.Services.Repositories;
+using GarageFlow.Application.Services.Ports;
 using GarageFlow.Domain.Services.ValueObjects;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using Mediator;
 

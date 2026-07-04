@@ -1,5 +1,5 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.Domain.Users.Repositories;
+using GarageFlow.Application.Users.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.Users.UseCases.ListUsers;

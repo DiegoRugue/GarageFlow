@@ -1,4 +1,4 @@
-namespace GarageFlow.Domain.WorkOrders.Repositories;
+namespace GarageFlow.Application.WorkOrders.ReadModels;
 
 public sealed record WorkOrderInventoryLineReadModel(
     Guid Id,

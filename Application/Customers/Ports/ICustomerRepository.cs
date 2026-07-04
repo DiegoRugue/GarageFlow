@@ -2,7 +2,7 @@ using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Customers.Entities;
 using GarageFlow.Domain.Customers.ValueObjects;
 
-namespace GarageFlow.Domain.Customers.Repositories;
+namespace GarageFlow.Application.Customers.Ports;
 
 public interface ICustomerRepository
 {

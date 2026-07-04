@@ -1,7 +1,7 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.Domain.Customers.Repositories;
+using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.Customers.UseCases.GetCustomerById;

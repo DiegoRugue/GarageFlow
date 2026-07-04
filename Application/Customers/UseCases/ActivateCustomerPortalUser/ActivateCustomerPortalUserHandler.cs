@@ -2,11 +2,11 @@ using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
-using GarageFlow.Domain.Customers.Repositories;
+using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
-using GarageFlow.Domain.Users.Repositories;
+using GarageFlow.Application.Users.Ports;
 using GarageFlow.Domain.Users.ValueObjects;
 using Mediator;
 

@@ -1,11 +1,11 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Persistence;
-using GarageFlow.Domain.Customers.Repositories;
+using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.WorkOrders.UseCases.CreateWorkOrder;

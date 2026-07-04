@@ -3,7 +3,7 @@ using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.ValueObjects;
 
-namespace GarageFlow.Domain.Users.Repositories;
+namespace GarageFlow.Application.Users.Ports;
 
 public interface IUserRepository
 {

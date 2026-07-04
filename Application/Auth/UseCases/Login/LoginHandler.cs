@@ -1,7 +1,7 @@
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.Domain.Users.Repositories;
+using GarageFlow.Application.Users.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.Auth.UseCases.Login;

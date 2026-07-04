@@ -1,8 +1,9 @@
+using GarageFlow.Application.Vehicles.ReadModels;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 
-namespace GarageFlow.Domain.Vehicles.Repositories;
+namespace GarageFlow.Application.Vehicles.Ports;
 
 public interface IVehicleRepository
 {

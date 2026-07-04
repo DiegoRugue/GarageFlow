@@ -1,7 +1,7 @@
 using GarageFlow.Application.Vehicles.UseCases.GetVehicleById;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Customers.ValueObjects;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.Vehicles.UseCases.ListVehicles;

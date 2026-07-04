@@ -1,5 +1,6 @@
 using GarageFlow.Domain.InventoryItems.Entities;
-using GarageFlow.Domain.InventoryItems.Repositories;
+using GarageFlow.Application.InventoryItems.Ports;
+using GarageFlow.Application.InventoryItems.ReadModels;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using Microsoft.EntityFrameworkCore;

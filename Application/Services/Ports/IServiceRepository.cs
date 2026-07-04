@@ -1,7 +1,7 @@
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.ValueObjects;
 
-namespace GarageFlow.Domain.Services.Repositories;
+namespace GarageFlow.Application.Services.Ports;
 
 public interface IServiceRepository
 {

@@ -1,6 +1,7 @@
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.Ports;
+using GarageFlow.Application.WorkOrders.ReadModels;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 
 namespace GarageFlow.Tests.Unit.WorkOrders;

@@ -1,5 +1,5 @@
 using GarageFlow.Domain.Services.Entities;
-using GarageFlow.Domain.Services.Repositories;
+using GarageFlow.Application.Services.Ports;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using Microsoft.EntityFrameworkCore;

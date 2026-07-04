@@ -1,4 +1,4 @@
-namespace GarageFlow.Domain.Vehicles.Repositories;
+namespace GarageFlow.Application.Vehicles.ReadModels;
 
 public sealed record VehicleDetailsReadModel(
     Guid Id,

@@ -2,7 +2,7 @@ using GarageFlow.Application.WorkOrders.Common;
 using GarageFlow.Application.WorkOrders.UseCases.GetWorkOrderById;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Customers.ValueObjects;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.WorkOrders.UseCases.ListWorkOrders;

@@ -1,7 +1,7 @@
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.InventoryItems.Entities;
-using GarageFlow.Domain.InventoryItems.Repositories;
+using GarageFlow.Application.InventoryItems.Ports;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using Mediator;
 

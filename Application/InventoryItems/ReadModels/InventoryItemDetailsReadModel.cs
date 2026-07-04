@@ -1,6 +1,6 @@
 using GarageFlow.Domain.InventoryItems.Enums;
 
-namespace GarageFlow.Domain.InventoryItems.Repositories;
+namespace GarageFlow.Application.InventoryItems.ReadModels;
 
 public sealed record InventoryItemDetailsReadModel(
     Guid Id,

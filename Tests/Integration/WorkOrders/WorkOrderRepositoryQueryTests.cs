@@ -6,7 +6,7 @@ using GarageFlow.Domain.InventoryItems.ValueObjects;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;

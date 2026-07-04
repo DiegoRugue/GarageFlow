@@ -1,9 +1,10 @@
+using GarageFlow.Application.WorkOrders.ReadModels;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 
-namespace GarageFlow.Domain.WorkOrders.Repositories;
+namespace GarageFlow.Application.WorkOrders.Ports;
 
 public interface IWorkOrderRepository
 {

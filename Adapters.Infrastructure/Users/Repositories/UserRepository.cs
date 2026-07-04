@@ -1,7 +1,7 @@
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
-using GarageFlow.Domain.Users.Repositories;
+using GarageFlow.Application.Users.Ports;
 using GarageFlow.Domain.Users.ValueObjects;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using Microsoft.EntityFrameworkCore;

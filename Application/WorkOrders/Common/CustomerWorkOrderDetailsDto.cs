@@ -1,5 +1,5 @@
 using GarageFlow.Application.WorkOrders.UseCases.GetWorkOrderById;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.ReadModels;
 
 namespace GarageFlow.Application.WorkOrders.Common;
 

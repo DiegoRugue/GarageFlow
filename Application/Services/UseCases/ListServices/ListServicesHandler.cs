@@ -1,6 +1,6 @@
 using GarageFlow.Application.Services.UseCases.GetServiceById;
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.Domain.Services.Repositories;
+using GarageFlow.Application.Services.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.Services.UseCases.ListServices;

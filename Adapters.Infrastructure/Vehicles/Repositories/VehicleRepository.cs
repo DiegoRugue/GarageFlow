@@ -1,6 +1,7 @@
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
+using GarageFlow.Application.Vehicles.ReadModels;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using Microsoft.EntityFrameworkCore;

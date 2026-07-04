@@ -1,6 +1,6 @@
 using GarageFlow.Application.InventoryItems.UseCases.GetInventoryItemById;
 using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.Domain.InventoryItems.Repositories;
+using GarageFlow.Application.InventoryItems.Ports;
 using Mediator;
 
 namespace GarageFlow.Application.InventoryItems.UseCases.ListInventoryItems;

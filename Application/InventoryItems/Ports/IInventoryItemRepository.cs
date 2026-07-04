@@ -1,7 +1,8 @@
+using GarageFlow.Application.InventoryItems.ReadModels;
 using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 
-namespace GarageFlow.Domain.InventoryItems.Repositories;
+namespace GarageFlow.Application.InventoryItems.Ports;
 
 public interface IInventoryItemRepository
 {
