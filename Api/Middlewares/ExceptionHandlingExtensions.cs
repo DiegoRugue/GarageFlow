@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 

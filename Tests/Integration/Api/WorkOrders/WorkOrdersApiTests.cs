@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Globalization;
 using System.Reflection;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Api.WorkOrders.GetAverageServiceTime;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;

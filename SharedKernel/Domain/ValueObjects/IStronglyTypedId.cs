@@ -1,4 +1,4 @@
-namespace GarageFlow.BuildingBlocks.Domain.ValueObjects;
+namespace GarageFlow.SharedKernel.Domain.ValueObjects;
 
 public interface IStronglyTypedId
 {

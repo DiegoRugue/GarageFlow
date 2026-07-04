@@ -1,6 +1,6 @@
 using GarageFlow.Application.WorkOrders.Abstractions;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.WorkOrders.Enums;
 using GarageFlow.Domain.WorkOrders.Repositories;
 using GarageFlow.Domain.WorkOrders.ValueObjects;

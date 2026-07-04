@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.ValueObjects;

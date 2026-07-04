@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Tests.Integration.Api.InventoryItems.Contracts;

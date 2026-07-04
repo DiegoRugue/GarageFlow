@@ -1,4 +1,4 @@
-namespace GarageFlow.BuildingBlocks.Persistence;
+namespace GarageFlow.SharedKernel.Persistence;
 
 public interface IUnitOfWork
 {

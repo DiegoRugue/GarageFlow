@@ -1,4 +1,4 @@
-namespace GarageFlow.BuildingBlocks.Domain.Exceptions;
+namespace GarageFlow.SharedKernel.Domain.Exceptions;
 
 public sealed class BusinessRuleViolationException : Exception
 {

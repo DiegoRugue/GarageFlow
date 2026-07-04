@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.IO;
 using GarageFlow.Application.Auth.Abstractions;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Infrastructure.Auth;

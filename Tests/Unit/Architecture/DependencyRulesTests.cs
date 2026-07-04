@@ -8,18 +8,18 @@ public class DependencyRulesTests
 {
     private const string ApiNamespace = "GarageFlow.Api";
     private const string ApplicationNamespace = "GarageFlow.Application";
-    private const string BuildingBlocksNamespace = "GarageFlow.BuildingBlocks";
+    private const string SharedKernelNamespace = "GarageFlow.SharedKernel";
     private const string DomainNamespace = "GarageFlow.Domain";
     private const string InfrastructureNamespace = "GarageFlow.Infrastructure";
     private static readonly string RepositoryRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     [Fact]
-    public void BuildingBlocks_ShouldNotDependOnBusinessLayers()
+    public void SharedKernel_ShouldNotDependOnBusinessLayers()
     {
         var result = Types
-            .InAssembly(LoadAssembly("GarageFlow.BuildingBlocks", "BuildingBlocks"))
+            .InAssembly(LoadAssembly("GarageFlow.SharedKernel", "SharedKernel"))
             .That()
-            .ResideInNamespaceStartingWith(BuildingBlocksNamespace)
+            .ResideInNamespaceStartingWith(SharedKernelNamespace)
             .ShouldNot()
             .HaveDependencyOnAny(
                 ApiNamespace,
@@ -28,7 +28,7 @@ public class DependencyRulesTests
                 InfrastructureNamespace)
             .GetResult();
 
-        AssertRule(result, nameof(BuildingBlocks_ShouldNotDependOnBusinessLayers));
+        AssertRule(result, nameof(SharedKernel_ShouldNotDependOnBusinessLayers));
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class DependencyRulesTests
             .And()
             .HaveNameEndingWith("Endpoint")
             .ShouldNot()
-            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, BuildingBlocksNamespace)
+            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, SharedKernelNamespace)
             .GetResult();
 
         AssertRule(result, nameof(Api_Endpoints_ShouldNotDependOnDomainOrInfrastructure_OutsideKnownDrift));
@@ -115,7 +115,7 @@ public class DependencyRulesTests
             .And()
             .HaveNameEndingWith("Endpoints")
             .ShouldNot()
-            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, BuildingBlocksNamespace)
+            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, SharedKernelNamespace)
             .GetResult();
 
         AssertRule(result, nameof(Api_ModuleRegistrationTypes_ShouldNotDependOnDomainOrInfrastructure));
@@ -129,7 +129,7 @@ public class DependencyRulesTests
             .That()
             .ResideInNamespaceStartingWith($"{ApiNamespace}.Security")
             .ShouldNot()
-            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, BuildingBlocksNamespace)
+            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, SharedKernelNamespace)
             .GetResult();
 
         AssertRule(result, nameof(Api_SecurityTypes_ShouldNotDependOnDomainOrInfrastructure));

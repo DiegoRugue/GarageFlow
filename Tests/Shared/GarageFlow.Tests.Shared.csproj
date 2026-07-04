@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\BuildingBlocks\GarageFlow.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\SharedKernel\GarageFlow.SharedKernel.csproj" />
     <ProjectReference Include="..\..\Domain\GarageFlow.Domain.csproj" />
   </ItemGroup>
 

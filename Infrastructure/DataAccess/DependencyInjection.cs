@@ -1,6 +1,6 @@
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.Application.WorkOrders.Abstractions;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Customers.Repositories;
 using GarageFlow.Domain.InventoryItems.Repositories;
 using GarageFlow.Domain.Services.Repositories;

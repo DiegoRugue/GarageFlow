@@ -1,8 +1,8 @@
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.Application.Customers.ActivateCustomerPortalUser;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Customers.Entities;
 using GarageFlow.Domain.Customers.Repositories;
 using GarageFlow.Domain.Customers.ValueObjects;

@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using GarageFlow.Domain.Services.ValueObjects;

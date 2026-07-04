@@ -1,5 +1,5 @@
 using GarageFlow.Application.WorkOrders.GetWorkOrderById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Repositories;
 using Mediator;

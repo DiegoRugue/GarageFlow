@@ -1,7 +1,7 @@
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 
-namespace GarageFlow.Tests.Unit.BuildingBlocks.ValueObjects;
+namespace GarageFlow.Tests.Unit.SharedKernel.ValueObjects;
 
 public class PriceTests
 {

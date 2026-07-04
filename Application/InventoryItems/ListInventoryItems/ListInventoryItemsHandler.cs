@@ -1,5 +1,5 @@
 using GarageFlow.Application.InventoryItems.GetInventoryItemById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.InventoryItems.Repositories;
 using Mediator;
 

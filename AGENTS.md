@@ -20,7 +20,7 @@ Guide Codex agents to evolve GarageFlow with maximum code quality, strict archit
 - Containers/dev infra: Docker + docker-compose (Postgres + pgAdmin + API).
 
 ## Solution Architecture
-- `GarageFlow.BuildingBlocks`
+- `GarageFlow.SharedKernel`
 - `GarageFlow.Domain`
 - `GarageFlow.Application`
 - `GarageFlow.Infrastructure`
@@ -30,13 +30,13 @@ Guide Codex agents to evolve GarageFlow with maximum code quality, strict archit
 - `GarageFlow.Tests.Integration`
 
 ## Dependency Direction (Non-negotiable)
-- `Api -> Application -> Domain -> BuildingBlocks`
-- `Infrastructure -> Application, Domain, BuildingBlocks`
+- `Api -> Application -> Domain -> SharedKernel`
+- `Infrastructure -> Application, Domain, SharedKernel`
 - `Tests.Unit -> Application, Domain, Tests.Shared`
 - `Tests.Integration -> Api, Infrastructure, Tests.Shared`
-- API runtime types (`*Endpoint`, `*Endpoints`) must not depend directly on `Domain`, `Infrastructure`, or `BuildingBlocks`.
+- API runtime types (`*Endpoint`, `*Endpoints`) must not depend directly on `Domain`, `Infrastructure`, or `SharedKernel`.
 - `Domain` must never depend on `Api` or `Infrastructure`.
-- `BuildingBlocks` must stay generic and independent of business modules.
+- `SharedKernel` must stay generic and independent of business modules.
 
 ## Canonical Module Layout
 Every business module (Customers, Services, Vehicles, InventoryItems, Users, future modules) must follow the same shape:
@@ -57,7 +57,7 @@ Every business module (Customers, Services, Vehicles, InventoryItems, Users, fut
 
 ## Layer Responsibilities and Standards
 
-### BuildingBlocks
+### SharedKernel
 - Keep only cross-module abstractions and primitives:
   - base entities and domain events
   - generic domain exceptions
@@ -95,7 +95,7 @@ Every business module (Customers, Services, Vehicles, InventoryItems, Users, fut
   - map request -> command/query
   - invoke mediator
   - map result -> response
-- Endpoint implementation and module registration types must not depend on `Domain`, `Infrastructure`, or `BuildingBlocks` directly.
+- Endpoint implementation and module registration types must not depend on `Domain`, `Infrastructure`, or `SharedKernel` directly.
 - No business rule implementation in endpoints.
 - Request/response contracts should avoid domain coupling; any temporary exception must be explicitly tracked in drift-audit documentation.
 - Each endpoint must define metadata:

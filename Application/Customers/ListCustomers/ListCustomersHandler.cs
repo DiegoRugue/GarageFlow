@@ -1,5 +1,5 @@
 using GarageFlow.Application.Customers.GetCustomerById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Customers.Repositories;
 using Mediator;
 

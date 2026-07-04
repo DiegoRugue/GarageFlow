@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Services.Repositories;
 using GarageFlow.Domain.Services.ValueObjects;
 using Mediator;

@@ -1,5 +1,5 @@
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.Repositories;
 using Mediator;

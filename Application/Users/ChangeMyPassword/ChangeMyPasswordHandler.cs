@@ -1,6 +1,6 @@
 using GarageFlow.Application.Auth.Abstractions;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Users.Repositories;
 using GarageFlow.Domain.Users.ValueObjects;
 using Mediator;

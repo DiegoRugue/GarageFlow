@@ -58,8 +58,8 @@ O GarageFlow foi organizado para combinar fronteiras claras entre camadas com um
 Direção das dependências:
 
 ```text
-Api -> Application -> Domain -> BuildingBlocks
-Infrastructure -> Application, Domain, BuildingBlocks
+Api -> Application -> Domain -> SharedKernel
+Infrastructure -> Application, Domain, SharedKernel
 ```
 
 Responsabilidades principais:
@@ -68,7 +68,7 @@ Responsabilidades principais:
 - `Application`: casos de uso, comandos, queries, handlers e resultados.
 - `Domain`: entidades, value objects, eventos de domínio e contratos de repositório.
 - `Infrastructure`: EF Core, DbContext, migrations, configurações e repositórios.
-- `BuildingBlocks`: primitivas compartilhadas, exceções, eventos e contratos genéricos.
+- `SharedKernel`: primitivas compartilhadas, exceções, eventos e contratos genéricos.
 - `Tests`: projetos de testes unitários, integração e builders compartilhados.
 
 ## Documentação DDD
@@ -320,7 +320,7 @@ Observações:
 GarageFlow/
 |-- Api/
 |-- Application/
-|-- BuildingBlocks/
+|-- SharedKernel/
 |-- Domain/
 |-- Infrastructure/
 |-- scripts/

@@ -1,9 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Application\GarageFlow.Application.csproj" />
     <ProjectReference Include="..\Domain\GarageFlow.Domain.csproj" />
-    <ProjectReference Include="..\BuildingBlocks\GarageFlow.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\SharedKernel\GarageFlow.SharedKernel.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

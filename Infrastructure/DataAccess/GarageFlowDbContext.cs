@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Customers.Entities;
 using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.Services.Entities;

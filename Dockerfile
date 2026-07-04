@@ -7,7 +7,7 @@ COPY ["Api/GarageFlow.Api.csproj", "Api/"]
 COPY ["Application/GarageFlow.Application.csproj", "Application/"]
 COPY ["Infrastructure/GarageFlow.Infrastructure.csproj", "Infrastructure/"]
 COPY ["Domain/GarageFlow.Domain.csproj", "Domain/"]
-COPY ["BuildingBlocks/GarageFlow.BuildingBlocks.csproj", "BuildingBlocks/"]
+COPY ["SharedKernel/GarageFlow.SharedKernel.csproj", "SharedKernel/"]
 
 RUN dotnet restore "Api/GarageFlow.Api.csproj"
 

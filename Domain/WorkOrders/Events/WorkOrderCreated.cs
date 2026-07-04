@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.Events;
+using GarageFlow.SharedKernel.Domain.Events;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Enums;

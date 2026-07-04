@@ -1,5 +1,5 @@
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Services.Repositories;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Repositories;

@@ -1,6 +1,6 @@
-using GarageFlow.BuildingBlocks.Domain.Events;
+using GarageFlow.SharedKernel.Domain.Events;
 
-namespace GarageFlow.BuildingBlocks.Domain.Interfaces;
+namespace GarageFlow.SharedKernel.Domain.Interfaces;
 
 public interface IAggregateRoot
 {

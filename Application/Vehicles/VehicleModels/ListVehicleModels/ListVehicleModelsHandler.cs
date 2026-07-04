@@ -1,5 +1,5 @@
 using GarageFlow.Application.Vehicles.VehicleModels.GetVehicleModelById;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Vehicles.Repositories;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;

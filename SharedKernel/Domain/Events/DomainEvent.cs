@@ -1,4 +1,4 @@
-namespace GarageFlow.BuildingBlocks.Domain.Events;
+namespace GarageFlow.SharedKernel.Domain.Events;
 
 public abstract record DomainEvent
 {

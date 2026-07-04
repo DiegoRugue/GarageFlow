@@ -1,6 +1,6 @@
-using GarageFlow.BuildingBlocks.Domain.Events;
+using GarageFlow.SharedKernel.Domain.Events;
 
-namespace GarageFlow.BuildingBlocks.Domain.Entities;
+namespace GarageFlow.SharedKernel.Domain.Entities;
 
 public abstract class Entity<TId> where TId : struct
 {

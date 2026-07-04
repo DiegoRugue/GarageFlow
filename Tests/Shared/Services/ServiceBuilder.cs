@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Services.Entities;
 
 namespace GarageFlow.Tests.Shared.Services;

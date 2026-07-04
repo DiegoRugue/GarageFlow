@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.Events;
+using GarageFlow.SharedKernel.Domain.Events;
 using GarageFlow.Domain.Customers.ValueObjects;
 
 namespace GarageFlow.Domain.Customers.Events;
