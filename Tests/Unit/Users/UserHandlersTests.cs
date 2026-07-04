@@ -1,10 +1,10 @@
 using GarageFlow.Application.Auth.Abstractions;
-using GarageFlow.Application.Auth.Login;
-using GarageFlow.Application.Users.ChangeMyPassword;
-using GarageFlow.Application.Users.CreateUser;
-using GarageFlow.Application.Users.DeleteUser;
-using GarageFlow.Application.Users.ListUsers;
-using GarageFlow.Application.Users.UpdateMyProfile;
+using GarageFlow.Application.Auth.UseCases.Login;
+using GarageFlow.Application.Users.UseCases.ChangeMyPassword;
+using GarageFlow.Application.Users.UseCases.CreateUser;
+using GarageFlow.Application.Users.UseCases.DeleteUser;
+using GarageFlow.Application.Users.UseCases.ListUsers;
+using GarageFlow.Application.Users.UseCases.UpdateMyProfile;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;

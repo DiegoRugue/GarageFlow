@@ -1,9 +1,9 @@
-using GarageFlow.Application.InventoryItems.CreateInventoryItem;
-using GarageFlow.Application.InventoryItems.DeleteInventoryItem;
-using GarageFlow.Application.InventoryItems.GetInventoryItemById;
-using GarageFlow.Application.InventoryItems.ListInventoryItems;
-using GarageFlow.Application.InventoryItems.UpdateInventoryItem;
-using GarageFlow.Application.InventoryItems.UpdateInventoryItemStock;
+using GarageFlow.Application.InventoryItems.UseCases.CreateInventoryItem;
+using GarageFlow.Application.InventoryItems.UseCases.DeleteInventoryItem;
+using GarageFlow.Application.InventoryItems.UseCases.GetInventoryItemById;
+using GarageFlow.Application.InventoryItems.UseCases.ListInventoryItems;
+using GarageFlow.Application.InventoryItems.UseCases.UpdateInventoryItem;
+using GarageFlow.Application.InventoryItems.UseCases.UpdateInventoryItemStock;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.InventoryItems.Entities;

@@ -14,11 +14,6 @@ public class ModuleConventionTests
 
     private static readonly string RepositoryRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-    private static readonly HashSet<string> AllowedApplicationNamingExceptions =
-    [
-        "Application/Users/ListUsers/UserListItem.cs"
-    ];
-
     [Fact]
     public void CanonicalBusinessModules_ShouldExistAcrossLayers()
     {
@@ -215,36 +210,41 @@ public class ModuleConventionTests
 
     private static bool IsValidApplicationFile(string filePath)
     {
-        if (HasAnySuffix(filePath, "Command.cs", "Query.cs", "Handler.cs", "Result.cs", "Dto.cs"))
-        {
-            return true;
-        }
-
-        if (IsValidApplicationAbstractionInterface(filePath))
-        {
-            return true;
-        }
-
-        return AllowedApplicationNamingExceptions.Contains(ToRelativePath(filePath));
-    }
-
-    private static bool IsValidApplicationAbstractionInterface(string filePath)
-    {
         var relativePath = ToRelativePath(filePath);
         var pathSegments = relativePath.Split('/');
-        if (pathSegments.Length < 4)
+
+        if (pathSegments.Length < 3)
         {
             return false;
         }
 
-        if (!string.Equals(pathSegments[0], "Application", StringComparison.Ordinal) ||
-            !string.Equals(pathSegments[2], "Abstractions", StringComparison.Ordinal))
+        if (!string.Equals(pathSegments[0], "Application", StringComparison.Ordinal))
         {
             return false;
         }
 
-        var fileName = Path.GetFileName(relativePath);
-        return fileName.StartsWith('I') && fileName.EndsWith(".cs", StringComparison.Ordinal);
+        if (pathSegments.Contains("UseCases") &&
+            HasAnySuffix(filePath, "Command.cs", "Query.cs", "Handler.cs", "Result.cs", "Dto.cs"))
+        {
+            return true;
+        }
+
+        if (pathSegments.Contains("Ports") && Path.GetFileName(filePath).StartsWith('I'))
+        {
+            return true;
+        }
+
+        if (pathSegments.Contains("ReadModels") && HasAnySuffix(filePath, "ReadModel.cs", "Projection.cs", "Dto.cs"))
+        {
+            return true;
+        }
+
+        if (pathSegments.Contains("Abstractions") && Path.GetFileName(filePath).StartsWith('I'))
+        {
+            return true;
+        }
+
+        return pathSegments.Contains("Common");
     }
 
     private static string ToRelativePath(string absolutePath)

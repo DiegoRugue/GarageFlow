@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.InventoryItems.GetInventoryItemById;
-using GarageFlow.Application.InventoryItems.UpdateInventoryItem;
+using GarageFlow.Application.InventoryItems.UseCases.UpdateInventoryItem;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.InventoryItems.UpdateInventoryItem;

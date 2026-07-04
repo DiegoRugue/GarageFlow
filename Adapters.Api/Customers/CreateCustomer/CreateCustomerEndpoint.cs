@@ -1,4 +1,4 @@
-using GarageFlow.Application.Customers.CreateCustomer;
+using GarageFlow.Application.Customers.UseCases.CreateCustomer;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Customers.CreateCustomer;

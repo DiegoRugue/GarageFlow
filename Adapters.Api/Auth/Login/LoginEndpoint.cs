@@ -1,4 +1,4 @@
-using GarageFlow.Application.Auth.Login;
+using GarageFlow.Application.Auth.UseCases.Login;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Auth.Login;

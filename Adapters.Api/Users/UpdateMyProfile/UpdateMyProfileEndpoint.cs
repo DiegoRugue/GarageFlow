@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Security;
-using GarageFlow.Application.Users.UpdateMyProfile;
+using GarageFlow.Application.Users.UseCases.UpdateMyProfile;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Users.UpdateMyProfile;

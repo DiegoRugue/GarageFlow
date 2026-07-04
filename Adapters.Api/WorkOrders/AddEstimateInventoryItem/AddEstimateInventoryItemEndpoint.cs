@@ -1,4 +1,4 @@
-using GarageFlow.Application.WorkOrders.AddEstimateInventoryItem;
+using GarageFlow.Application.WorkOrders.UseCases.AddEstimateInventoryItem;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.AddEstimateInventoryItem;

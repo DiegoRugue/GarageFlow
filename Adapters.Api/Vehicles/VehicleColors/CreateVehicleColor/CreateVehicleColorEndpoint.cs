@@ -1,4 +1,4 @@
-using GarageFlow.Application.Vehicles.VehicleColors.CreateVehicleColor;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.CreateVehicleColor;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleColors.CreateVehicleColor;

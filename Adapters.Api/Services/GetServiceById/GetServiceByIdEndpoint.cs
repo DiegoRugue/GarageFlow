@@ -1,4 +1,4 @@
-using GarageFlow.Application.Services.GetServiceById;
+using GarageFlow.Application.Services.UseCases.GetServiceById;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Services.GetServiceById;

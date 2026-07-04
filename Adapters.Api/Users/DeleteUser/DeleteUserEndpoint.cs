@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Security;
-using GarageFlow.Application.Users.DeleteUser;
+using GarageFlow.Application.Users.UseCases.DeleteUser;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Users.DeleteUser;

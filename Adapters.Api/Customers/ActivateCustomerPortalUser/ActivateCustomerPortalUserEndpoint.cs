@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Security;
-using GarageFlow.Application.Customers.ActivateCustomerPortalUser;
+using GarageFlow.Application.Customers.UseCases.ActivateCustomerPortalUser;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Customers.ActivateCustomerPortalUser;

@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Security;
-using GarageFlow.Application.Users.CreateUser;
+using GarageFlow.Application.Users.UseCases.CreateUser;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Users.CreateUser;

@@ -1,8 +1,8 @@
-using GarageFlow.Application.Customers.CreateCustomer;
-using GarageFlow.Application.Customers.DeleteCustomer;
-using GarageFlow.Application.Customers.GetCustomerById;
-using GarageFlow.Application.Customers.ListCustomers;
-using GarageFlow.Application.Customers.UpdateCustomer;
+using GarageFlow.Application.Customers.UseCases.CreateCustomer;
+using GarageFlow.Application.Customers.UseCases.DeleteCustomer;
+using GarageFlow.Application.Customers.UseCases.GetCustomerById;
+using GarageFlow.Application.Customers.UseCases.ListCustomers;
+using GarageFlow.Application.Customers.UseCases.UpdateCustomer;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;

@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Customers.GetCustomerById;
-using GarageFlow.Application.Customers.ListCustomers;
+using GarageFlow.Application.Customers.UseCases.ListCustomers;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Customers.ListCustomers;

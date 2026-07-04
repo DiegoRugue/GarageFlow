@@ -1,4 +1,4 @@
-using GarageFlow.Application.InventoryItems.DeleteInventoryItem;
+using GarageFlow.Application.InventoryItems.UseCases.DeleteInventoryItem;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.InventoryItems.DeleteInventoryItem;

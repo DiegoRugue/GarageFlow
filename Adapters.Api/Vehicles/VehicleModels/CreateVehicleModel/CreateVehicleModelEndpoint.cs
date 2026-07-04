@@ -1,4 +1,4 @@
-using GarageFlow.Application.Vehicles.VehicleModels.CreateVehicleModel;
+using GarageFlow.Application.Vehicles.UseCases.VehicleModels.CreateVehicleModel;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleModels.CreateVehicleModel;

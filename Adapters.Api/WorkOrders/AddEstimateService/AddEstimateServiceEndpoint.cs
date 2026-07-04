@@ -1,4 +1,4 @@
-using GarageFlow.Application.WorkOrders.AddEstimateService;
+using GarageFlow.Application.WorkOrders.UseCases.AddEstimateService;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.AddEstimateService;

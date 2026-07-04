@@ -1,4 +1,4 @@
-using GarageFlow.Application.WorkOrders.StartDiagnosis;
+using GarageFlow.Application.WorkOrders.UseCases.StartDiagnosis;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.StartDiagnosis;

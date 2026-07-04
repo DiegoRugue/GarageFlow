@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Security;
-using GarageFlow.Application.Users.ListUsers;
+using GarageFlow.Application.Users.UseCases.ListUsers;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Users.ListUsers;

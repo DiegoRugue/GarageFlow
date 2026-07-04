@@ -1,8 +1,8 @@
-using GarageFlow.Application.Vehicles.VehicleColors.CreateVehicleColor;
-using GarageFlow.Application.Vehicles.VehicleColors.DeleteVehicleColor;
-using GarageFlow.Application.Vehicles.VehicleColors.GetVehicleColorById;
-using GarageFlow.Application.Vehicles.VehicleColors.ListVehicleColors;
-using GarageFlow.Application.Vehicles.VehicleColors.UpdateVehicleColor;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.CreateVehicleColor;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.DeleteVehicleColor;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.GetVehicleColorById;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.ListVehicleColors;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.UpdateVehicleColor;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Vehicles.Entities;

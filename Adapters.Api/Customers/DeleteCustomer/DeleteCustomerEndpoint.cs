@@ -1,4 +1,4 @@
-using GarageFlow.Application.Customers.DeleteCustomer;
+using GarageFlow.Application.Customers.UseCases.DeleteCustomer;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Customers.DeleteCustomer;

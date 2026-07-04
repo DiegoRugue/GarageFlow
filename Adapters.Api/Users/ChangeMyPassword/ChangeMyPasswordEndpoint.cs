@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Security;
-using GarageFlow.Application.Users.ChangeMyPassword;
+using GarageFlow.Application.Users.UseCases.ChangeMyPassword;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Users.ChangeMyPassword;

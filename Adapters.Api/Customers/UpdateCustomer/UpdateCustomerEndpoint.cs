@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Customers.GetCustomerById;
-using GarageFlow.Application.Customers.UpdateCustomer;
+using GarageFlow.Application.Customers.UseCases.UpdateCustomer;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Customers.UpdateCustomer;

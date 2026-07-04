@@ -1,8 +1,8 @@
-using GarageFlow.Application.Vehicles.VehicleBrands.CreateVehicleBrand;
-using GarageFlow.Application.Vehicles.VehicleBrands.DeleteVehicleBrand;
-using GarageFlow.Application.Vehicles.VehicleBrands.GetVehicleBrandById;
-using GarageFlow.Application.Vehicles.VehicleBrands.ListVehicleBrands;
-using GarageFlow.Application.Vehicles.VehicleBrands.UpdateVehicleBrand;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.CreateVehicleBrand;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.DeleteVehicleBrand;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.GetVehicleBrandById;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.ListVehicleBrands;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.UpdateVehicleBrand;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Vehicles.Entities;

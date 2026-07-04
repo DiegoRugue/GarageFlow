@@ -1,4 +1,4 @@
-using GarageFlow.Application.WorkOrders.CreateWorkOrder;
+using GarageFlow.Application.WorkOrders.UseCases.CreateWorkOrder;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.CreateWorkOrder;

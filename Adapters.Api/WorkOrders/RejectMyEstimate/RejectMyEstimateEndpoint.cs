@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Security;
-using GarageFlow.Application.WorkOrders.RejectMyEstimate;
+using GarageFlow.Application.WorkOrders.UseCases.RejectMyEstimate;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.RejectMyEstimate;

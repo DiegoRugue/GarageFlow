@@ -1,7 +1,7 @@
 using GarageFlow.Adapters.Api.Security;
 using GarageFlow.Adapters.Api.WorkOrders.Responses;
-using GarageFlow.Application.WorkOrders;
-using GarageFlow.Application.WorkOrders.ListMyWorkOrders;
+using GarageFlow.Application.WorkOrders.Common;
+using GarageFlow.Application.WorkOrders.UseCases.ListMyWorkOrders;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.ListMyWorkOrders;

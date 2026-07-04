@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.WorkOrders.Responses;
-using GarageFlow.Application.WorkOrders.ListWorkOrders;
+using GarageFlow.Application.WorkOrders.UseCases.ListWorkOrders;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.ListWorkOrders;

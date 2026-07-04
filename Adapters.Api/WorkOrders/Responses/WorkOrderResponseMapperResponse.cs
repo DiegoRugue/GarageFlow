@@ -1,5 +1,5 @@
-using GarageFlow.Application.WorkOrders;
-using GarageFlow.Application.WorkOrders.GetWorkOrderById;
+using GarageFlow.Application.WorkOrders.Common;
+using GarageFlow.Application.WorkOrders.UseCases.GetWorkOrderById;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.Responses;
 

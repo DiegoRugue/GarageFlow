@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Vehicles.VehicleModels.GetVehicleModelById;
-using GarageFlow.Application.Vehicles.VehicleModels.ListVehicleModels;
+using GarageFlow.Application.Vehicles.UseCases.VehicleModels.ListVehicleModels;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleModels.ListVehicleModels;

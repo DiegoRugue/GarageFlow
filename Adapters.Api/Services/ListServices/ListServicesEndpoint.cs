@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Services.GetServiceById;
-using GarageFlow.Application.Services.ListServices;
+using GarageFlow.Application.Services.UseCases.ListServices;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Services.ListServices;

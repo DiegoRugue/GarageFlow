@@ -1,4 +1,4 @@
-using GarageFlow.Application.InventoryItems.CreateInventoryItem;
+using GarageFlow.Application.InventoryItems.UseCases.CreateInventoryItem;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.InventoryItems.CreateInventoryItem;

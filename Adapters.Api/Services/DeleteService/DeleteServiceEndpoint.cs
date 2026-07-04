@@ -1,4 +1,4 @@
-using GarageFlow.Application.Services.DeleteService;
+using GarageFlow.Application.Services.UseCases.DeleteService;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Services.DeleteService;

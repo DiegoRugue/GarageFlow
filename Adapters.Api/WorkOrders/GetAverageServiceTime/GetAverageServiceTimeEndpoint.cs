@@ -1,4 +1,4 @@
-using GarageFlow.Application.WorkOrders.GetAverageServiceTime;
+using GarageFlow.Application.WorkOrders.UseCases.GetAverageServiceTime;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.GetAverageServiceTime;

@@ -1,4 +1,4 @@
-using GarageFlow.Application.Vehicles.VehicleColors.DeleteVehicleColor;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.DeleteVehicleColor;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleColors.DeleteVehicleColor;

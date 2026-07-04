@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Vehicles.VehicleColors.GetVehicleColorById;
-using GarageFlow.Application.Vehicles.VehicleColors.ListVehicleColors;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.ListVehicleColors;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleColors.ListVehicleColors;

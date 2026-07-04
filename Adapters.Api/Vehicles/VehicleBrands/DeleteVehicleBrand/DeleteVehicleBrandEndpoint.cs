@@ -1,4 +1,4 @@
-using GarageFlow.Application.Vehicles.VehicleBrands.DeleteVehicleBrand;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.DeleteVehicleBrand;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleBrands.DeleteVehicleBrand;

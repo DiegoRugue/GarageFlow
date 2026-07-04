@@ -1,5 +1,5 @@
 using GarageFlow.Adapters.Api.Services.GetServiceById;
-using GarageFlow.Application.Services.UpdateService;
+using GarageFlow.Application.Services.UseCases.UpdateService;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Services.UpdateService;

@@ -1,4 +1,4 @@
-using GarageFlow.Application.Vehicles.DeleteVehicle;
+using GarageFlow.Application.Vehicles.UseCases.DeleteVehicle;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.DeleteVehicle;

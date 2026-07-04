@@ -1,4 +1,4 @@
-using GarageFlow.Application.Vehicles.VehicleBrands.CreateVehicleBrand;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.CreateVehicleBrand;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleBrands.CreateVehicleBrand;

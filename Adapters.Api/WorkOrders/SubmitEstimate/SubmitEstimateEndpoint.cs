@@ -1,4 +1,4 @@
-using GarageFlow.Application.WorkOrders.SubmitEstimate;
+using GarageFlow.Application.WorkOrders.UseCases.SubmitEstimate;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.SubmitEstimate;

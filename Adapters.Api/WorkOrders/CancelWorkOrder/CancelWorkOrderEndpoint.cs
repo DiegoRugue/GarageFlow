@@ -1,4 +1,4 @@
-using GarageFlow.Application.WorkOrders.CancelWorkOrder;
+using GarageFlow.Application.WorkOrders.UseCases.CancelWorkOrder;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.WorkOrders.CancelWorkOrder;

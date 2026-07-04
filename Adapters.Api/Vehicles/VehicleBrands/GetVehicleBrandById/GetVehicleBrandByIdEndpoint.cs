@@ -1,4 +1,4 @@
-using GarageFlow.Application.Vehicles.VehicleBrands.GetVehicleBrandById;
+using GarageFlow.Application.Vehicles.UseCases.VehicleBrands.GetVehicleBrandById;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Vehicles.VehicleBrands.GetVehicleBrandById;

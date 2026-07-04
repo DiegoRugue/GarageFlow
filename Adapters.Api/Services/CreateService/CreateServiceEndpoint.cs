@@ -1,4 +1,4 @@
-using GarageFlow.Application.Services.CreateService;
+using GarageFlow.Application.Services.UseCases.CreateService;
 using Mediator;
 
 namespace GarageFlow.Adapters.Api.Services.CreateService;

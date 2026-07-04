@@ -1,8 +1,8 @@
-using GarageFlow.Application.Services.CreateService;
-using GarageFlow.Application.Services.DeleteService;
-using GarageFlow.Application.Services.GetServiceById;
-using GarageFlow.Application.Services.ListServices;
-using GarageFlow.Application.Services.UpdateService;
+using GarageFlow.Application.Services.UseCases.CreateService;
+using GarageFlow.Application.Services.UseCases.DeleteService;
+using GarageFlow.Application.Services.UseCases.GetServiceById;
+using GarageFlow.Application.Services.UseCases.ListServices;
+using GarageFlow.Application.Services.UseCases.UpdateService;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
