@@ -1,4 +1,4 @@
-using GarageFlow.Api.Security;
+using GarageFlow.Adapters.Api.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Authorization;

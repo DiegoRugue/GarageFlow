@@ -2,8 +2,8 @@ using System.Reflection;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Repositories;
 using GarageFlow.Domain.Vehicles.ValueObjects;
-using GarageFlow.Infrastructure.DataAccess;
-using GarageFlow.Infrastructure.Vehicles.Repositories;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Adapters.Infrastructure.Vehicles.Repositories;
 using GarageFlow.Tests.Shared.Vehicles;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +16,7 @@ public sealed class VehicleRepositoryTranslationGuardTests
     {
         var repositoryDirectory = Path.Combine(
             FindSolutionRoot().FullName,
-            "Infrastructure",
+            "Adapters.Infrastructure",
             "Vehicles",
             "Repositories");
         var repositoryFiles = Directory

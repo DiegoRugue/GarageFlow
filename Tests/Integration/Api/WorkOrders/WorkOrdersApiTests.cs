@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Globalization;
 using System.Reflection;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
-using GarageFlow.Api.WorkOrders.GetAverageServiceTime;
+using GarageFlow.Adapters.Api.WorkOrders.GetAverageServiceTime;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Tests.Integration.Api.Customers.Contracts;

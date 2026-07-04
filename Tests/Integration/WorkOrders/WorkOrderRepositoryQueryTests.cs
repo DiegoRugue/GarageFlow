@@ -8,8 +8,8 @@ using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.Repositories;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
-using GarageFlow.Infrastructure.DataAccess;
-using GarageFlow.Infrastructure.WorkOrders.Repositories;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace GarageFlow.Tests.Integration.WorkOrders;

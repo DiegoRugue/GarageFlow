@@ -6,11 +6,11 @@ namespace GarageFlow.Tests.Unit.Architecture;
 
 public class DependencyRulesTests
 {
-    private const string ApiNamespace = "GarageFlow.Api";
+    private const string ApiNamespace = "GarageFlow.Adapters.Api";
     private const string ApplicationNamespace = "GarageFlow.Application";
     private const string SharedKernelNamespace = "GarageFlow.SharedKernel";
     private const string DomainNamespace = "GarageFlow.Domain";
-    private const string InfrastructureNamespace = "GarageFlow.Infrastructure";
+    private const string InfrastructureNamespace = "GarageFlow.Adapters.Infrastructure";
     private static readonly string RepositoryRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     [Fact]
@@ -63,7 +63,7 @@ public class DependencyRulesTests
     public void Infrastructure_ShouldNotDependOnApiLayer()
     {
         var result = Types
-            .InAssembly(LoadAssembly("GarageFlow.Infrastructure", "Infrastructure"))
+            .InAssembly(LoadAssembly("GarageFlow.Adapters.Infrastructure", "Adapters.Infrastructure"))
             .That()
             .ResideInNamespaceStartingWith(InfrastructureNamespace)
             .ShouldNot()
@@ -77,7 +77,7 @@ public class DependencyRulesTests
     public void Api_Endpoints_ShouldDependOnApplicationLayer()
     {
         var result = Types
-            .InAssembly(LoadAssembly("GarageFlow.Api", "Api"))
+            .InAssembly(LoadAssembly("GarageFlow.Adapters.Api", "Adapters.Api"))
             .That()
             .ResideInNamespaceStartingWith(ApiNamespace)
             .And()
@@ -93,7 +93,7 @@ public class DependencyRulesTests
     public void Api_Endpoints_ShouldNotDependOnDomainOrInfrastructure_OutsideKnownDrift()
     {
         var result = Types
-            .InAssembly(LoadAssembly("GarageFlow.Api", "Api"))
+            .InAssembly(LoadAssembly("GarageFlow.Adapters.Api", "Adapters.Api"))
             .That()
             .ResideInNamespaceStartingWith(ApiNamespace)
             .And()
@@ -109,7 +109,7 @@ public class DependencyRulesTests
     public void Api_ModuleRegistrationTypes_ShouldNotDependOnDomainOrInfrastructure()
     {
         var result = Types
-            .InAssembly(LoadAssembly("GarageFlow.Api", "Api"))
+            .InAssembly(LoadAssembly("GarageFlow.Adapters.Api", "Adapters.Api"))
             .That()
             .ResideInNamespaceStartingWith(ApiNamespace)
             .And()
@@ -125,7 +125,7 @@ public class DependencyRulesTests
     public void Api_SecurityTypes_ShouldNotDependOnDomainOrInfrastructure()
     {
         var result = Types
-            .InAssembly(LoadAssembly("GarageFlow.Api", "Api"))
+            .InAssembly(LoadAssembly("GarageFlow.Adapters.Api", "Adapters.Api"))
             .That()
             .ResideInNamespaceStartingWith($"{ApiNamespace}.Security")
             .ShouldNot()

@@ -1,6 +1,6 @@
 using GarageFlow.Domain.InventoryItems.Enums;
-using GarageFlow.Infrastructure.DataAccess;
-using GarageFlow.Infrastructure.InventoryItems.Repositories;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Adapters.Infrastructure.InventoryItems.Repositories;
 using GarageFlow.Tests.Shared.InventoryItems;
 using Microsoft.EntityFrameworkCore;
 

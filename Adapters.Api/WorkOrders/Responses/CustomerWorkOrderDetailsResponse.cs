@@ -1,0 +1,10 @@
+namespace GarageFlow.Adapters.Api.WorkOrders.Responses;
+
+public sealed record CustomerWorkOrderDetailsResponse(
+    Guid Id,
+    Guid CustomerId,
+    Guid VehicleId,
+    string Status,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    IReadOnlyList<CustomerWorkOrderEstimateResponse> Estimates);

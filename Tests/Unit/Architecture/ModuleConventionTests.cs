@@ -28,10 +28,10 @@ public class ModuleConventionTests
         {
             var requiredPaths = new[]
             {
-                Path.Combine(RepositoryRoot, "Api", module),
+                Path.Combine(RepositoryRoot, "Adapters.Api", module),
                 Path.Combine(RepositoryRoot, "Application", module),
                 Path.Combine(RepositoryRoot, "Domain", module),
-                Path.Combine(RepositoryRoot, "Infrastructure", module),
+                Path.Combine(RepositoryRoot, "Adapters.Infrastructure", module),
                 Path.Combine(RepositoryRoot, "Tests", "Shared", module),
                 Path.Combine(RepositoryRoot, "Tests", "Unit", module),
                 Path.Combine(RepositoryRoot, "Tests", "Integration", "Api", module)
@@ -59,7 +59,7 @@ public class ModuleConventionTests
 
         foreach (var module in BusinessModules)
         {
-            var modulePath = Path.Combine(RepositoryRoot, "Api", module);
+            var modulePath = Path.Combine(RepositoryRoot, "Adapters.Api", module);
             if (!Directory.Exists(modulePath))
             {
                 missingPaths.Add(ToRelativePath(modulePath));
@@ -85,7 +85,7 @@ public class ModuleConventionTests
     public void Api_Files_ShouldUseEndpointRequestResponseNaming()
     {
         var missingPaths = new List<string>();
-        var invalidFiles = GetModuleFiles("Api", missingPaths)
+        var invalidFiles = GetModuleFiles("Adapters.Api", missingPaths)
             .Where(file => !HasAnySuffix(file, "Endpoint.cs", "Endpoints.cs", "Request.cs", "Response.cs"))
             .Select(ToRelativePath)
             .ToArray();
@@ -155,8 +155,8 @@ public class ModuleConventionTests
 
         foreach (var module in BusinessModules)
         {
-            var configurationPath = Path.Combine(RepositoryRoot, "Infrastructure", module, "Configurations");
-            var repositoryPath = Path.Combine(RepositoryRoot, "Infrastructure", module, "Repositories");
+            var configurationPath = Path.Combine(RepositoryRoot, "Adapters.Infrastructure", module, "Configurations");
+            var repositoryPath = Path.Combine(RepositoryRoot, "Adapters.Infrastructure", module, "Repositories");
 
             if (!Directory.Exists(configurationPath))
             {

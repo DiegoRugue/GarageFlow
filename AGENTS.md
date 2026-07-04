@@ -23,8 +23,8 @@ Guide Codex agents to evolve GarageFlow with maximum code quality, strict archit
 - `GarageFlow.SharedKernel`
 - `GarageFlow.Domain`
 - `GarageFlow.Application`
-- `GarageFlow.Infrastructure`
-- `GarageFlow.Api`
+- `GarageFlow.Adapters.Infrastructure`
+- `GarageFlow.Adapters.Api`
 - `GarageFlow.Tests.Shared`
 - `GarageFlow.Tests.Unit`
 - `GarageFlow.Tests.Integration`

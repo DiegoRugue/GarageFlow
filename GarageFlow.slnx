@@ -1,6 +1,6 @@
 <Solution>
-  <Folder Name="/Api/">
-    <Project Path="Api/GarageFlow.Api.csproj" />
+  <Folder Name="/Adapters.Api/">
+    <Project Path="Adapters.Api/GarageFlow.Adapters.Api.csproj" />
   </Folder>
   <Folder Name="/Application/">
     <Project Path="Application/GarageFlow.Application.csproj" />
@@ -11,8 +11,8 @@
   <Folder Name="/Domain/">
     <Project Path="Domain/GarageFlow.Domain.csproj" />
   </Folder>
-  <Folder Name="/Infrastructure/">
-    <Project Path="Infrastructure/GarageFlow.Infrastructure.csproj" />
+  <Folder Name="/Adapters.Infrastructure/">
+    <Project Path="Adapters.Infrastructure/GarageFlow.Adapters.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/Tests/" />
   <Folder Name="/Tests/E2E/">
