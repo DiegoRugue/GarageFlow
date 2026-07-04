@@ -23,34 +23,40 @@ Guide Codex agents to evolve GarageFlow with maximum code quality, strict archit
 - `GarageFlow.SharedKernel`
 - `GarageFlow.Domain`
 - `GarageFlow.Application`
-- `GarageFlow.Adapters.Infrastructure`
 - `GarageFlow.Adapters.Api`
+- `GarageFlow.Adapters.Infrastructure`
+- `GarageFlow.Host`
 - `GarageFlow.Tests.Shared`
 - `GarageFlow.Tests.Unit`
 - `GarageFlow.Tests.Integration`
 
 ## Dependency Direction (Non-negotiable)
-- `Api -> Application -> Domain -> SharedKernel`
-- `Infrastructure -> Application, Domain, SharedKernel`
+- `Host -> Adapters.Api, Adapters.Infrastructure, Application, SharedKernel`
+- `Adapters.Api -> Application`
+- `Adapters.Infrastructure -> Application, Domain, SharedKernel`
+- `Application -> Domain, SharedKernel`
+- `Domain -> SharedKernel`
+- `SharedKernel -> no GarageFlow production project`
 - `Tests.Unit -> Application, Domain, Tests.Shared`
-- `Tests.Integration -> Api, Infrastructure, Tests.Shared`
-- API runtime types (`*Endpoint`, `*Endpoints`) must not depend directly on `Domain`, `Infrastructure`, or `SharedKernel`.
-- `Domain` must never depend on `Api` or `Infrastructure`.
+- `Tests.Integration -> Host, Adapters.Api, Adapters.Infrastructure, Tests.Shared`
+- API runtime types (`*Endpoint`, `*Endpoints`) must not depend directly on `Domain`, `Adapters.Infrastructure`, or `SharedKernel`.
+- `Domain` must never depend on `Application`, `Adapters.Api`, `Adapters.Infrastructure`, or `Host`.
 - `SharedKernel` must stay generic and independent of business modules.
 
 ## Canonical Module Layout
 Every business module (Customers, Services, Vehicles, InventoryItems, Users, future modules) must follow the same shape:
 
-- `Api/<Module>/<UseCase>/...Endpoint.cs`, `...Request.cs`, `...Response.cs`
-- `Api/<Module>/<Module>Endpoints.cs` (module route registration + policy)
-- `Application/<Module>/<UseCase>/...Command.cs|...Query.cs`, `...Handler.cs`, `...Result.cs|...Dto.cs`
+- `Adapters.Api/<Module>/<UseCase>/...Endpoint.cs`, `...Request.cs`, `...Response.cs`
+- `Adapters.Api/<Module>/<Module>Endpoints.cs` (module route registration + policy)
+- `Application/<Module>/UseCases/<UseCase>/...Command.cs|...Query.cs`, `...Handler.cs`, `...Result.cs|...Dto.cs`
+- `Application/<Module>/Ports/I...Repository.cs`, `I...Queries.cs`
+- `Application/<Module>/ReadModels/*ReadModel.cs|*Projection.cs|*Dto.cs`
 - `Domain/<Module>/Entities/*.cs`
 - `Domain/<Module>/ValueObjects/*.cs`
 - `Domain/<Module>/Events/*.cs`
-- `Domain/<Module>/Repositories/I...Repository.cs`
 - `Domain/<Module>/Enums/*.cs` (if needed)
-- `Infrastructure/<Module>/Configurations/*EntityConfiguration.cs`
-- `Infrastructure/<Module>/Repositories/*Repository.cs`
+- `Adapters.Infrastructure/<Module>/Configurations/*EntityConfiguration.cs`
+- `Adapters.Infrastructure/<Module>/Repositories/*Repository.cs|*Queries.cs`
 - `Tests/Shared/<Module>/*Builder.cs`
 - `Tests/Unit/<Module>/*Tests.cs`
 - `Tests/Integration/Api/<Module>/*ApiTests.cs`
@@ -75,7 +81,7 @@ Every business module (Customers, Services, Vehicles, InventoryItems, Users, fut
 - Prefer value objects over primitive obsession:
   - validation and normalization belong in VOs
   - entities should not keep duplicated `Ensure*`/`Normalize*` logic when VO exists
-- Repository contracts belong only in `Domain/<Module>/Repositories`.
+- Repository and query contracts belong only in `Application/<Module>/Ports`.
 - Domain cannot reference infrastructure concerns (DbContext, EF types, HTTP, etc.).
 
 ### Application
@@ -132,7 +138,7 @@ Every business module (Customers, Services, Vehicles, InventoryItems, Users, fut
 - Keep constructors defensive (`ArgumentNullException.ThrowIfNull` where needed).
 
 ## Security and Error Handling Standards
-- JWT and authorization policies are centralized under `Api/Security`.
+- JWT and authorization policies are centralized under `Adapters.Api/Security` and composed by `Host`.
 - Module route groups must apply required policies at group level.
 - Exception-to-HTTP mapping is centralized in `UseGarageFlowExceptionHandler`.
 - Do not leak internal exception detail for unexpected (`500`) errors.

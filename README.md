@@ -58,16 +58,19 @@ O GarageFlow foi organizado para combinar fronteiras claras entre camadas com um
 Direção das dependências:
 
 ```text
-Api -> Application -> Domain -> SharedKernel
-Infrastructure -> Application, Domain, SharedKernel
+Host
+  -> Adapters.Api -> Application -> Domain -> SharedKernel
+  -> Adapters.Infrastructure -> Application / Domain / SharedKernel
+  -> SharedKernel (mapeamento centralizado de exceções)
 ```
 
 Responsabilidades principais:
 
-- `Api`: endpoints HTTP, contratos de request/response, autenticação e autorização.
-- `Application`: casos de uso, comandos, queries, handlers e resultados.
-- `Domain`: entidades, value objects, eventos de domínio e contratos de repositório.
-- `Infrastructure`: EF Core, DbContext, migrations, configurações e repositórios.
+- `Host`: composição da aplicação, configuração, middleware, OpenAPI, autenticação, registro dos endpoints e mapeamento centralizado de exceções do `SharedKernel`.
+- `Adapters.Api`: endpoints HTTP, contratos de request/response, mapeamento HTTP e políticas de autorização.
+- `Application`: casos de uso, comandos, queries, handlers, portas, read models e resultados.
+- `Domain`: entidades, value objects, eventos de domínio, enums e invariantes de negócio.
+- `Adapters.Infrastructure`: EF Core, DbContext, migrations, configurações, repositórios, queries e integrações externas.
 - `SharedKernel`: primitivas compartilhadas, exceções, eventos e contratos genéricos.
 - `Tests`: projetos de testes unitários, integração e builders compartilhados.
 
@@ -287,7 +290,7 @@ Executar testes de integração:
 dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj
 ```
 
-Executar testes E2E reais (projeto fora da solution):
+Executar testes E2E reais:
 
 ```bash
 dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj
@@ -303,7 +306,7 @@ Executar testes E2E reais via script PowerShell:
 .\scripts\run-e2e.ps1
 ```
 
-Executar todos os testes da solution (unit + integration, sem E2E):
+Executar todos os testes da solution:
 
 ```bash
 dotnet test GarageFlow.slnx
@@ -312,17 +315,18 @@ dotnet test GarageFlow.slnx
 Observações:
 
 - Docker precisa estar em execução para os testes E2E, pois a suíte sobe PostgreSQL via Testcontainers.
-- O projeto `Tests/E2E/GarageFlow.Tests.E2E.csproj` fica fora do `GarageFlow.slnx`, então `dotnet test GarageFlow.slnx` continua Docker-free.
+- O projeto `Tests/E2E/GarageFlow.Tests.E2E.csproj` está incluído no `GarageFlow.slnx`, então `dotnet test GarageFlow.slnx` também exige Docker em execução.
 
 ## Estrutura do repositório
 
 ```text
 GarageFlow/
-|-- Api/
+|-- Adapters.Api/
+|-- Adapters.Infrastructure/
 |-- Application/
 |-- SharedKernel/
 |-- Domain/
-|-- Infrastructure/
+|-- Host/
 |-- scripts/
 |-- Tests/
 |   |-- E2E/

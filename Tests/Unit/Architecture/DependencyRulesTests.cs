@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Xml.Linq;
 using NetArchTest.Rules;
 
 namespace GarageFlow.Tests.Unit.Architecture;
@@ -8,14 +9,15 @@ public class DependencyRulesTests
 {
     private const string ApiNamespace = "GarageFlow.Adapters.Api";
     private const string ApplicationNamespace = "GarageFlow.Application";
-    private const string SharedKernelNamespace = "GarageFlow.SharedKernel";
     private const string DomainNamespace = "GarageFlow.Domain";
-    private const string InfrastructureNamespace = "GarageFlow.Adapters.Infrastructure";
     private const string HostNamespace = "GarageFlow.Host";
+    private const string InfrastructureNamespace = "GarageFlow.Adapters.Infrastructure";
+    private const string SharedKernelNamespace = "GarageFlow.SharedKernel";
+    private const string TestsNamespace = "GarageFlow.Tests";
     private static readonly string RepositoryRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     [Fact]
-    public void SharedKernel_ShouldNotDependOnBusinessLayers()
+    public void SharedKernel_ShouldNotDependOnAnyProductionProject()
     {
         var result = Types
             .InAssembly(LoadAssembly("GarageFlow.SharedKernel", "SharedKernel"))
@@ -26,52 +28,94 @@ public class DependencyRulesTests
                 ApiNamespace,
                 ApplicationNamespace,
                 DomainNamespace,
+                HostNamespace,
                 InfrastructureNamespace)
             .GetResult();
 
-        AssertRule(result, nameof(SharedKernel_ShouldNotDependOnBusinessLayers));
+        AssertRule(result, nameof(SharedKernel_ShouldNotDependOnAnyProductionProject));
     }
 
     [Fact]
-    public void Domain_ShouldNotDependOnApiOrApplicationOrInfrastructure()
+    public void Domain_ShouldOnlyDependOnSharedKernel()
     {
         var result = Types
             .InAssembly(LoadAssembly("GarageFlow.Domain", "Domain"))
             .That()
             .ResideInNamespaceStartingWith(DomainNamespace)
             .ShouldNot()
-            .HaveDependencyOnAny(ApiNamespace, ApplicationNamespace, InfrastructureNamespace)
+            .HaveDependencyOnAny(ApiNamespace, ApplicationNamespace, HostNamespace, InfrastructureNamespace)
             .GetResult();
 
-        AssertRule(result, nameof(Domain_ShouldNotDependOnApiOrApplicationOrInfrastructure));
+        AssertRule(result, nameof(Domain_ShouldOnlyDependOnSharedKernel));
     }
 
     [Fact]
-    public void Application_ShouldNotDependOnApiOrInfrastructure()
+    public void Application_ShouldOnlyDependOnDomainAndSharedKernel()
     {
         var result = Types
             .InAssembly(LoadAssembly("GarageFlow.Application", "Application"))
             .That()
             .ResideInNamespaceStartingWith(ApplicationNamespace)
             .ShouldNot()
-            .HaveDependencyOnAny(ApiNamespace, InfrastructureNamespace)
+            .HaveDependencyOnAny(ApiNamespace, HostNamespace, InfrastructureNamespace)
             .GetResult();
 
-        AssertRule(result, nameof(Application_ShouldNotDependOnApiOrInfrastructure));
+        AssertRule(result, nameof(Application_ShouldOnlyDependOnDomainAndSharedKernel));
     }
 
     [Fact]
-    public void Infrastructure_ShouldNotDependOnApiLayer()
+    public void ApiAdapter_ShouldOnlyDependOnApplication()
+    {
+        var result = Types
+            .InAssembly(LoadAssembly("GarageFlow.Adapters.Api", "Adapters.Api"))
+            .That()
+            .ResideInNamespaceStartingWith(ApiNamespace)
+            .ShouldNot()
+            .HaveDependencyOnAny(DomainNamespace, HostNamespace, InfrastructureNamespace, SharedKernelNamespace)
+            .GetResult();
+
+        AssertRule(result, nameof(ApiAdapter_ShouldOnlyDependOnApplication));
+    }
+
+    [Fact]
+    public void InfrastructureAdapter_ShouldOnlyDependOnApplicationDomainAndSharedKernel()
     {
         var result = Types
             .InAssembly(LoadAssembly("GarageFlow.Adapters.Infrastructure", "Adapters.Infrastructure"))
             .That()
             .ResideInNamespaceStartingWith(InfrastructureNamespace)
             .ShouldNot()
-            .HaveDependencyOnAny(ApiNamespace)
+            .HaveDependencyOnAny(ApiNamespace, HostNamespace)
             .GetResult();
 
-        AssertRule(result, nameof(Infrastructure_ShouldNotDependOnApiLayer));
+        AssertRule(result, nameof(InfrastructureAdapter_ShouldOnlyDependOnApplicationDomainAndSharedKernel));
+    }
+
+    [Fact]
+    public void Host_ShouldOnlyDependOnAllowedCompositionRootProjects()
+    {
+        var projectReferences = GetProjectReferences("Host", "GarageFlow.Host.csproj");
+        var allowedReferences = new[]
+        {
+            Path.Combine("Adapters.Api", "GarageFlow.Adapters.Api.csproj"),
+            Path.Combine("Adapters.Infrastructure", "GarageFlow.Adapters.Infrastructure.csproj"),
+            Path.Combine("Application", "GarageFlow.Application.csproj"),
+            Path.Combine("SharedKernel", "GarageFlow.SharedKernel.csproj")
+        };
+
+        Assert.Equal(
+            allowedReferences.Order(StringComparer.OrdinalIgnoreCase),
+            projectReferences.Order(StringComparer.OrdinalIgnoreCase));
+
+        var result = Types
+            .InAssembly(LoadAssembly("GarageFlow.Host", "Host"))
+            .That()
+            .ResideInNamespaceStartingWith(HostNamespace)
+            .ShouldNot()
+            .HaveDependencyOnAny(DomainNamespace, TestsNamespace)
+            .GetResult();
+
+        AssertRule(result, nameof(Host_ShouldOnlyDependOnAllowedCompositionRootProjects));
     }
 
     [Fact]
@@ -123,20 +167,6 @@ public class DependencyRulesTests
     }
 
     [Fact]
-    public void ApiAdapter_ShouldNotDependOnDomainInfrastructureHostOrSharedKernel()
-    {
-        var result = Types
-            .InAssembly(LoadAssembly("GarageFlow.Adapters.Api", "Adapters.Api"))
-            .That()
-            .ResideInNamespaceStartingWith(ApiNamespace)
-            .ShouldNot()
-            .HaveDependencyOnAny(DomainNamespace, InfrastructureNamespace, SharedKernelNamespace, HostNamespace)
-            .GetResult();
-
-        AssertRule(result, nameof(ApiAdapter_ShouldNotDependOnDomainInfrastructureHostOrSharedKernel));
-    }
-
-    [Fact]
     public void Api_SecurityTypes_ShouldNotDependOnDomainOrInfrastructure()
     {
         var result = Types
@@ -178,5 +208,20 @@ public class DependencyRulesTests
 
         Assert.True(candidates.Length > 0, $"Assembly '{assemblyName}' was not found under '{binPath}'.");
         return AssemblyLoadContext.Default.LoadFromAssemblyPath(candidates[0]);
+    }
+
+    private static string[] GetProjectReferences(string projectFolder, string projectFileName)
+    {
+        var projectFilePath = Path.Combine(RepositoryRoot, projectFolder, projectFileName);
+        var projectDirectory = Path.GetDirectoryName(projectFilePath);
+        Assert.True(projectDirectory is not null, $"Project directory was not found for '{projectFilePath}'.");
+
+        return XDocument.Load(projectFilePath)
+            .Descendants("ProjectReference")
+            .Select(reference => reference.Attribute("Include")?.Value)
+            .Where(include => !string.IsNullOrWhiteSpace(include))
+            .Select(include => Path.GetRelativePath(RepositoryRoot, Path.GetFullPath(include!, projectDirectory)))
+            .Select(include => include.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar))
+            .ToArray();
     }
 }

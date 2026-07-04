@@ -1,5 +1,7 @@
 # Revisão técnica da base GarageFlow (2026-04-28)
 
+> Documento histórico. Esta auditoria descreve o estado anterior à migração Clean Architecture/DDD modular executada em 2026-07-04. Para as regras arquiteturais vigentes, consulte `AGENTS.md`, `README.md` e os testes em `Tests/Unit/Architecture`.
+
 ## Escopo
 - Revisão estática de arquitetura, domínio, aplicação, API, infraestrutura e testes.
 - Sem execução de build/testes por limitação de ambiente (`dotnet` indisponível).

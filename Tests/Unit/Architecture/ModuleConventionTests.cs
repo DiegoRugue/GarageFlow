@@ -2,6 +2,16 @@ namespace GarageFlow.Tests.Unit.Architecture;
 
 public class ModuleConventionTests
 {
+    private static readonly string[] ForbiddenDomainTokens =
+    [
+        "Mediator",
+        "Microsoft.EntityFrameworkCore",
+        "Microsoft.AspNetCore",
+        "ReadModel",
+        "Dto",
+        "Repository"
+    ];
+
     private static readonly string[] BusinessModules =
     [
         "Customers",
@@ -131,6 +141,28 @@ public class ModuleConventionTests
         Assert.True(
             invalidPaths.Count == 0,
             $"Domain must not contain repository/read-model folders: {string.Join(", ", invalidPaths)}");
+    }
+
+    [Fact]
+    public void Domain_Files_ShouldNotContainApplicationOrAdapterTokens()
+    {
+        var domainPath = Path.Combine(RepositoryRoot, "Domain");
+        Assert.True(Directory.Exists(domainPath), $"Domain path was not found: {ToRelativePath(domainPath)}");
+
+        var invalidMatches = Directory
+            .GetFiles(domainPath, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file =>
+            {
+                var text = File.ReadAllText(file);
+                return ForbiddenDomainTokens
+                    .Where(token => text.Contains(token, StringComparison.Ordinal))
+                    .Select(token => $"{ToRelativePath(file)} contains '{token}'");
+            })
+            .ToArray();
+
+        Assert.True(
+            invalidMatches.Length == 0,
+            $"Domain files contain forbidden tokens: {string.Join(", ", invalidMatches)}");
     }
 
     [Fact]

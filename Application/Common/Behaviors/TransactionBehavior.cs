@@ -19,16 +19,6 @@ public sealed class TransactionBehavior<TMessage, TResponse>(
         MessageHandlerDelegate<TMessage, TResponse> next,
         CancellationToken cancellationToken)
     {
-        if (message is GarageFlow.Application.Common.Messaging.IManualTransactionCommand<TResponse>)
-        {
-            var manualResponse = await next(message, cancellationToken);
-            var manualDomainEvents = _unitOfWork.DequeueDomainEvents();
-
-            await _domainEventDispatcher.DispatchAsync(manualDomainEvents, cancellationToken);
-
-            return manualResponse;
-        }
-
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
         TResponse response;

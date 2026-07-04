@@ -124,42 +124,6 @@ public class TransactionBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_ShouldBypassPipelineTransactionAndDispatchDomainEvents_WhenCommandManagesTransactionManually()
-    {
-        var unitOfWorkMock = new Mock<IUnitOfWork>(MockBehavior.Strict);
-        var dispatcherMock = new Mock<IDomainEventDispatcher>(MockBehavior.Strict);
-        var domainEvents = new List<DomainEvent> { new TestDomainEvent() };
-
-        unitOfWorkMock
-            .Setup(x => x.DequeueDomainEvents())
-            .Returns(domainEvents);
-
-        dispatcherMock
-            .Setup(x => x.DispatchAsync(domainEvents, It.IsAny<CancellationToken>()))
-            .Returns(ValueTask.CompletedTask);
-
-        var behavior = new TransactionBehavior<ManualTransactionTestCommand, string>(
-            unitOfWorkMock.Object,
-            dispatcherMock.Object);
-        var nextCalled = false;
-        MessageHandlerDelegate<ManualTransactionTestCommand, string> next = (_, _) =>
-        {
-            nextCalled = true;
-            return new ValueTask<string>("manual");
-        };
-
-        var result = await behavior.Handle(new ManualTransactionTestCommand(), next, CancellationToken.None);
-
-        Assert.True(nextCalled);
-        Assert.Equal("manual", result);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.DequeueDomainEvents(), Times.Once);
-        dispatcherMock.Verify(x => x.DispatchAsync(domainEvents, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
     public async Task Handle_ShouldDispatchEventsCapturedBeforeCommit_WhenDeletedTrackedEntityEventsWouldDisappearAfterCommit()
     {
         var domainEvent = new TestDomainEvent();
@@ -186,8 +150,6 @@ public class TransactionBehaviorTests
     }
 
     private sealed record TestCommand : GarageFlow.Application.Common.Messaging.ICommand<string>;
-
-    private sealed record ManualTransactionTestCommand : IManualTransactionCommand<string>;
 
     private sealed record TestDomainEvent : DomainEvent;
 
