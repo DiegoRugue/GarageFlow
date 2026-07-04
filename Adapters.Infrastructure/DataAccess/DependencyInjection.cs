@@ -16,7 +16,6 @@ using GarageFlow.Adapters.Infrastructure.Users.Repositories;
 using GarageFlow.Adapters.Infrastructure.Vehicles.Repositories;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Email;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,30 +25,35 @@ namespace GarageFlow.Adapters.Infrastructure.DataAccess;
 
 public static class DependencyInjection
 {
-    public static WebApplicationBuilder AddGarageFlowDataAccess(this WebApplicationBuilder builder)
+    public static IServiceCollection AddGarageFlowInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
 
-        var databaseProvider = ResolveDatabaseProvider(builder.Configuration["Database:Provider"]);
+        var databaseProvider = ResolveDatabaseProvider(configuration["Database:Provider"]);
         var useInMemoryProvider =
             databaseProvider == "InMemory" ||
-            builder.Environment.IsEnvironment("IntegrationTests");
+            environment.IsEnvironment("IntegrationTests");
         if (useInMemoryProvider)
         {
-            var databaseName = builder.Configuration["Database:DatabaseName"];
+            var databaseName = configuration["Database:DatabaseName"];
             if (string.IsNullOrWhiteSpace(databaseName))
             {
                 databaseName = "garageflow";
             }
 
-            builder.Services.AddDbContext<GarageFlowDbContext>(options =>
+            services.AddDbContext<GarageFlowDbContext>(options =>
             {
                 options.UseInMemoryDatabase(databaseName);
             });
         }
         else
         {
-            var connectionString = builder.Configuration.GetConnectionString("GarageFlow");
+            var connectionString = configuration.GetConnectionString("GarageFlow");
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new InvalidOperationException(
@@ -57,28 +61,28 @@ public static class DependencyInjection
                     "Configure it via appsettings or the environment variable 'ConnectionStrings__GarageFlow'.");
             }
 
-            builder.Services.AddDbContext<GarageFlowDbContext>(options =>
+            services.AddDbContext<GarageFlowDbContext>(options =>
             {
                 options.UseNpgsql(connectionString);
             });
         }
 
-        builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
-        builder.Services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
-        builder.Services.AddScoped<IServiceRepository, ServiceRepository>();
-        builder.Services.AddScoped<IUserRepository, UserRepository>();
-        builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
-        builder.Services.AddScoped<IVehicleBrandRepository, VehicleBrandRepository>();
-        builder.Services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();
-        builder.Services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
-        builder.Services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
-        builder.Services.AddScoped<ICustomerApprovalEmailSender, LoggingCustomerApprovalEmailSender>();
-        builder.Services.AddScoped<IPasswordHashService, PasswordHashService>();
-        builder.Services.AddScoped<ITokenService, JwtTokenService>();
-        builder.Services.Configure<JwtTokenOptions>(builder.Configuration.GetSection(JwtTokenOptions.SectionName));
-        builder.Services.AddScoped<IUnitOfWork>(serviceProvider => serviceProvider.GetRequiredService<GarageFlowDbContext>());
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
+        services.AddScoped<IServiceRepository, ServiceRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IVehicleRepository, VehicleRepository>();
+        services.AddScoped<IVehicleBrandRepository, VehicleBrandRepository>();
+        services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();
+        services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
+        services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
+        services.AddScoped<ICustomerApprovalEmailSender, LoggingCustomerApprovalEmailSender>();
+        services.AddScoped<IPasswordHashService, PasswordHashService>();
+        services.AddScoped<ITokenService, JwtTokenService>();
+        services.Configure<JwtTokenOptions>(configuration.GetSection(JwtTokenOptions.SectionName));
+        services.AddScoped<IUnitOfWork>(serviceProvider => serviceProvider.GetRequiredService<GarageFlowDbContext>());
 
-        return builder;
+        return services;
     }
 
     private static string ResolveDatabaseProvider(string? configuredProvider)

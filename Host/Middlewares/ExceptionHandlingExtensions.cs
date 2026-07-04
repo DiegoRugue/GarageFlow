@@ -2,7 +2,7 @@ using GarageFlow.SharedKernel.Domain.Exceptions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 
-namespace GarageFlow.Adapters.Api.Middlewares;
+namespace GarageFlow.Host.Middlewares;
 
 public static class ExceptionHandlingExtensions
 {

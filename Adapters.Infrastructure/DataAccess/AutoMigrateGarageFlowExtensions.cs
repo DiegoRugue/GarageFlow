@@ -5,7 +5,6 @@ using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Adapters.Infrastructure.Auth;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,17 +18,24 @@ public static partial class AutoMigrateGarageFlowExtensions
 {
     private const string DefaultSeedScriptPath = "scripts/seed-local.sql";
 
-    public static WebApplication AutoMigrateGarageFlow(this WebApplication app)
+    public static IServiceProvider AutoMigrateGarageFlow(
+        this IServiceProvider serviceProvider,
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        string contentRootPath)
     {
-        ArgumentNullException.ThrowIfNull(app);
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentRootPath);
 
-        var shouldAutoMigrate = app.Configuration.GetValue<bool?>("Database:AutoMigrate") ?? app.Environment.IsDevelopment();
+        var shouldAutoMigrate = configuration.GetValue<bool?>("Database:AutoMigrate") ?? environment.IsDevelopment();
         if (!shouldAutoMigrate)
         {
-            return app;
+            return serviceProvider;
         }
 
-        using var scope = app.Services.CreateScope();
+        using var scope = serviceProvider.CreateScope();
         var logger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger(typeof(AutoMigrateGarageFlowExtensions));
@@ -44,15 +50,20 @@ public static partial class AutoMigrateGarageFlowExtensions
             dbContext.Database.EnsureCreated();
         }
 
-        EnsureBootstrapAdmin(scope.ServiceProvider, app.Configuration);
-        ApplyLocalSeed(app, dbContext, logger);
+        EnsureBootstrapAdmin(scope.ServiceProvider, configuration);
+        ApplyLocalSeed(configuration, environment, dbContext, logger, contentRootPath);
 
-        return app;
+        return serviceProvider;
     }
 
-    private static void ApplyLocalSeed(WebApplication app, GarageFlowDbContext dbContext, ILogger logger)
+    private static void ApplyLocalSeed(
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        GarageFlowDbContext dbContext,
+        ILogger logger,
+        string contentRootPath)
     {
-        var shouldAutoSeed = app.Configuration.GetValue<bool?>("Database:AutoSeed") ?? false;
+        var shouldAutoSeed = configuration.GetValue<bool?>("Database:AutoSeed") ?? false;
         if (!shouldAutoSeed)
         {
             LogLocalSeedDisabled(logger);
@@ -65,18 +76,18 @@ public static partial class AutoMigrateGarageFlowExtensions
             return;
         }
 
-        var configuredSeedScriptPath = app.Configuration["Database:SeedScriptPath"];
+        var configuredSeedScriptPath = configuration["Database:SeedScriptPath"];
         var seedScriptPath = string.IsNullOrWhiteSpace(configuredSeedScriptPath)
             ? DefaultSeedScriptPath
             : configuredSeedScriptPath;
 
-        if (!TryResolveSeedScriptPath(app.Environment.ContentRootPath, seedScriptPath, out var resolvedSeedScriptPath))
+        if (!TryResolveSeedScriptPath(contentRootPath, seedScriptPath, out var resolvedSeedScriptPath))
         {
-            LogLocalSeedMissingScript(logger, seedScriptPath, app.Environment.ContentRootPath);
+            LogLocalSeedMissingScript(logger, seedScriptPath, contentRootPath);
             throw new InvalidOperationException(
                 $"Database:AutoSeed is enabled, but the seed script was not found. " +
                 $"Set 'Database:SeedScriptPath' to a valid file or disable seeding with 'Database:AutoSeed=false'. " +
-                $"Configured path: '{seedScriptPath}'. Content root: '{app.Environment.ContentRootPath}'.");
+                $"Configured path: '{seedScriptPath}'. Content root: '{contentRootPath}'.");
         }
 
         dbContext.Database.ExecuteSqlRaw(File.ReadAllText(resolvedSeedScriptPath));

@@ -1,13 +1,13 @@
 using GarageFlow.Adapters.Api.Auth;
 using GarageFlow.Adapters.Api.Customers;
 using GarageFlow.Adapters.Api.InventoryItems;
-using GarageFlow.Adapters.Api.Middlewares;
 using GarageFlow.Adapters.Api.Security;
 using GarageFlow.Adapters.Api.Services;
 using GarageFlow.Adapters.Api.Users;
 using GarageFlow.Adapters.Api.Vehicles;
 using GarageFlow.Adapters.Api.WorkOrders;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Host.Middlewares;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,10 +18,10 @@ builder.Services.AddMediator(options =>
 });
 builder.Services.AddOpenApi();
 builder.AddGarageFlowAuthentication();
-builder.AddGarageFlowDataAccess();
+builder.Services.AddGarageFlowInfrastructure(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
-app.AutoMigrateGarageFlow();
+app.Services.AutoMigrateGarageFlow(app.Configuration, app.Environment, app.Environment.ContentRootPath);
 app.UseGarageFlowExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -45,3 +45,5 @@ app.MapInventoryItemEndpoints();
 app.MapWorkOrderEndpoints();
 
 await app.RunAsync();
+
+public partial class Program;
