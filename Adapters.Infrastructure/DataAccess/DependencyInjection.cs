@@ -68,9 +68,11 @@ public static class DependencyInjection
         }
 
         services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<IInventoryItemQueries, EfInventoryItemQueries>();
         services.AddScoped<IInventoryItemRepository, InventoryItemRepository>();
         services.AddScoped<IServiceRepository, ServiceRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IVehicleQueries, EfVehicleQueries>();
         services.AddScoped<IVehicleRepository, VehicleRepository>();
         services.AddScoped<IVehicleBrandRepository, VehicleBrandRepository>();
         services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();

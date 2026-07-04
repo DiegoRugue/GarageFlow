@@ -6,11 +6,11 @@ using Mediator;
 namespace GarageFlow.Application.InventoryItems.UseCases.ListInventoryItems;
 
 public sealed class ListInventoryItemsHandler(
-    IInventoryItemRepository inventoryItemRepository) : IRequestHandler<ListInventoryItemsQuery, ListInventoryItemsResult>
+    IInventoryItemQueries inventoryItemQueries) : IRequestHandler<ListInventoryItemsQuery, ListInventoryItemsResult>
 {
     private const int MaxPageSize = 100;
 
-    private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
+    private readonly IInventoryItemQueries _inventoryItemQueries = inventoryItemQueries ?? throw new ArgumentNullException(nameof(inventoryItemQueries));
 
     public async ValueTask<ListInventoryItemsResult> Handle(ListInventoryItemsQuery request, CancellationToken cancellationToken)
     {
@@ -29,7 +29,7 @@ public sealed class ListInventoryItemsHandler(
             throw new ValidationException($"PageSize cannot exceed {MaxPageSize}. Received: {request.PageSize}.");
         }
 
-        var (items, totalCount) = await _inventoryItemRepository.ListAsync(request.Page, request.PageSize, cancellationToken);
+        var (items, totalCount) = await _inventoryItemQueries.ListDetailsAsync(request.Page, request.PageSize, cancellationToken);
 
         if (totalCount == 0)
         {
@@ -41,13 +41,13 @@ public sealed class ListInventoryItemsHandler(
         }
 
         var dtos = items.Select(inventoryItem => new InventoryItemDto(
-            Id: inventoryItem.Id.Value,
-            Name: inventoryItem.Name.Value,
-            Description: inventoryItem.Description.Value,
+            Id: inventoryItem.Id,
+            Name: inventoryItem.Name,
+            Description: inventoryItem.Description,
             Type: inventoryItem.Type,
-            Cost: inventoryItem.Cost.Value,
-            Price: inventoryItem.Price.Value,
-            StockQuantity: inventoryItem.StockQuantity.Value,
+            Cost: inventoryItem.Cost,
+            Price: inventoryItem.Price,
+            StockQuantity: inventoryItem.StockQuantity,
             CreatedAt: inventoryItem.CreatedAt)).ToList();
 
         return new ListInventoryItemsResult(

@@ -249,8 +249,8 @@ public class VehicleHandlersTests
         var vehicleModel = VehicleModel.Create(vehicleBrand.Id, "Uno");
         var vehicleColor = VehicleColor.Create("Black");
         var vehicle = Vehicle.Create(customerId, 2024, vehicleBrand.Id, vehicleModel.Id, vehicleColor.Id, LicensePlate.Create("ABC1234"));
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock([vehicle], vehicleBrands: [vehicleBrand], vehicleModels: [vehicleModel], vehicleColors: [vehicleColor]);
-        var handler = new GetVehicleByIdHandler(vehicleRepositoryMock.Object);
+        var vehicleQueriesMock = CreateVehicleQueriesMock([vehicle], vehicleBrands: [vehicleBrand], vehicleModels: [vehicleModel], vehicleColors: [vehicleColor]);
+        var handler = new GetVehicleByIdHandler(vehicleQueriesMock.Object);
 
         var result = await handler.Handle(new GetVehicleByIdQuery(vehicle.Id.Value), CancellationToken.None);
 
@@ -270,8 +270,8 @@ public class VehicleHandlersTests
     [Fact]
     public async Task Handle_ShouldThrowNotFoundException_WhenVehicleDoesNotExist()
     {
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock();
-        var handler = new GetVehicleByIdHandler(vehicleRepositoryMock.Object);
+        var vehicleQueriesMock = CreateVehicleQueriesMock();
+        var handler = new GetVehicleByIdHandler(vehicleQueriesMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new GetVehicleByIdQuery(Guid.NewGuid()), CancellationToken.None));
@@ -287,12 +287,12 @@ public class VehicleHandlersTests
         var vehicleColor = VehicleColor.Create("Black");
         var firstVehicle = Vehicle.Create(firstCustomerId, 2024, vehicleBrand.Id, vehicleModel.Id, vehicleColor.Id, LicensePlate.Create("ABC1234"));
         var secondVehicle = Vehicle.Create(secondCustomerId, 2025, vehicleBrand.Id, vehicleModel.Id, vehicleColor.Id, LicensePlate.Create("XYZ1A23"));
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock(
+        var vehicleQueriesMock = CreateVehicleQueriesMock(
             [firstVehicle, secondVehicle],
             vehicleBrands: [vehicleBrand],
             vehicleModels: [vehicleModel],
             vehicleColors: [vehicleColor]);
-        var handler = new ListVehiclesHandler(vehicleRepositoryMock.Object);
+        var handler = new ListVehiclesHandler(vehicleQueriesMock.Object);
 
         var result = await handler.Handle(new ListVehiclesQuery(Page: 1, PageSize: 1), CancellationToken.None);
 
@@ -318,12 +318,12 @@ public class VehicleHandlersTests
         var vehicleColor = VehicleColor.Create("Black");
         var firstVehicle = Vehicle.Create(firstCustomerId, 2024, vehicleBrand.Id, vehicleModel.Id, vehicleColor.Id, LicensePlate.Create("ABC1234"));
         var secondVehicle = Vehicle.Create(secondCustomerId, 2025, vehicleBrand.Id, vehicleModel.Id, vehicleColor.Id, LicensePlate.Create("XYZ1A23"));
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock(
+        var vehicleQueriesMock = CreateVehicleQueriesMock(
             [firstVehicle, secondVehicle],
             vehicleBrands: [vehicleBrand],
             vehicleModels: [vehicleModel],
             vehicleColors: [vehicleColor]);
-        var handler = new ListVehiclesHandler(vehicleRepositoryMock.Object);
+        var handler = new ListVehiclesHandler(vehicleQueriesMock.Object);
 
         var result = await handler.Handle(
             new ListVehiclesQuery(Page: 1, PageSize: 10, CustomerId: firstCustomerId.Value),
@@ -345,8 +345,8 @@ public class VehicleHandlersTests
     [Fact]
     public async Task Handle_ShouldThrowValidationException_WhenCustomerIdIsEmptyInListQuery()
     {
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock();
-        var handler = new ListVehiclesHandler(vehicleRepositoryMock.Object);
+        var vehicleQueriesMock = CreateVehicleQueriesMock();
+        var handler = new ListVehiclesHandler(vehicleQueriesMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -357,8 +357,8 @@ public class VehicleHandlersTests
     [Fact]
     public async Task Handle_ShouldThrowValidationException_WhenPaginationBoundsAreInvalid()
     {
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock();
-        var handler = new ListVehiclesHandler(vehicleRepositoryMock.Object);
+        var vehicleQueriesMock = CreateVehicleQueriesMock();
+        var handler = new ListVehiclesHandler(vehicleQueriesMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(new ListVehiclesQuery(Page: 0, PageSize: 10), CancellationToken.None));
@@ -686,19 +686,6 @@ public class VehicleHandlersTests
             .ReturnsAsync((VehicleId id, CancellationToken _) => vehicles.FirstOrDefault(v => v.Id == id));
 
         repositoryMock
-            .Setup(x => x.GetDetailsByIdAsync(It.IsAny<VehicleId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((VehicleId id, CancellationToken _) =>
-            {
-                var vehicle = vehicles.FirstOrDefault(v => v.Id == id);
-                if (vehicle is null)
-                {
-                    return null;
-                }
-
-                return ToVehicleDetailsReadModel(vehicle, vehicleBrands, vehicleModels, vehicleColors);
-            });
-
-        repositoryMock
             .Setup(x => x.ListAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((int page, int pageSize, CancellationToken _) =>
             {
@@ -710,32 +697,6 @@ public class VehicleHandlersTests
 
                 return ((IReadOnlyList<Vehicle>)items, totalCount);
             });
-
-        repositoryMock
-            .Setup(x => x.ListDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((int page, int pageSize, CustomerId? customerId, CancellationToken _) =>
-            {
-                var filteredVehicles = vehicles
-                    .Where(vehicle => customerId == null || vehicle.CustomerId == customerId)
-                    .ToList();
-
-                var totalCount = filteredVehicles.Count;
-                var items = filteredVehicles
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(vehicle => ToVehicleDetailsReadModel(vehicle, vehicleBrands, vehicleModels, vehicleColors))
-                    .ToList();
-
-                return ((IReadOnlyList<VehicleDetailsReadModel>)items, totalCount);
-            });
-
-        repositoryMock
-            .Setup(x => x.ListDetailsByCustomerIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((CustomerId customerId, CancellationToken _) =>
-                vehicles
-                    .Where(vehicle => vehicle.CustomerId == customerId)
-                    .Select(vehicle => ToVehicleDetailsReadModel(vehicle, vehicleBrands, vehicleModels, vehicleColors))
-                    .ToList());
 
         repositoryMock
             .Setup(x => x.AddAsync(It.IsAny<Vehicle>(), It.IsAny<CancellationToken>()))
@@ -781,6 +742,60 @@ public class VehicleHandlersTests
             .Callback((Vehicle vehicle) => vehicles.RemoveAll(v => v.Id == vehicle.Id));
 
         return repositoryMock;
+    }
+
+    private static Mock<IVehicleQueries> CreateVehicleQueriesMock(
+        List<Vehicle>? initialVehicles = null,
+        List<VehicleBrand>? vehicleBrands = null,
+        List<VehicleModel>? vehicleModels = null,
+        List<VehicleColor>? vehicleColors = null)
+    {
+        var vehicles = initialVehicles ?? [];
+        vehicleBrands ??= [];
+        vehicleModels ??= [];
+        vehicleColors ??= [];
+        var queriesMock = new Mock<IVehicleQueries>();
+
+        queriesMock
+            .Setup(x => x.GetDetailsByIdAsync(It.IsAny<VehicleId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((VehicleId id, CancellationToken _) =>
+            {
+                var vehicle = vehicles.FirstOrDefault(v => v.Id == id);
+                if (vehicle is null)
+                {
+                    return null;
+                }
+
+                return ToVehicleDetailsReadModel(vehicle, vehicleBrands, vehicleModels, vehicleColors);
+            });
+
+        queriesMock
+            .Setup(x => x.ListDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int page, int pageSize, CustomerId? customerId, CancellationToken _) =>
+            {
+                var filteredVehicles = vehicles
+                    .Where(vehicle => customerId == null || vehicle.CustomerId == customerId)
+                    .ToList();
+
+                var totalCount = filteredVehicles.Count;
+                var items = filteredVehicles
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(vehicle => ToVehicleDetailsReadModel(vehicle, vehicleBrands, vehicleModels, vehicleColors))
+                    .ToList();
+
+                return ((IReadOnlyList<VehicleDetailsReadModel>)items, totalCount);
+            });
+
+        queriesMock
+            .Setup(x => x.ListDetailsByCustomerIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CustomerId customerId, CancellationToken _) =>
+                vehicles
+                    .Where(vehicle => vehicle.CustomerId == customerId)
+                    .Select(vehicle => ToVehicleDetailsReadModel(vehicle, vehicleBrands, vehicleModels, vehicleColors))
+                    .ToList());
+
+        return queriesMock;
     }
 
     private static VehicleDetailsReadModel ToVehicleDetailsReadModel(

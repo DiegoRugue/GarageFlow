@@ -1,4 +1,3 @@
-using GarageFlow.Application.InventoryItems.ReadModels;
 using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 
@@ -15,11 +14,6 @@ public interface IInventoryItemRepository
         CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyList<InventoryItem> Items, int TotalCount)> ListAsync(
-        int page,
-        int pageSize,
-        CancellationToken cancellationToken = default);
-
-    Task<(IReadOnlyList<InventoryItemDetailsReadModel> Items, int TotalCount)> ListDetailsAsync(
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

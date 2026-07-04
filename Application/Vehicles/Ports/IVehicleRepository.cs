@@ -1,4 +1,3 @@
-using GarageFlow.Application.Vehicles.ReadModels;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
 using GarageFlow.Domain.Vehicles.ValueObjects;
@@ -9,23 +8,9 @@ public interface IVehicleRepository
 {
     Task<Vehicle?> GetByIdAsync(VehicleId id, CancellationToken cancellationToken = default);
 
-    Task<VehicleDetailsReadModel?> GetDetailsByIdAsync(
-        VehicleId id,
-        CancellationToken cancellationToken = default);
-
     Task<(IReadOnlyList<Vehicle> Items, int TotalCount)> ListAsync(
         int page,
         int pageSize,
-        CancellationToken cancellationToken = default);
-
-    Task<(IReadOnlyList<VehicleDetailsReadModel> Items, int TotalCount)> ListDetailsAsync(
-        int page,
-        int pageSize,
-        CustomerId? customerId = null,
-        CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<VehicleDetailsReadModel>> ListDetailsByCustomerIdAsync(
-        CustomerId customerId,
         CancellationToken cancellationToken = default);
 
     Task AddAsync(Vehicle vehicle, CancellationToken cancellationToken = default);

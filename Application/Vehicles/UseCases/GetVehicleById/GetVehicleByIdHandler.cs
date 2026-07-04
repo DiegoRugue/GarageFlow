@@ -6,14 +6,14 @@ using Mediator;
 namespace GarageFlow.Application.Vehicles.UseCases.GetVehicleById;
 
 public sealed class GetVehicleByIdHandler(
-    IVehicleRepository vehicleRepository) : IRequestHandler<GetVehicleByIdQuery, VehicleDto>
+    IVehicleQueries vehicleQueries) : IRequestHandler<GetVehicleByIdQuery, VehicleDto>
 {
-    private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
+    private readonly IVehicleQueries _vehicleQueries = vehicleQueries ?? throw new ArgumentNullException(nameof(vehicleQueries));
 
     public async ValueTask<VehicleDto> Handle(GetVehicleByIdQuery request, CancellationToken cancellationToken)
     {
         var vehicleId = VehicleId.From(request.Id);
-        var vehicle = await _vehicleRepository.GetDetailsByIdAsync(vehicleId, cancellationToken);
+        var vehicle = await _vehicleQueries.GetDetailsByIdAsync(vehicleId, cancellationToken);
 
         if (vehicle is null)
         {

@@ -8,10 +8,10 @@ namespace GarageFlow.Application.Customers.UseCases.GetCustomerById;
 
 public sealed class GetCustomerByIdHandler(
     ICustomerRepository customerRepository,
-    IVehicleRepository vehicleRepository) : IRequestHandler<GetCustomerByIdQuery, CustomerDto>
+    IVehicleQueries vehicleQueries) : IRequestHandler<GetCustomerByIdQuery, CustomerDto>
 {
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
-    private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
+    private readonly IVehicleQueries _vehicleQueries = vehicleQueries ?? throw new ArgumentNullException(nameof(vehicleQueries));
 
     public async ValueTask<CustomerDto> Handle(GetCustomerByIdQuery request, CancellationToken cancellationToken)
     {
@@ -23,7 +23,7 @@ public sealed class GetCustomerByIdHandler(
             throw new NotFoundException($"Customer with ID '{request.Id}' was not found.");
         }
 
-        var vehicleDtos = (await _vehicleRepository.ListDetailsByCustomerIdAsync(customerId, cancellationToken))
+        var vehicleDtos = (await _vehicleQueries.ListDetailsByCustomerIdAsync(customerId, cancellationToken))
             .Select(vehicle => new CustomerVehicleDto(
                 Id: vehicle.Id,
                 Year: vehicle.Year,

@@ -164,7 +164,7 @@ public class ModuleConventionTests
             {
                 var repositoryFiles = Directory.GetFiles(repositoryPath, "*.cs", SearchOption.TopDirectoryOnly);
                 invalidFiles.AddRange(repositoryFiles
-                    .Where(file => !file.EndsWith("Repository.cs", StringComparison.Ordinal))
+                    .Where(file => !HasAnySuffix(file, "Repository.cs", "Queries.cs"))
                     .Select(ToRelativePath));
             }
         }

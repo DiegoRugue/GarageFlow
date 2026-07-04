@@ -53,9 +53,9 @@ public class CustomerHandlersTests
     {
         var customer = new CustomerBuilder().Build();
         var repositoryMock = CreateRepositoryMock([customer]);
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock([]);
+        var vehicleQueriesMock = CreateVehicleQueriesMock([]);
 
-        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
+        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleQueriesMock.Object);
         var query = new GetCustomerByIdQuery(customer.Id.Value);
 
         var result = await handler.Handle(query, CancellationToken.None);
@@ -93,8 +93,8 @@ public class CustomerHandlersTests
                 Plate: "ABC1234",
                 CreatedAt: DateTime.UtcNow)
         };
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock(vehicles);
-        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
+        var vehicleQueriesMock = CreateVehicleQueriesMock(vehicles);
+        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleQueriesMock.Object);
         var query = new GetCustomerByIdQuery(customer.Id.Value);
 
         var result = await handler.Handle(query, CancellationToken.None);
@@ -261,21 +261,28 @@ public class CustomerHandlersTests
     }
 
     private static Mock<IVehicleRepository> CreateVehicleRepositoryMock(
-        IReadOnlyList<VehicleDetailsReadModel>? initialVehicles = null,
         bool existsByCustomerId = false)
     {
         var repositoryMock = new Mock<IVehicleRepository>();
-        var vehicles = initialVehicles ?? [];
 
         repositoryMock
             .Setup(x => x.ExistsByCustomerIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existsByCustomerId);
 
-        repositoryMock
+        return repositoryMock;
+    }
+
+    private static Mock<IVehicleQueries> CreateVehicleQueriesMock(
+        IReadOnlyList<VehicleDetailsReadModel>? initialVehicles = null)
+    {
+        var queriesMock = new Mock<IVehicleQueries>();
+        var vehicles = initialVehicles ?? [];
+
+        queriesMock
             .Setup(x => x.ListDetailsByCustomerIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(vehicles);
 
-        return repositoryMock;
+        return queriesMock;
     }
 
     private static Mock<IUnitOfWork> CreateUnitOfWorkMock()

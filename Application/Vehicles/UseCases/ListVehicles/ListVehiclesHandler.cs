@@ -7,11 +7,11 @@ using Mediator;
 namespace GarageFlow.Application.Vehicles.UseCases.ListVehicles;
 
 public sealed class ListVehiclesHandler(
-    IVehicleRepository vehicleRepository) : IRequestHandler<ListVehiclesQuery, ListVehiclesResult>
+    IVehicleQueries vehicleQueries) : IRequestHandler<ListVehiclesQuery, ListVehiclesResult>
 {
     private const int MaxPageSize = 100;
 
-    private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
+    private readonly IVehicleQueries _vehicleQueries = vehicleQueries ?? throw new ArgumentNullException(nameof(vehicleQueries));
 
     public async ValueTask<ListVehiclesResult> Handle(ListVehiclesQuery request, CancellationToken cancellationToken)
     {
@@ -39,7 +39,7 @@ public sealed class ListVehiclesHandler(
             ? CustomerId.From(request.CustomerId.Value)
             : null;
 
-        var (items, totalCount) = await _vehicleRepository.ListDetailsAsync(
+        var (items, totalCount) = await _vehicleQueries.ListDetailsAsync(
             request.Page,
             request.PageSize,
             customerId,

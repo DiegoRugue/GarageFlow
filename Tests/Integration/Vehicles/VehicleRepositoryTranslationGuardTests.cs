@@ -52,8 +52,8 @@ public sealed class VehicleRepositoryTranslationGuardTests
     public void VehicleDetailsQuery_ShouldTranslate_WhenCreatedWithCustomerIdFilter()
     {
         using var dbContext = CreateNpgsqlDbContext();
-        var repository = new VehicleRepository(dbContext);
-        var method = typeof(VehicleRepository).GetMethod(
+        var queries = new EfVehicleQueries(dbContext);
+        var method = typeof(EfVehicleQueries).GetMethod(
             "CreateVehicleDetailsQuery",
             BindingFlags.NonPublic | BindingFlags.Instance);
         var customerId = CustomerId.New();
@@ -61,7 +61,7 @@ public sealed class VehicleRepositoryTranslationGuardTests
         Assert.NotNull(method);
 
         var query = Assert.IsType<IQueryable<VehicleDetailsReadModel>>(
-            method!.Invoke(repository, new object?[] { null, customerId }),
+            method!.Invoke(queries, new object?[] { null, customerId }),
             exactMatch: false);
 
         var sql = query.ToQueryString();
@@ -74,8 +74,8 @@ public sealed class VehicleRepositoryTranslationGuardTests
     public void VehicleDetailsQuery_ShouldTranslate_WhenCreatedWithVehicleIdFilter()
     {
         using var dbContext = CreateNpgsqlDbContext();
-        var repository = new VehicleRepository(dbContext);
-        var method = typeof(VehicleRepository).GetMethod(
+        var queries = new EfVehicleQueries(dbContext);
+        var method = typeof(EfVehicleQueries).GetMethod(
             "CreateVehicleDetailsQuery",
             BindingFlags.NonPublic | BindingFlags.Instance);
         var vehicleId = VehicleId.New();
@@ -83,7 +83,7 @@ public sealed class VehicleRepositoryTranslationGuardTests
         Assert.NotNull(method);
 
         var query = Assert.IsType<IQueryable<VehicleDetailsReadModel>>(
-            method!.Invoke(repository, new object?[] { vehicleId, null }),
+            method!.Invoke(queries, new object?[] { vehicleId, null }),
             exactMatch: false);
 
         var sql = query.ToQueryString();

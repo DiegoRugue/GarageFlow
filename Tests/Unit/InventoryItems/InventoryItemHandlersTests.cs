@@ -9,6 +9,7 @@ using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.InventoryItems.Enums;
 using GarageFlow.Application.InventoryItems.Ports;
+using GarageFlow.Application.InventoryItems.ReadModels;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using GarageFlow.Tests.Shared.InventoryItems;
 using Mediator;
@@ -187,8 +188,8 @@ public class InventoryItemHandlersTests
             .WithStockQuantity(100)
             .Build();
 
-        var repositoryMock = CreateInventoryItemRepositoryMock([firstItem, secondItem]);
-        var handler = new ListInventoryItemsHandler(repositoryMock.Object);
+        var queriesMock = CreateInventoryItemQueriesMock([firstItem, secondItem]);
+        var handler = new ListInventoryItemsHandler(queriesMock.Object);
 
         var result = await handler.Handle(new ListInventoryItemsQuery(Page: 1, PageSize: 1), CancellationToken.None);
 
@@ -203,8 +204,8 @@ public class InventoryItemHandlersTests
     [Fact]
     public async Task Handle_ShouldThrowValidationException_WhenPaginationBoundsAreInvalid()
     {
-        var repositoryMock = CreateInventoryItemRepositoryMock();
-        var handler = new ListInventoryItemsHandler(repositoryMock.Object);
+        var queriesMock = CreateInventoryItemQueriesMock();
+        var handler = new ListInventoryItemsHandler(queriesMock.Object);
 
         await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(new ListInventoryItemsQuery(Page: 0, PageSize: 10), CancellationToken.None));
@@ -531,6 +532,36 @@ public class InventoryItemHandlersTests
             .Callback((InventoryItem item) => inventoryItems.RemoveAll(i => i.Id == item.Id));
 
         return repositoryMock;
+    }
+
+    private static Mock<IInventoryItemQueries> CreateInventoryItemQueriesMock(List<InventoryItem>? initialInventoryItems = null)
+    {
+        var inventoryItems = initialInventoryItems ?? [];
+        var queriesMock = new Mock<IInventoryItemQueries>();
+
+        queriesMock
+            .Setup(x => x.ListDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int page, int pageSize, CancellationToken _) =>
+            {
+                var totalCount = inventoryItems.Count;
+                var items = inventoryItems
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(item => new InventoryItemDetailsReadModel(
+                        item.Id.Value,
+                        item.Name.Value,
+                        item.Description.Value,
+                        item.Type,
+                        item.Cost.Value,
+                        item.Price.Value,
+                        item.StockQuantity.Value,
+                        item.CreatedAt))
+                    .ToList();
+
+                return ((IReadOnlyList<InventoryItemDetailsReadModel>)items, totalCount);
+            });
+
+        return queriesMock;
     }
 
     private static Mock<IUnitOfWork> CreateUnitOfWorkMock()
