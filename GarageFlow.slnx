@@ -15,6 +15,9 @@
     <Project Path="Infrastructure/GarageFlow.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/Tests/" />
+  <Folder Name="/Tests/E2E/">
+    <Project Path="Tests/E2E/GarageFlow.Tests.E2E.csproj" />
+  </Folder>
   <Folder Name="/Tests/Integration/">
     <Project Path="Tests/Integration/GarageFlow.Tests.Integration.csproj" />
   </Folder>
