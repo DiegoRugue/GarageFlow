@@ -360,6 +360,42 @@ public class WorkOrderTests
     }
 
     [Fact]
+    public void SubmitEstimate_ShouldRaiseWaitingApprovalRequestedEvent_WhenTransitioningToWaitingApproval()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+
+        workOrder.SubmitEstimate(estimate.Id);
+
+        var domainEvent = Assert.Single(workOrder.DomainEvents.OfType<EstimateWaitingApprovalRequested>());
+        Assert.Equal(workOrder.Id, domainEvent.WorkOrderId);
+        Assert.Equal(estimate.Id, domainEvent.EstimateId);
+        Assert.Equal(workOrder.CustomerId, domainEvent.CustomerId);
+    }
+
+    [Fact]
+    public void SubmitEstimate_ShouldNotRaiseWaitingApprovalRequestedEvent_WhenAlreadyWaitingApproval()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var firstEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, firstEstimate.Id);
+        workOrder.SubmitEstimate(firstEstimate.Id);
+        var waitingApprovalEventsBeforeSecondSubmission = workOrder.DomainEvents
+            .OfType<EstimateWaitingApprovalRequested>()
+            .Count();
+        var secondEstimate = workOrder.CreateEstimate();
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, secondEstimate.Id);
+
+        workOrder.SubmitEstimate(secondEstimate.Id);
+
+        Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
+        Assert.Equal(
+            waitingApprovalEventsBeforeSecondSubmission,
+            workOrder.DomainEvents.OfType<EstimateWaitingApprovalRequested>().Count());
+    }
+
+    [Fact]
     public void CreateEstimate_ShouldCreateDraftEstimate()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();

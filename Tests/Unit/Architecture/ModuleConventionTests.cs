@@ -230,6 +230,11 @@ public class ModuleConventionTests
             return true;
         }
 
+        if (pathSegments.Contains("Events") && HasAnySuffix(filePath, "Handler.cs"))
+        {
+            return true;
+        }
+
         if (pathSegments.Contains("Abstractions") && Path.GetFileName(filePath).StartsWith('I'))
         {
             return true;

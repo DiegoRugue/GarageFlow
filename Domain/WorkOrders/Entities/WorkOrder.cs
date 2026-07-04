@@ -124,8 +124,18 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         var estimate = GetEstimateOrThrow(estimateId);
         EnsureStatusAllowsEstimateSubmission();
         EnsureEstimateCanBeSubmitted(estimate);
+        var previousStatus = Status;
         AdvanceStatusForEstimateSubmission();
         estimate.Submit();
+
+        if (previousStatus != WorkOrderStatus.WaitingApproval && Status == WorkOrderStatus.WaitingApproval)
+        {
+            RaiseDomainEvent(new EstimateWaitingApprovalRequested(
+                WorkOrderId: Id,
+                EstimateId: estimate.Id,
+                CustomerId: CustomerId,
+                RequestedAt: DateTime.UtcNow));
+        }
 
         UpdatedAt = DateTime.UtcNow;
 

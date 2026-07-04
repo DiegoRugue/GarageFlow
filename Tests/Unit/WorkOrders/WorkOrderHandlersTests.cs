@@ -1,4 +1,6 @@
+using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.WorkOrders.Common;
+using GarageFlow.Application.WorkOrders.Events;
 using GarageFlow.Application.WorkOrders.Abstractions;
 using GarageFlow.Application.WorkOrders.UseCases.AddEstimateInventoryItem;
 using GarageFlow.Application.WorkOrders.UseCases.AddEstimateService;
@@ -39,6 +41,7 @@ using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.Enums;
+using GarageFlow.Domain.WorkOrders.Events;
 using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Application.WorkOrders.ReadModels;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
@@ -49,6 +52,7 @@ using GarageFlow.Tests.Shared.Users;
 using GarageFlow.Tests.Shared.Vehicles;
 using GarageFlow.Tests.Shared.WorkOrders;
 using Mediator;
+using Microsoft.Extensions.Logging;
 using Moq;
 using MediatorUnit = Mediator.Unit;
 
@@ -426,12 +430,7 @@ public class WorkOrderHandlersTests
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
         WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var handler = new SubmitEstimateHandler(
-            workOrderRepositoryMock.Object,
-            unitOfWorkMock.Object,
-            emailSenderMock.Object);
+        var handler = new SubmitEstimateHandler(workOrderRepositoryMock.Object);
 
         var result = await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
 
@@ -448,29 +447,13 @@ public class WorkOrderHandlersTests
         WorkOrderBuilder.AddDefaultInventoryLine(workOrder, estimate.Id);
         WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var sequence = new MockSequence();
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-
-        unitOfWorkMock
-
-            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
 
         workOrderRepositoryMock
 
             .Setup(x => x.GetByIdForEstimateMutationAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(workOrder);
 
-        unitOfWorkMock
-
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        var handler = new SubmitEstimateHandler(
-            workOrderRepositoryMock.Object,
-            unitOfWorkMock.Object,
-            emailSenderMock.Object);
+        var handler = new SubmitEstimateHandler(workOrderRepositoryMock.Object);
 
         await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
 
@@ -555,177 +538,75 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
-    public async Task SubmitEstimate_ShouldSendApprovalEmail_WhenWorkOrderMovesToWaitingApproval()
+    public async Task WaitingApprovalHandler_ShouldSendApprovalEmail()
     {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        var estimate = workOrder.CreateEstimate();
-        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
         var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        emailSenderMock
-            .Setup(x => x.SendEstimateWaitingApprovalAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        var handler = new SubmitEstimateHandler(
-            workOrderRepositoryMock.Object,
-            unitOfWorkMock.Object,
-            emailSenderMock.Object);
+        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
+        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
+        var domainEvent = new EstimateWaitingApprovalRequested(
+            WorkOrderId.From(Guid.NewGuid()),
+            EstimateId.From(Guid.NewGuid()),
+            CustomerId.From(Guid.NewGuid()),
+            DateTime.UtcNow);
 
-        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
+        await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None);
 
         emailSenderMock.Verify(
             x => x.SendEstimateWaitingApprovalAsync(
-                workOrder.Id.Value,
-                estimate.Id.Value,
-                workOrder.CustomerId.Value,
+                domainEvent.WorkOrderId.Value,
+                domainEvent.EstimateId.Value,
+                domainEvent.CustomerId.Value,
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task SubmitEstimate_ShouldCommitBeforeSendingApprovalEmail_WhenWorkOrderMovesToWaitingApproval()
+    public async Task WaitingApprovalHandler_ShouldNotThrow_WhenEmailSenderFails()
     {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        var estimate = workOrder.CreateEstimate();
-        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
         var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var hasCommittedTransaction = false;
-
-        unitOfWorkMock
-            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        workOrderRepositoryMock
-            .Setup(x => x.GetByIdForEstimateMutationAsync(It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(workOrder);
-
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .Callback(() => hasCommittedTransaction = true)
-            .Returns(Task.CompletedTask);
-
+        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
+        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
+        var domainEvent = new EstimateWaitingApprovalRequested(
+            WorkOrderId.From(Guid.NewGuid()),
+            EstimateId.From(Guid.NewGuid()),
+            CustomerId.From(Guid.NewGuid()),
+            DateTime.UtcNow);
         emailSenderMock
             .Setup(x => x.SendEstimateWaitingApprovalAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
+                domainEvent.WorkOrderId.Value,
+                domainEvent.EstimateId.Value,
+                domainEvent.CustomerId.Value,
                 It.IsAny<CancellationToken>()))
-            .Callback(() => Assert.True(hasCommittedTransaction))
-            .Returns(Task.CompletedTask);
+            .ThrowsAsync(new InvalidOperationException("Email sender failed."));
 
-        var handler = new SubmitEstimateHandler(
-            workOrderRepositoryMock.Object,
-            unitOfWorkMock.Object,
-            emailSenderMock.Object);
+        var exception = await Record.ExceptionAsync(
+            async () => await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None));
 
-        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value), CancellationToken.None);
+        Assert.Null(exception);
         emailSenderMock.Verify(
             x => x.SendEstimateWaitingApprovalAsync(
-                workOrder.Id.Value,
-                estimate.Id.Value,
-                workOrder.CustomerId.Value,
+                domainEvent.WorkOrderId.Value,
+                domainEvent.EstimateId.Value,
+                domainEvent.CustomerId.Value,
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task SubmitEstimate_ShouldNotSendApprovalEmail_WhenCommitFails()
+    public async Task WaitingApprovalHandler_ShouldIgnoreNonMatchingDomainEvent()
     {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        var estimate = workOrder.CreateEstimate();
-        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
         var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
+        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
+        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
+        var domainEvent = new EstimateSubmitted(
+            WorkOrderId.From(Guid.NewGuid()),
+            EstimateId.From(Guid.NewGuid()),
+            EstimateStatus.Pending,
+            125m,
+            DateTime.UtcNow);
 
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Commit failed"));
+        await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None);
 
-        var handler = new SubmitEstimateHandler(
-            workOrderRepositoryMock.Object,
-            unitOfWorkMock.Object,
-            emailSenderMock.Object);
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await handler.Handle(
-                new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
-                CancellationToken.None));
-
-        Assert.Equal("Commit failed", exception.Message);
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
-    public async Task SubmitEstimate_ShouldNotRollback_WhenApprovalEmailSendFailsAfterCommit()
-    {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        var estimate = workOrder.CreateEstimate();
-        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-
-        emailSenderMock
-            .Setup(x => x.SendEstimateWaitingApprovalAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Email send failed"));
-
-        var handler = new SubmitEstimateHandler(
-            workOrderRepositoryMock.Object,
-            unitOfWorkMock.Object,
-            emailSenderMock.Object);
-
-        var result = await handler.Handle(
-            new SubmitEstimateCommand(workOrder.Id.Value, estimate.Id.Value),
-            CancellationToken.None);
-
-        Assert.Equal(MediatorUnit.Value, result);
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task SubmitEstimate_ShouldNotSendApprovalEmail_WhenWorkOrderWasAlreadyWaitingApproval()
-    {
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        var firstEstimate = workOrder.CreateEstimate();
-        WorkOrderBuilder.AddDefaultServiceLine(workOrder, firstEstimate.Id);
-        workOrder.SubmitEstimate(firstEstimate.Id);
-        var secondEstimate = workOrder.CreateEstimate();
-        WorkOrderBuilder.AddDefaultServiceLine(workOrder, secondEstimate.Id);
-
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var handler = new SubmitEstimateHandler(
-            workOrderRepositoryMock.Object,
-            unitOfWorkMock.Object,
-            emailSenderMock.Object);
-
-        await handler.Handle(new SubmitEstimateCommand(workOrder.Id.Value, secondEstimate.Id.Value), CancellationToken.None);
-
-        Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
         emailSenderMock.Verify(
             x => x.SendEstimateWaitingApprovalAsync(
                 It.IsAny<Guid>(),
