@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IVehicleBrandRepository, VehicleBrandRepository>();
         services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();
         services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
+        services.AddScoped<IWorkOrderQueries, EfWorkOrderQueries>();
         services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
         services.AddScoped<ICustomerApprovalEmailSender, LoggingCustomerApprovalEmailSender>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();

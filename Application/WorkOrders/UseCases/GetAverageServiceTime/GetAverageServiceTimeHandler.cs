@@ -6,9 +6,9 @@ using Mediator;
 namespace GarageFlow.Application.WorkOrders.UseCases.GetAverageServiceTime;
 
 public sealed class GetAverageServiceTimeHandler(
-    IWorkOrderRepository workOrderRepository) : IRequestHandler<GetAverageServiceTimeQuery, GetAverageServiceTimeResult>
+    IWorkOrderQueries workOrderQueries) : IRequestHandler<GetAverageServiceTimeQuery, GetAverageServiceTimeResult>
 {
-    private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
+    private readonly IWorkOrderQueries _workOrderQueries = workOrderQueries ?? throw new ArgumentNullException(nameof(workOrderQueries));
 
     public async ValueTask<GetAverageServiceTimeResult> Handle(GetAverageServiceTimeQuery request, CancellationToken cancellationToken)
     {
@@ -19,7 +19,7 @@ public sealed class GetAverageServiceTimeHandler(
 
         var serviceId = request.ServiceId.HasValue ? ServiceId.From(request.ServiceId.Value) : (ServiceId?)null;
 
-        var averageServiceTime = await _workOrderRepository.GetAverageServiceTimeAsync(
+        var averageServiceTime = await _workOrderQueries.GetAverageServiceTimeAsync(
             request.From,
             request.To,
             serviceId,

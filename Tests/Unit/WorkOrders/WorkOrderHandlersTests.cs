@@ -1217,10 +1217,10 @@ public class WorkOrderHandlersTests
             ]);
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(customerDetailsById: [details]);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(customerDetailsById: [details]);
         var handler = new GetMyWorkOrderByIdHandler(
             userRepositoryMock.Object,
-            workOrderRepositoryMock.Object);
+            workOrderQueriesMock.Object);
 
         var result = await handler.Handle(
             new GetMyWorkOrderByIdQuery(user.Id.Value, workOrderId),
@@ -1254,8 +1254,8 @@ public class WorkOrderHandlersTests
             .ToList();
         var expectedWorkOrderId = pagedDetails[^1].Id;
         var userRepositoryMock = CreateUserRepositoryMock([user]);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(customerDetailsList: pagedDetails);
-        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderRepositoryMock.Object);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(customerDetailsList: pagedDetails);
+        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderQueriesMock.Object);
 
         var result = await handler.Handle(
             new ListMyWorkOrdersQuery(user.Id.Value, Page: 2, PageSize: 5),
@@ -1266,7 +1266,7 @@ public class WorkOrderHandlersTests
         Assert.Equal(6, result.TotalCount);
         Assert.Equal(2, result.Page);
         Assert.Equal(5, result.PageSize);
-        workOrderRepositoryMock.Verify(
+        workOrderQueriesMock.Verify(
             x => x.ListCustomerDetailsAsync(2, 5, customerId, It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -1280,8 +1280,8 @@ public class WorkOrderHandlersTests
             .Build();
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
-        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderRepositoryMock.Object);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock();
+        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderQueriesMock.Object);
 
         var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
             async () => await handler.Handle(
@@ -1289,7 +1289,7 @@ public class WorkOrderHandlersTests
                 CancellationToken.None));
 
         Assert.Equal("Authenticated user is not a customer user.", exception.Message);
-        workOrderRepositoryMock.Verify(
+        workOrderQueriesMock.Verify(
             x => x.ListCustomerDetailsAsync(
                 It.IsAny<int>(),
                 It.IsAny<int>(),
@@ -1399,8 +1399,8 @@ public class WorkOrderHandlersTests
                     ])
             ]);
 
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(detailsById: [details]);
-        var handler = new GetWorkOrderByIdHandler(workOrderRepositoryMock.Object);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(detailsById: [details]);
+        var handler = new GetWorkOrderByIdHandler(workOrderQueriesMock.Object);
 
         var result = await handler.Handle(new GetWorkOrderByIdQuery(workOrderId), CancellationToken.None);
 
@@ -1415,8 +1415,8 @@ public class WorkOrderHandlersTests
     public async Task GetWorkOrderById_ShouldThrowNotFoundException_WhenWorkOrderDoesNotExist()
     {
         var workOrderId = Guid.NewGuid();
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
-        var handler = new GetWorkOrderByIdHandler(workOrderRepositoryMock.Object);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock();
+        var handler = new GetWorkOrderByIdHandler(workOrderQueriesMock.Object);
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new GetWorkOrderByIdQuery(workOrderId), CancellationToken.None));
@@ -1435,8 +1435,8 @@ public class WorkOrderHandlersTests
             .ToList();
         var expectedWorkOrderId = detailsList[4].Id;
 
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(detailsList: detailsList);
-        var handler = new ListWorkOrdersHandler(workOrderRepositoryMock.Object);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(detailsList: detailsList);
+        var handler = new ListWorkOrdersHandler(workOrderQueriesMock.Object);
 
         var result = await handler.Handle(
             new ListWorkOrdersQuery(Page: 2, PageSize: 2, CustomerId: customerId),
@@ -1447,7 +1447,7 @@ public class WorkOrderHandlersTests
         Assert.Equal(3, result.TotalCount);
         Assert.Equal(2, result.Page);
         Assert.Equal(2, result.PageSize);
-        workOrderRepositoryMock.Verify(
+        workOrderQueriesMock.Verify(
             x => x.ListDetailsAsync(2, 2, It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -1455,8 +1455,8 @@ public class WorkOrderHandlersTests
     [Fact]
     public async Task ListWorkOrders_ShouldThrowValidationException_WhenPageIsInvalid()
     {
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
-        var handler = new ListWorkOrdersHandler(workOrderRepositoryMock.Object);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock();
+        var handler = new ListWorkOrdersHandler(workOrderQueriesMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(
@@ -1464,7 +1464,7 @@ public class WorkOrderHandlersTests
                 CancellationToken.None));
 
         Assert.Equal("Page must be greater than or equal to 1. Received: 0.", exception.Message);
-        workOrderRepositoryMock.Verify(
+        workOrderQueriesMock.Verify(
             x => x.ListDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -1473,15 +1473,15 @@ public class WorkOrderHandlersTests
     public async Task GetAverageServiceTime_ShouldThrowValidationException_WhenWindowIsInvalid()
     {
         var from = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(
             averageServiceTime: new AverageServiceTimeReadModel(CompletedServicesCount: 0, AverageDurationMinutes: null));
-        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+        var handler = new GetAverageServiceTimeHandler(workOrderQueriesMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(new GetAverageServiceTimeQuery(from, from), CancellationToken.None));
 
         Assert.Equal("From must be earlier than To.", exception.Message);
-        workOrderRepositoryMock.Verify(
+        workOrderQueriesMock.Verify(
             x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ServiceId?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -1491,14 +1491,14 @@ public class WorkOrderHandlersTests
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock();
-        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock();
+        var handler = new GetAverageServiceTimeHandler(workOrderQueriesMock.Object);
 
         var exception = await Assert.ThrowsAsync<ValidationException>(
             async () => await handler.Handle(new GetAverageServiceTimeQuery(from, to, Guid.Empty), CancellationToken.None));
 
         Assert.Equal("Service identifier cannot be empty.", exception.Message);
-        workOrderRepositoryMock.Verify(
+        workOrderQueriesMock.Verify(
             x => x.GetAverageServiceTimeAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<ServiceId?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -1509,11 +1509,11 @@ public class WorkOrderHandlersTests
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 5, 31, 23, 59, 59, DateTimeKind.Utc);
         var serviceId = Guid.NewGuid();
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(
             averageServiceTime: new AverageServiceTimeReadModel(
                 CompletedServicesCount: 3,
                 AverageDurationMinutes: 184.5d));
-        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+        var handler = new GetAverageServiceTimeHandler(workOrderQueriesMock.Object);
 
         var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to, serviceId), CancellationToken.None);
 
@@ -1522,7 +1522,7 @@ public class WorkOrderHandlersTests
         Assert.Equal(serviceId, result.ServiceId);
         Assert.Equal(3, result.CompletedServicesCount);
         Assert.Equal(184.5d, result.AverageDurationMinutes);
-        workOrderRepositoryMock.Verify(
+        workOrderQueriesMock.Verify(
             x => x.GetAverageServiceTimeAsync(from, to, It.Is<ServiceId?>(id => id!.Value.Value == serviceId), It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -1532,11 +1532,11 @@ public class WorkOrderHandlersTests
     {
         var from = new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 5, 2, 0, 0, 0, DateTimeKind.Utc);
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock(
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(
             averageServiceTime: new AverageServiceTimeReadModel(
                 CompletedServicesCount: 0,
                 AverageDurationMinutes: null));
-        var handler = new GetAverageServiceTimeHandler(workOrderRepositoryMock.Object);
+        var handler = new GetAverageServiceTimeHandler(workOrderQueriesMock.Object);
 
         var result = await handler.Handle(new GetAverageServiceTimeQuery(from, to), CancellationToken.None);
 
@@ -1545,18 +1545,9 @@ public class WorkOrderHandlersTests
     }
 
     private static Mock<IWorkOrderRepository> CreateWorkOrderRepositoryMock(
-        List<WorkOrder>? initialWorkOrders = null,
-        List<WorkOrderDetailsReadModel>? detailsById = null,
-        List<WorkOrderDetailsReadModel>? detailsList = null,
-        List<WorkOrderDetailsReadModel>? customerDetailsById = null,
-        List<WorkOrderDetailsReadModel>? customerDetailsList = null,
-        AverageServiceTimeReadModel? averageServiceTime = null)
+        List<WorkOrder>? initialWorkOrders = null)
     {
         var workOrders = initialWorkOrders ?? [];
-        var staffDetailsById = detailsById ?? [];
-        var staffDetailsList = detailsList ?? [];
-        var customerDetailsByIdList = customerDetailsById ?? [];
-        var customerDetailsListPage = customerDetailsList ?? [];
         var repositoryMock = new Mock<IWorkOrderRepository>();
 
         repositoryMock
@@ -1568,13 +1559,37 @@ public class WorkOrderHandlersTests
             .ReturnsAsync((WorkOrderId id, CancellationToken _) => workOrders.SingleOrDefault(workOrder => workOrder.Id == id));
 
         repositoryMock
+            .Setup(x => x.AddAsync(It.IsAny<WorkOrder>(), It.IsAny<CancellationToken>()))
+            .Returns((WorkOrder workOrder, CancellationToken _) =>
+            {
+                workOrders.Add(workOrder);
+                return Task.CompletedTask;
+            });
+
+        return repositoryMock;
+    }
+
+    private static Mock<IWorkOrderQueries> CreateWorkOrderQueriesMock(
+        List<WorkOrderDetailsReadModel>? detailsById = null,
+        List<WorkOrderDetailsReadModel>? detailsList = null,
+        List<WorkOrderDetailsReadModel>? customerDetailsById = null,
+        List<WorkOrderDetailsReadModel>? customerDetailsList = null,
+        AverageServiceTimeReadModel? averageServiceTime = null)
+    {
+        var staffDetailsById = detailsById ?? [];
+        var staffDetailsList = detailsList ?? [];
+        var customerDetailsByIdList = customerDetailsById ?? [];
+        var customerDetailsListPage = customerDetailsList ?? [];
+        var queriesMock = new Mock<IWorkOrderQueries>();
+
+        queriesMock
             .Setup(x => x.GetDetailsByIdAsync(
                 It.IsAny<WorkOrderId>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((WorkOrderId id, CancellationToken _) =>
                 staffDetailsById.SingleOrDefault(item => item.Id == id.Value));
 
-        repositoryMock
+        queriesMock
             .Setup(x => x.GetCustomerDetailsByIdAsync(
                 It.IsAny<WorkOrderId>(),
                 It.IsAny<CustomerId>(),
@@ -1582,7 +1597,7 @@ public class WorkOrderHandlersTests
             .ReturnsAsync((WorkOrderId id, CustomerId customerId, CancellationToken _) =>
                 customerDetailsByIdList.SingleOrDefault(item => item.Id == id.Value && item.CustomerId == customerId.Value));
 
-        repositoryMock
+        queriesMock
             .Setup(x => x.ListDetailsAsync(
                 It.IsAny<int>(),
                 It.IsAny<int>(),
@@ -1605,7 +1620,7 @@ public class WorkOrderHandlersTests
                 return ((IReadOnlyList<WorkOrderDetailsReadModel>)pageItems, totalCount);
             });
 
-        repositoryMock
+        queriesMock
             .Setup(x => x.ListCustomerDetailsAsync(
                 It.IsAny<int>(),
                 It.IsAny<int>(),
@@ -1623,7 +1638,7 @@ public class WorkOrderHandlersTests
                 return ((IReadOnlyList<WorkOrderDetailsReadModel>)items, totalCount);
             });
 
-        repositoryMock
+        queriesMock
             .Setup(x => x.GetAverageServiceTimeAsync(
                 It.IsAny<DateTime>(),
                 It.IsAny<DateTime>(),
@@ -1633,15 +1648,7 @@ public class WorkOrderHandlersTests
                 CompletedServicesCount: 0,
                 AverageDurationMinutes: null));
 
-        repositoryMock
-            .Setup(x => x.AddAsync(It.IsAny<WorkOrder>(), It.IsAny<CancellationToken>()))
-            .Returns((WorkOrder workOrder, CancellationToken _) =>
-            {
-                workOrders.Add(workOrder);
-                return Task.CompletedTask;
-            });
-
-        return repositoryMock;
+        return queriesMock;
     }
 
     private static WorkOrderDetailsReadModel CreateWorkOrderDetailsReadModel(

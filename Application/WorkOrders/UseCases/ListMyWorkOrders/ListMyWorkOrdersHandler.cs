@@ -8,12 +8,12 @@ namespace GarageFlow.Application.WorkOrders.UseCases.ListMyWorkOrders;
 
 public sealed class ListMyWorkOrdersHandler(
     IUserRepository userRepository,
-    IWorkOrderRepository workOrderRepository) : IRequestHandler<ListMyWorkOrdersQuery, ListMyWorkOrdersResult>
+    IWorkOrderQueries workOrderQueries) : IRequestHandler<ListMyWorkOrdersQuery, ListMyWorkOrdersResult>
 {
     private const int MaxPageSize = 100;
 
     private readonly IUserRepository _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
-    private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
+    private readonly IWorkOrderQueries _workOrderQueries = workOrderQueries ?? throw new ArgumentNullException(nameof(workOrderQueries));
 
     public async ValueTask<ListMyWorkOrdersResult> Handle(ListMyWorkOrdersQuery request, CancellationToken cancellationToken)
     {
@@ -33,7 +33,7 @@ public sealed class ListMyWorkOrdersHandler(
         }
 
         var customerId = await CustomerWorkOrderAccess.GetRequiredCustomerIdAsync(_userRepository, request.UserId, cancellationToken);
-        var (items, totalCount) = await _workOrderRepository.ListCustomerDetailsAsync(
+        var (items, totalCount) = await _workOrderQueries.ListCustomerDetailsAsync(
             request.Page,
             request.PageSize,
             customerId,

@@ -8,11 +8,11 @@ using Mediator;
 namespace GarageFlow.Application.WorkOrders.UseCases.ListWorkOrders;
 
 public sealed class ListWorkOrdersHandler(
-    IWorkOrderRepository workOrderRepository) : IRequestHandler<ListWorkOrdersQuery, ListWorkOrdersResult>
+    IWorkOrderQueries workOrderQueries) : IRequestHandler<ListWorkOrdersQuery, ListWorkOrdersResult>
 {
     private const int MaxPageSize = 100;
 
-    private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
+    private readonly IWorkOrderQueries _workOrderQueries = workOrderQueries ?? throw new ArgumentNullException(nameof(workOrderQueries));
 
     public async ValueTask<ListWorkOrdersResult> Handle(ListWorkOrdersQuery request, CancellationToken cancellationToken)
     {
@@ -32,7 +32,7 @@ public sealed class ListWorkOrdersHandler(
         }
 
         CustomerId? customerId = request.CustomerId is null ? null : CustomerId.From(request.CustomerId.Value);
-        var (items, totalCount) = await _workOrderRepository.ListDetailsAsync(
+        var (items, totalCount) = await _workOrderQueries.ListDetailsAsync(
             request.Page,
             request.PageSize,
             customerId,
