@@ -2,7 +2,7 @@
 
 GarageFlow é uma API para gestão de oficinas automotivas, desenvolvida como entrega do Tech Challenge - Fase 1 da pós-graduação em Software Architecture da FIAP.
 
-O projeto adota uma arquitetura em camadas inspirada em Clean Architecture, com DDD no domínio e organização modular por vertical slices/casos de uso. A API foi construída com Minimal APIs, Mediator, EF Core e PostgreSQL. O ambiente local foi preparado para subir a aplicação completa com Docker Compose, incluindo API, banco de dados e pgAdmin.
+O projeto adota Clean Architecture com DDD no domínio, adapters explícitos e organização modular por vertical slices/casos de uso. A API foi construída com Minimal APIs, Mediator, EF Core e PostgreSQL. O ambiente local foi preparado para subir a aplicação completa com Docker Compose, incluindo API, banco de dados e pgAdmin.
 
 ## Sumário
 
@@ -53,26 +53,74 @@ A escolha também se alinha bem ao stack técnico do projeto: o PostgreSQL possu
 
 ## Arquitetura
 
-O GarageFlow foi organizado para combinar fronteiras claras entre camadas com uma estrutura modular por fluxo de negócio. As camadas definem a direção das dependências; os módulos e casos de uso organizam os vertical slices dentro de cada camada.
+O GarageFlow foi organizado para combinar Clean Architecture, DDD tático e vertical slices. As camadas internas concentram regras de negócio e contratos; as camadas externas adaptam HTTP, persistência, autenticação, documentação da API e infraestrutura de runtime.
+
+Os módulos de negócio (`Users`, `Customers`, `Vehicles`, `Services`, `InventoryItems` e `WorkOrders`) aparecem verticalmente dentro das camadas. Cada caso de uso possui seus próprios comandos/queries, handlers, resultados e contratos HTTP, evitando que a arquitetura vire apenas uma separação técnica por pastas.
 
 Direção das dependências:
 
 ```text
 Host
-  -> Adapters.Api -> Application -> Domain -> SharedKernel
-  -> Adapters.Infrastructure -> Application / Domain / SharedKernel
-  -> SharedKernel (mapeamento centralizado de exceções)
+|-- Adapters.Api -----------> Application ---> Domain ---> SharedKernel
+|-- Adapters.Infrastructure -> Application
+|                            -> Domain
+|                            -> SharedKernel
+`-- SharedKernel
 ```
 
 Responsabilidades principais:
 
-- `Host`: composição da aplicação, configuração, middleware, OpenAPI, autenticação, registro dos endpoints e mapeamento centralizado de exceções do `SharedKernel`.
-- `Adapters.Api`: endpoints HTTP, contratos de request/response, mapeamento HTTP e políticas de autorização.
-- `Application`: casos de uso, comandos, queries, handlers, portas, read models e resultados.
+- `Host`: composition root e único executável. Configura DI, Mediator, pipeline transacional, dispatch de eventos de domínio, autenticação, middlewares, OpenAPI/Scalar, migrations/seed e registro dos módulos HTTP.
+- `Adapters.Api`: adapter inbound HTTP. Contém Minimal API endpoints, contratos de request/response, mapeamento HTTP e políticas de autorização. Depende apenas de `Application`.
+- `Application`: casos de uso, comandos, queries, handlers, portas, read models, resultados, pipeline behaviors e handlers de eventos de domínio.
 - `Domain`: entidades, value objects, eventos de domínio, enums e invariantes de negócio.
-- `Adapters.Infrastructure`: EF Core, DbContext, migrations, configurações, repositórios, queries e integrações externas.
-- `SharedKernel`: primitivas compartilhadas, exceções, eventos e contratos genéricos.
-- `Tests`: projetos de testes unitários, integração e builders compartilhados.
+- `Adapters.Infrastructure`: adapter outbound. Implementa portas da aplicação com EF Core, PostgreSQL, migrations, configurações, repositórios, queries, autenticação, hashing e integrações externas.
+- `SharedKernel`: primitivas genéricas compartilhadas, exceções, eventos, value objects reutilizáveis e contratos transversais como `IUnitOfWork`.
+- `Tests`: projetos de testes unitários, integração, E2E e builders/contratos compartilhados.
+
+### Fluxo de uma requisição
+
+```text
+HTTP request
+  -> Host middleware/auth
+  -> Adapters.Api endpoint
+  -> Mediator
+  -> Application use case handler
+  -> Domain aggregate/value objects
+  -> Application ports
+  -> Adapters.Infrastructure implementations
+  -> TransactionBehavior commit
+  -> Domain event dispatch after commit
+  -> Adapters.Api response
+```
+
+Endpoints HTTP não acessam `Domain`, `SharedKernel` ou `Adapters.Infrastructure` diretamente. Eles traduzem entrada/saída HTTP para comandos/queries da aplicação. O domínio não conhece HTTP, EF Core, Mediator, banco de dados ou adapters.
+
+### Transações e eventos de domínio
+
+Handlers de comandos não abrem nem fecham transações manualmente. O pipeline `TransactionBehavior` inicia a unidade de trabalho, executa o handler, salva mudanças, coleta eventos de domínio antes do commit, confirma a transação e só então despacha os eventos pelo Mediator.
+
+Esse desenho mantém os handlers focados em orquestração de caso de uso, deixa invariantes dentro do domínio e evita side effects antes de uma transação confirmada. Um exemplo é o envio de email de aprovação de orçamento, disparado por handler de evento em `Application/WorkOrders/Events` e implementado por uma abstração de saída.
+
+### Convenções por módulo
+
+```text
+Adapters.Api/<Module>/<UseCase>/
+Application/<Module>/UseCases/<UseCase>/
+Application/<Module>/Ports/
+Application/<Module>/ReadModels/
+Domain/<Module>/Entities/
+Domain/<Module>/ValueObjects/
+Domain/<Module>/Events/
+Adapters.Infrastructure/<Module>/Configurations/
+Adapters.Infrastructure/<Module>/Repositories/
+Tests/Shared/<Module>/
+Tests/Unit/<Module>/
+Tests/Integration/Api/<Module>/
+Tests/E2E/<Module>/
+```
+
+Regras arquiteturais são protegidas por testes em `Tests/Unit/Architecture`, incluindo direção de dependências, convenções de módulos e ausência de acoplamento da API com domínio/infraestrutura.
 
 ## Documentação DDD
 
