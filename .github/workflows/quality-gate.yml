@@ -73,8 +73,8 @@ jobs:
           /d:sonar.token="${{ env.SONAR_TOKEN }}"
           /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
           /d:sonar.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql"
-          /d:sonar.coverage.exclusions="**/Tests/E2E/**,**/Infrastructure/DataAccess/Migrations/**,**/Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs"
-          /d:sonar.cpd.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql,**/Infrastructure/DataAccess/Migrations/**"
+          /d:sonar.coverage.exclusions="**/Tests/E2E/**,**/Adapters.Infrastructure/DataAccess/Migrations/**,**/Adapters.Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Adapters.Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs"
+          /d:sonar.cpd.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql,**/Adapters.Infrastructure/DataAccess/Migrations/**"
           /d:sonar.qualitygate.wait=true
 
       - name: Build
