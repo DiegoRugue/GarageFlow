@@ -20,8 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Api\GarageFlow.Api.csproj" />
-    <ProjectReference Include="..\..\Infrastructure\GarageFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Adapters.Infrastructure\GarageFlow.Adapters.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Host\GarageFlow.Host.csproj" />
     <ProjectReference Include="..\Shared\GarageFlow.Tests.Shared.csproj" />
   </ItemGroup>
 

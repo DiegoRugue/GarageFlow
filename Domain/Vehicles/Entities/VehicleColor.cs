@@ -1,5 +1,5 @@
-using GarageFlow.BuildingBlocks.Domain.Entities;
-using GarageFlow.BuildingBlocks.Domain.Interfaces;
+using GarageFlow.SharedKernel.Domain.Entities;
+using GarageFlow.SharedKernel.Domain.Interfaces;
 using GarageFlow.Domain.Vehicles.Events;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 

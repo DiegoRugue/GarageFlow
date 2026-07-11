@@ -1,20 +1,26 @@
 <Solution>
-  <Folder Name="/Api/">
-    <Project Path="Api/GarageFlow.Api.csproj" />
+  <Folder Name="/Adapters.Api/">
+    <Project Path="Adapters.Api/GarageFlow.Adapters.Api.csproj" />
   </Folder>
   <Folder Name="/Application/">
     <Project Path="Application/GarageFlow.Application.csproj" />
   </Folder>
-  <Folder Name="/BuildingBlocks/">
-    <Project Path="BuildingBlocks/GarageFlow.BuildingBlocks.csproj" />
+  <Folder Name="/SharedKernel/">
+    <Project Path="SharedKernel/GarageFlow.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/Domain/">
     <Project Path="Domain/GarageFlow.Domain.csproj" />
   </Folder>
-  <Folder Name="/Infrastructure/">
-    <Project Path="Infrastructure/GarageFlow.Infrastructure.csproj" />
+  <Folder Name="/Adapters.Infrastructure/">
+    <Project Path="Adapters.Infrastructure/GarageFlow.Adapters.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/Host/">
+    <Project Path="Host/GarageFlow.Host.csproj" />
   </Folder>
   <Folder Name="/Tests/" />
+  <Folder Name="/Tests/E2E/">
+    <Project Path="Tests/E2E/GarageFlow.Tests.E2E.csproj" />
+  </Folder>
   <Folder Name="/Tests/Integration/">
     <Project Path="Tests/Integration/GarageFlow.Tests.Integration.csproj" />
   </Folder>

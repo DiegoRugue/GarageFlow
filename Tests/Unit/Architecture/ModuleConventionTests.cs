@@ -2,6 +2,16 @@ namespace GarageFlow.Tests.Unit.Architecture;
 
 public class ModuleConventionTests
 {
+    private static readonly string[] ForbiddenDomainTokens =
+    [
+        "Mediator",
+        "Microsoft.EntityFrameworkCore",
+        "Microsoft.AspNetCore",
+        "ReadModel",
+        "Dto",
+        "Repository"
+    ];
+
     private static readonly string[] BusinessModules =
     [
         "Customers",
@@ -14,11 +24,6 @@ public class ModuleConventionTests
 
     private static readonly string RepositoryRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-    private static readonly HashSet<string> AllowedApplicationNamingExceptions =
-    [
-        "Application/Users/ListUsers/UserListItem.cs"
-    ];
-
     [Fact]
     public void CanonicalBusinessModules_ShouldExistAcrossLayers()
     {
@@ -28,10 +33,10 @@ public class ModuleConventionTests
         {
             var requiredPaths = new[]
             {
-                Path.Combine(RepositoryRoot, "Api", module),
+                Path.Combine(RepositoryRoot, "Adapters.Api", module),
                 Path.Combine(RepositoryRoot, "Application", module),
                 Path.Combine(RepositoryRoot, "Domain", module),
-                Path.Combine(RepositoryRoot, "Infrastructure", module),
+                Path.Combine(RepositoryRoot, "Adapters.Infrastructure", module),
                 Path.Combine(RepositoryRoot, "Tests", "Shared", module),
                 Path.Combine(RepositoryRoot, "Tests", "Unit", module),
                 Path.Combine(RepositoryRoot, "Tests", "Integration", "Api", module)
@@ -59,7 +64,7 @@ public class ModuleConventionTests
 
         foreach (var module in BusinessModules)
         {
-            var modulePath = Path.Combine(RepositoryRoot, "Api", module);
+            var modulePath = Path.Combine(RepositoryRoot, "Adapters.Api", module);
             if (!Directory.Exists(modulePath))
             {
                 missingPaths.Add(ToRelativePath(modulePath));
@@ -85,7 +90,7 @@ public class ModuleConventionTests
     public void Api_Files_ShouldUseEndpointRequestResponseNaming()
     {
         var missingPaths = new List<string>();
-        var invalidFiles = GetModuleFiles("Api", missingPaths)
+        var invalidFiles = GetModuleFiles("Adapters.Api", missingPaths)
             .Where(file => !HasAnySuffix(file, "Endpoint.cs", "Endpoints.cs", "Request.cs", "Response.cs"))
             .Select(ToRelativePath)
             .ToArray();
@@ -114,37 +119,50 @@ public class ModuleConventionTests
     }
 
     [Fact]
-    public void Domain_RepositoryContracts_ShouldFollowInterfaceNaming()
+    public void Domain_ShouldNotContainRepositoryOrReadModelFolders()
     {
-        var invalidFiles = new List<string>();
-        var missingPaths = new List<string>();
+        var invalidPaths = new List<string>();
 
         foreach (var module in BusinessModules)
         {
             var repositoryPath = Path.Combine(RepositoryRoot, "Domain", module, "Repositories");
-            if (!Directory.Exists(repositoryPath))
+            if (Directory.Exists(repositoryPath))
             {
-                missingPaths.Add(ToRelativePath(repositoryPath));
-                continue;
+                invalidPaths.Add(ToRelativePath(repositoryPath));
             }
 
-            var repositoryFiles = Directory.GetFiles(repositoryPath, "*.cs", SearchOption.TopDirectoryOnly);
-
-            foreach (var file in repositoryFiles)
+            var readModelsPath = Path.Combine(RepositoryRoot, "Domain", module, "ReadModels");
+            if (Directory.Exists(readModelsPath))
             {
-                var fileName = Path.GetFileName(file);
-                if (!fileName.StartsWith('I') && !fileName.EndsWith("ReadModel.cs", StringComparison.Ordinal))
-                {
-                    invalidFiles.Add(ToRelativePath(file));
-                }
+                invalidPaths.Add(ToRelativePath(readModelsPath));
             }
         }
 
-        AssertNoMissingPaths(missingPaths, nameof(Domain_RepositoryContracts_ShouldFollowInterfaceNaming));
+        Assert.True(
+            invalidPaths.Count == 0,
+            $"Domain must not contain repository/read-model folders: {string.Join(", ", invalidPaths)}");
+    }
+
+    [Fact]
+    public void Domain_Files_ShouldNotContainApplicationOrAdapterTokens()
+    {
+        var domainPath = Path.Combine(RepositoryRoot, "Domain");
+        Assert.True(Directory.Exists(domainPath), $"Domain path was not found: {ToRelativePath(domainPath)}");
+
+        var invalidMatches = Directory
+            .GetFiles(domainPath, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(file =>
+            {
+                var text = File.ReadAllText(file);
+                return ForbiddenDomainTokens
+                    .Where(token => text.Contains(token, StringComparison.Ordinal))
+                    .Select(token => $"{ToRelativePath(file)} contains '{token}'");
+            })
+            .ToArray();
 
         Assert.True(
-            invalidFiles.Count == 0,
-            $"Domain repository contracts outside naming convention: {string.Join(", ", invalidFiles)}");
+            invalidMatches.Length == 0,
+            $"Domain files contain forbidden tokens: {string.Join(", ", invalidMatches)}");
     }
 
     [Fact]
@@ -155,8 +173,8 @@ public class ModuleConventionTests
 
         foreach (var module in BusinessModules)
         {
-            var configurationPath = Path.Combine(RepositoryRoot, "Infrastructure", module, "Configurations");
-            var repositoryPath = Path.Combine(RepositoryRoot, "Infrastructure", module, "Repositories");
+            var configurationPath = Path.Combine(RepositoryRoot, "Adapters.Infrastructure", module, "Configurations");
+            var repositoryPath = Path.Combine(RepositoryRoot, "Adapters.Infrastructure", module, "Repositories");
 
             if (!Directory.Exists(configurationPath))
             {
@@ -178,7 +196,7 @@ public class ModuleConventionTests
             {
                 var repositoryFiles = Directory.GetFiles(repositoryPath, "*.cs", SearchOption.TopDirectoryOnly);
                 invalidFiles.AddRange(repositoryFiles
-                    .Where(file => !file.EndsWith("Repository.cs", StringComparison.Ordinal))
+                    .Where(file => !HasAnySuffix(file, "Repository.cs", "Queries.cs"))
                     .Select(ToRelativePath));
             }
         }
@@ -215,36 +233,46 @@ public class ModuleConventionTests
 
     private static bool IsValidApplicationFile(string filePath)
     {
-        if (HasAnySuffix(filePath, "Command.cs", "Query.cs", "Handler.cs", "Result.cs", "Dto.cs"))
-        {
-            return true;
-        }
-
-        if (IsValidApplicationAbstractionInterface(filePath))
-        {
-            return true;
-        }
-
-        return AllowedApplicationNamingExceptions.Contains(ToRelativePath(filePath));
-    }
-
-    private static bool IsValidApplicationAbstractionInterface(string filePath)
-    {
         var relativePath = ToRelativePath(filePath);
         var pathSegments = relativePath.Split('/');
-        if (pathSegments.Length < 4)
+
+        if (pathSegments.Length < 3)
         {
             return false;
         }
 
-        if (!string.Equals(pathSegments[0], "Application", StringComparison.Ordinal) ||
-            !string.Equals(pathSegments[2], "Abstractions", StringComparison.Ordinal))
+        if (!string.Equals(pathSegments[0], "Application", StringComparison.Ordinal))
         {
             return false;
         }
 
-        var fileName = Path.GetFileName(relativePath);
-        return fileName.StartsWith('I') && fileName.EndsWith(".cs", StringComparison.Ordinal);
+        if (pathSegments.Contains("UseCases") &&
+            HasAnySuffix(filePath, "Command.cs", "Query.cs", "Handler.cs", "Result.cs", "Dto.cs"))
+        {
+            return true;
+        }
+
+        if (pathSegments.Contains("Ports") && Path.GetFileName(filePath).StartsWith('I'))
+        {
+            return true;
+        }
+
+        if (pathSegments.Contains("ReadModels") && HasAnySuffix(filePath, "ReadModel.cs", "Projection.cs", "Dto.cs"))
+        {
+            return true;
+        }
+
+        if (pathSegments.Contains("Events") && HasAnySuffix(filePath, "Handler.cs"))
+        {
+            return true;
+        }
+
+        if (pathSegments.Contains("Abstractions") && Path.GetFileName(filePath).StartsWith('I'))
+        {
+            return true;
+        }
+
+        return pathSegments.Contains("Common");
     }
 
     private static string ToRelativePath(string absolutePath)

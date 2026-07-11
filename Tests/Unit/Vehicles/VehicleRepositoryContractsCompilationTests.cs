@@ -1,6 +1,7 @@
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
+using GarageFlow.Application.Vehicles.ReadModels;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 
 namespace GarageFlow.Tests.Unit.Vehicles;
@@ -12,14 +13,8 @@ public class VehicleRepositoryContractsCompilationTests
     {
         Signature<Func<IVehicleRepository, VehicleId, CancellationToken, Task<Vehicle?>>>(
             (repository, id, cancellationToken) => repository.GetByIdAsync(id, cancellationToken));
-        Signature<Func<IVehicleRepository, VehicleId, CancellationToken, Task<VehicleDetailsReadModel?>>>(
-            (repository, id, cancellationToken) => repository.GetDetailsByIdAsync(id, cancellationToken));
         Signature<Func<IVehicleRepository, int, int, CancellationToken, Task<(IReadOnlyList<Vehicle> Items, int TotalCount)>>>(
             (repository, page, pageSize, cancellationToken) => repository.ListAsync(page, pageSize, cancellationToken));
-        Signature<Func<IVehicleRepository, int, int, CustomerId?, CancellationToken, Task<(IReadOnlyList<VehicleDetailsReadModel> Items, int TotalCount)>>>(
-            (repository, page, pageSize, customerId, cancellationToken) => repository.ListDetailsAsync(page, pageSize, customerId, cancellationToken));
-        Signature<Func<IVehicleRepository, CustomerId, CancellationToken, Task<IReadOnlyList<VehicleDetailsReadModel>>>>(
-            (repository, customerId, cancellationToken) => repository.ListDetailsByCustomerIdAsync(customerId, cancellationToken));
         Signature<Func<IVehicleRepository, Vehicle, CancellationToken, Task>>(
             (repository, vehicle, cancellationToken) => repository.AddAsync(vehicle, cancellationToken));
         Signature<Func<IVehicleRepository, LicensePlate, CancellationToken, Task<bool>>>(
@@ -36,6 +31,13 @@ public class VehicleRepositoryContractsCompilationTests
             (repository, customerId, cancellationToken) => repository.ExistsByCustomerIdAsync(customerId, cancellationToken));
         Signature<Action<IVehicleRepository, Vehicle>>(
             (repository, vehicle) => repository.Remove(vehicle));
+
+        Signature<Func<IVehicleQueries, VehicleId, CancellationToken, Task<VehicleDetailsReadModel?>>>(
+            (queries, id, cancellationToken) => queries.GetDetailsByIdAsync(id, cancellationToken));
+        Signature<Func<IVehicleQueries, int, int, CustomerId?, CancellationToken, Task<(IReadOnlyList<VehicleDetailsReadModel> Items, int TotalCount)>>>(
+            (queries, page, pageSize, customerId, cancellationToken) => queries.ListDetailsAsync(page, pageSize, customerId, cancellationToken));
+        Signature<Func<IVehicleQueries, CustomerId, CancellationToken, Task<IReadOnlyList<VehicleDetailsReadModel>>>>(
+            (queries, customerId, cancellationToken) => queries.ListDetailsByCustomerIdAsync(customerId, cancellationToken));
 
         Signature<Func<IVehicleBrandRepository, VehicleBrandId, CancellationToken, Task<VehicleBrand?>>>(
             (repository, id, cancellationToken) => repository.GetByIdAsync(id, cancellationToken));

@@ -1,9 +1,10 @@
 using System.Reflection;
 using GarageFlow.Domain.Customers.ValueObjects;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
+using GarageFlow.Application.Vehicles.ReadModels;
 using GarageFlow.Domain.Vehicles.ValueObjects;
-using GarageFlow.Infrastructure.DataAccess;
-using GarageFlow.Infrastructure.Vehicles.Repositories;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Adapters.Infrastructure.Vehicles.Repositories;
 using GarageFlow.Tests.Shared.Vehicles;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ public sealed class VehicleRepositoryTranslationGuardTests
     {
         var repositoryDirectory = Path.Combine(
             FindSolutionRoot().FullName,
-            "Infrastructure",
+            "Adapters.Infrastructure",
             "Vehicles",
             "Repositories");
         var repositoryFiles = Directory
@@ -51,8 +52,8 @@ public sealed class VehicleRepositoryTranslationGuardTests
     public void VehicleDetailsQuery_ShouldTranslate_WhenCreatedWithCustomerIdFilter()
     {
         using var dbContext = CreateNpgsqlDbContext();
-        var repository = new VehicleRepository(dbContext);
-        var method = typeof(VehicleRepository).GetMethod(
+        var queries = new EfVehicleQueries(dbContext);
+        var method = typeof(EfVehicleQueries).GetMethod(
             "CreateVehicleDetailsQuery",
             BindingFlags.NonPublic | BindingFlags.Instance);
         var customerId = CustomerId.New();
@@ -60,7 +61,7 @@ public sealed class VehicleRepositoryTranslationGuardTests
         Assert.NotNull(method);
 
         var query = Assert.IsType<IQueryable<VehicleDetailsReadModel>>(
-            method!.Invoke(repository, new object?[] { null, customerId }),
+            method!.Invoke(queries, new object?[] { null, customerId }),
             exactMatch: false);
 
         var sql = query.ToQueryString();
@@ -73,8 +74,8 @@ public sealed class VehicleRepositoryTranslationGuardTests
     public void VehicleDetailsQuery_ShouldTranslate_WhenCreatedWithVehicleIdFilter()
     {
         using var dbContext = CreateNpgsqlDbContext();
-        var repository = new VehicleRepository(dbContext);
-        var method = typeof(VehicleRepository).GetMethod(
+        var queries = new EfVehicleQueries(dbContext);
+        var method = typeof(EfVehicleQueries).GetMethod(
             "CreateVehicleDetailsQuery",
             BindingFlags.NonPublic | BindingFlags.Instance);
         var vehicleId = VehicleId.New();
@@ -82,7 +83,7 @@ public sealed class VehicleRepositoryTranslationGuardTests
         Assert.NotNull(method);
 
         var query = Assert.IsType<IQueryable<VehicleDetailsReadModel>>(
-            method!.Invoke(repository, new object?[] { vehicleId, null }),
+            method!.Invoke(queries, new object?[] { vehicleId, null }),
             exactMatch: false);
 
         var sql = query.ToQueryString();

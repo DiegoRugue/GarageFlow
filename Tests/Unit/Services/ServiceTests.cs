@@ -1,5 +1,5 @@
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Services.Entities;
 using GarageFlow.Domain.Services.Events;
 

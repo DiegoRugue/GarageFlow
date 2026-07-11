@@ -1,12 +1,12 @@
-using GarageFlow.Application.Vehicles.VehicleColors.CreateVehicleColor;
-using GarageFlow.Application.Vehicles.VehicleColors.DeleteVehicleColor;
-using GarageFlow.Application.Vehicles.VehicleColors.GetVehicleColorById;
-using GarageFlow.Application.Vehicles.VehicleColors.ListVehicleColors;
-using GarageFlow.Application.Vehicles.VehicleColors.UpdateVehicleColor;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.CreateVehicleColor;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.DeleteVehicleColor;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.GetVehicleColorById;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.ListVehicleColors;
+using GarageFlow.Application.Vehicles.UseCases.VehicleColors.UpdateVehicleColor;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Vehicles.Entities;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using Mediator;
 using Moq;
@@ -21,7 +21,7 @@ public class VehicleColorHandlersTests
         var vehicleColors = new List<VehicleColor>();
         var repositoryMock = CreateVehicleColorRepositoryMock(vehicleColors);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateVehicleColorHandler(repositoryMock.Object);
 
         var result = await handler.Handle(new CreateVehicleColorCommand(Name: "  Black  "), CancellationToken.None);
 
@@ -29,10 +29,6 @@ public class VehicleColorHandlersTests
         Assert.Equal("Black", result.Name);
         Assert.Single(vehicleColors);
         Assert.Equal("Black", vehicleColors[0].Name);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -41,13 +37,10 @@ public class VehicleColorHandlersTests
         var existing = VehicleColor.Create("Black");
         var repositoryMock = CreateVehicleColorRepositoryMock([existing]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateVehicleColorHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(new CreateVehicleColorCommand("Black"), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -56,13 +49,10 @@ public class VehicleColorHandlersTests
         var existing = VehicleColor.Create("Black");
         var repositoryMock = CreateVehicleColorRepositoryMock([existing]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateVehicleColorHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(new CreateVehicleColorCommand("  Black  "), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -74,14 +64,10 @@ public class VehicleColorHandlersTests
             .ThrowsAsync(new InvalidOperationException("Add failed"));
 
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateVehicleColorHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await handler.Handle(new CreateVehicleColorCommand("Black"), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -148,16 +134,12 @@ public class VehicleColorHandlersTests
         var vehicleColor = VehicleColor.Create("Black");
         var repositoryMock = CreateVehicleColorRepositoryMock([vehicleColor]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateVehicleColorHandler(repositoryMock.Object);
 
         var result = await handler.Handle(new UpdateVehicleColorCommand(vehicleColor.Id.Value, "  White  "), CancellationToken.None);
 
         Assert.Equal(vehicleColor.Id.Value, result.Id);
         Assert.Equal("White", result.Name);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -165,12 +147,10 @@ public class VehicleColorHandlersTests
     {
         var repositoryMock = CreateVehicleColorRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateVehicleColorHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new UpdateVehicleColorCommand(Guid.NewGuid(), "White"), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -180,12 +160,10 @@ public class VehicleColorHandlersTests
         var existing = VehicleColor.Create("White");
         var repositoryMock = CreateVehicleColorRepositoryMock([colorToUpdate, existing]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateVehicleColorHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(new UpdateVehicleColorCommand(colorToUpdate.Id.Value, "White"), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -195,33 +173,12 @@ public class VehicleColorHandlersTests
         var existing = VehicleColor.Create("White");
         var repositoryMock = CreateVehicleColorRepositoryMock([colorToUpdate, existing]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateVehicleColorHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(new UpdateVehicleColorCommand(colorToUpdate.Id.Value, "  White  "), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Handle_ShouldRollbackUpdate_WhenExceptionOccursAfterTransactionBegins()
-    {
-        var vehicleColor = VehicleColor.Create("Black");
-        var repositoryMock = CreateVehicleColorRepositoryMock([vehicleColor]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Commit failed"));
-
-        var handler = new UpdateVehicleColorHandler(repositoryMock.Object, unitOfWorkMock.Object);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await handler.Handle(new UpdateVehicleColorCommand(vehicleColor.Id.Value, "White"), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-    }
 
     [Fact]
     public async Task Handle_ShouldDeleteVehicleColor_WhenIdExists()
@@ -230,15 +187,12 @@ public class VehicleColorHandlersTests
         var repositoryMock = CreateVehicleColorRepositoryMock([vehicleColor]);
         var vehicleRepositoryMock = CreateVehicleRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
 
         await handler.Handle(new DeleteVehicleColorCommand(vehicleColor.Id.Value), CancellationToken.None);
         var deleted = await repositoryMock.Object.GetByIdAsync(vehicleColor.Id, CancellationToken.None);
 
         Assert.Null(deleted);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.Is<VehicleColor>(c => c.Id == vehicleColor.Id)), Times.Once);
     }
 
@@ -248,12 +202,10 @@ public class VehicleColorHandlersTests
         var repositoryMock = CreateVehicleColorRepositoryMock();
         var vehicleRepositoryMock = CreateVehicleRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new DeleteVehicleColorCommand(Guid.NewGuid()), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         vehicleRepositoryMock.Verify(
             x => x.ExistsByVehicleColorIdAsync(It.IsAny<VehicleColorId>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -266,12 +218,10 @@ public class VehicleColorHandlersTests
         var repositoryMock = CreateVehicleColorRepositoryMock([vehicleColor]);
         var vehicleRepositoryMock = CreateVehicleRepositoryMock(existsByVehicleColorId: true);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(new DeleteVehicleColorCommand(vehicleColor.Id.Value), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.IsAny<VehicleColor>()), Times.Never);
     }
 
@@ -286,14 +236,10 @@ public class VehicleColorHandlersTests
 
         var vehicleRepositoryMock = CreateVehicleRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteVehicleColorHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await handler.Handle(new DeleteVehicleColorCommand(vehicleColor.Id.Value), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static Mock<IVehicleColorRepository> CreateVehicleColorRepositoryMock(List<VehicleColor>? initialVehicleColors = null)

@@ -1,13 +1,13 @@
-using GarageFlow.Application.Services.CreateService;
-using GarageFlow.Application.Services.DeleteService;
-using GarageFlow.Application.Services.GetServiceById;
-using GarageFlow.Application.Services.ListServices;
-using GarageFlow.Application.Services.UpdateService;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.Application.Services.UseCases.CreateService;
+using GarageFlow.Application.Services.UseCases.DeleteService;
+using GarageFlow.Application.Services.UseCases.GetServiceById;
+using GarageFlow.Application.Services.UseCases.ListServices;
+using GarageFlow.Application.Services.UseCases.UpdateService;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Services.Entities;
-using GarageFlow.Domain.Services.Repositories;
+using GarageFlow.Application.Services.Ports;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Tests.Shared.Services;
 using Moq;
@@ -22,7 +22,7 @@ public class ServiceHandlersTests
         var services = new List<Service>();
         var repositoryMock = CreateRepositoryMock(services);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateServiceHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateServiceHandler(repositoryMock.Object);
 
         var command = new CreateServiceCommand(
             Description: "Oil change",
@@ -34,9 +34,6 @@ public class ServiceHandlersTests
         Assert.Equal("Oil change", result.Description);
         Assert.Equal(129.90m, result.Price);
         Assert.Single(services);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -101,7 +98,7 @@ public class ServiceHandlersTests
         var repositoryMock = CreateRepositoryMock([service]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
 
-        var handler = new UpdateServiceHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateServiceHandler(repositoryMock.Object);
         var command = new UpdateServiceCommand(
             Id: service.Id.Value,
             Description: "Premium oil change",
@@ -112,9 +109,6 @@ public class ServiceHandlersTests
         Assert.Equal(service.Id.Value, result.Id);
         Assert.Equal("Premium oil change", result.Description);
         Assert.Equal(199.90m, result.Price);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -122,12 +116,10 @@ public class ServiceHandlersTests
     {
         var repositoryMock = CreateRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new UpdateServiceHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateServiceHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new UpdateServiceCommand(Guid.NewGuid(), "Premium oil change", 199.90m), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -137,16 +129,13 @@ public class ServiceHandlersTests
         var repositoryMock = CreateRepositoryMock([service]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
 
-        var handler = new DeleteServiceHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteServiceHandler(repositoryMock.Object);
         var command = new DeleteServiceCommand(service.Id.Value);
 
         await handler.Handle(command, CancellationToken.None);
         var deleted = await repositoryMock.Object.GetByIdAsync(service.Id, CancellationToken.None);
 
         Assert.Null(deleted);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.Is<Service>(s => s.Id == service.Id)), Times.Once);
     }
 
@@ -155,12 +144,10 @@ public class ServiceHandlersTests
     {
         var repositoryMock = CreateRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteServiceHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteServiceHandler(repositoryMock.Object);
 
         await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(new DeleteServiceCommand(Guid.NewGuid()), CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.IsAny<Service>()), Times.Never);
     }
 

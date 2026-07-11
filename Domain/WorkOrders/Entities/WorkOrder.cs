@@ -1,7 +1,7 @@
-using GarageFlow.BuildingBlocks.Domain.Entities;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Domain.Interfaces;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.Entities;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Interfaces;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using GarageFlow.Domain.Services.ValueObjects;
@@ -124,8 +124,18 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         var estimate = GetEstimateOrThrow(estimateId);
         EnsureStatusAllowsEstimateSubmission();
         EnsureEstimateCanBeSubmitted(estimate);
+        var previousStatus = Status;
         AdvanceStatusForEstimateSubmission();
         estimate.Submit();
+
+        if (previousStatus != WorkOrderStatus.WaitingApproval && Status == WorkOrderStatus.WaitingApproval)
+        {
+            RaiseDomainEvent(new EstimateWaitingApprovalRequested(
+                WorkOrderId: Id,
+                EstimateId: estimate.Id,
+                CustomerId: CustomerId,
+                RequestedAt: DateTime.UtcNow));
+        }
 
         UpdatedAt = DateTime.UtcNow;
 

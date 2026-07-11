@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.InventoryItems.Entities;
 using GarageFlow.Domain.InventoryItems.Enums;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
@@ -66,7 +66,7 @@ public sealed class InventoryItemBuilder
         return new CreateInventoryItemRequest(
             Name: _name,
             Description: _description,
-            Type: _type,
+            Type: (int)_type,
             Cost: _cost,
             Price: _price,
             StockQuantity: _stockQuantity);
@@ -77,7 +77,7 @@ public sealed class InventoryItemBuilder
         return new UpdateInventoryItemRequest(
             Name: _name,
             Description: _description,
-            Type: _type,
+            Type: (int)_type,
             Cost: _cost,
             Price: _price);
     }

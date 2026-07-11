@@ -3,20 +3,21 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
 WORKDIR /src
 
-COPY ["Api/GarageFlow.Api.csproj", "Api/"]
+COPY ["Host/GarageFlow.Host.csproj", "Host/"]
+COPY ["Adapters.Api/GarageFlow.Adapters.Api.csproj", "Adapters.Api/"]
+COPY ["Adapters.Infrastructure/GarageFlow.Adapters.Infrastructure.csproj", "Adapters.Infrastructure/"]
 COPY ["Application/GarageFlow.Application.csproj", "Application/"]
-COPY ["Infrastructure/GarageFlow.Infrastructure.csproj", "Infrastructure/"]
 COPY ["Domain/GarageFlow.Domain.csproj", "Domain/"]
-COPY ["BuildingBlocks/GarageFlow.BuildingBlocks.csproj", "BuildingBlocks/"]
+COPY ["SharedKernel/GarageFlow.SharedKernel.csproj", "SharedKernel/"]
 
-RUN dotnet restore "Api/GarageFlow.Api.csproj"
+RUN dotnet restore "Host/GarageFlow.Host.csproj"
 
 FROM restore AS build
 COPY . .
-RUN dotnet build "Api/GarageFlow.Api.csproj" -c Release --no-restore
+RUN dotnet build "Host/GarageFlow.Host.csproj" -c Release --no-restore
 
 FROM build AS publish
-RUN dotnet publish "Api/GarageFlow.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-build
+RUN dotnet publish "Host/GarageFlow.Host.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-build
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
@@ -31,4 +32,4 @@ USER appuser
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet", "GarageFlow.Api.dll"]
+ENTRYPOINT ["dotnet", "GarageFlow.Host.dll"]

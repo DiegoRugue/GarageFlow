@@ -1,5 +1,7 @@
 # Revisão técnica da base GarageFlow (2026-04-28)
 
+> Documento histórico. Esta auditoria descreve o estado anterior à migração Clean Architecture/DDD modular executada em 2026-07-04. Para as regras arquiteturais vigentes, consulte `AGENTS.md`, `README.md` e os testes em `Tests/Unit/Architecture`.
+
 ## Escopo
 - Revisão estática de arquitetura, domínio, aplicação, API, infraestrutura e testes.
 - Sem execução de build/testes por limitação de ambiente (`dotnet` indisponível).
@@ -10,7 +12,7 @@
 **Sintoma**
 - A API referencia diretamente `Infrastructure` no projeto e no `Program`.
 - Contratos da API (`Request/Response`) usam enums do `Domain`.
-- Alguns endpoints dependem de `BuildingBlocks` para lançar exceções.
+- Alguns endpoints dependem de `SharedKernel` para lançar exceções.
 
 **Impacto**
 - Viola fronteiras de arquitetura e dificulta evolução independente das camadas.
@@ -21,7 +23,7 @@
 - `Api/Program.cs` usa extensão de infraestrutura para data access/migration.  
 - `Api/Users/CreateUser/CreateUserRequest.cs` usa `GarageFlow.Domain.Users.Enums`.  
 - `Api/InventoryItems/CreateInventoryItem/CreateInventoryItemRequest.cs` usa `GarageFlow.Domain.InventoryItems.Enums`.  
-- `Api/Customers/GetCustomerById/GetCustomerByIdEndpoint.cs` usa `NotFoundException` de `BuildingBlocks`.
+- `Api/Customers/GetCustomerById/GetCustomerByIdEndpoint.cs` usa `NotFoundException` de `SharedKernel`.
 
 **Recomendação**
 - Introduzir contratos próprios da API para enums (ex.: `UserRoleContract`, `InventoryItemTypeContract`) e mapear para Application.
@@ -166,6 +168,6 @@
 
 ## Métricas sugeridas
 - **Architecture Drift Index**: nº de tipos em allowlist de violação.
-- **API Purity Index**: nº de referências `Api -> Domain/Infrastructure/BuildingBlocks` fora de composição permitida.
+- **API Purity Index**: nº de referências `Api -> Domain/Infrastructure/SharedKernel` fora de composição permitida.
 - **Security Bootstrap Score**: % de usuários criados via fluxo seguro (token/senha aleatória).
 - **Domain Event Coverage**: % de mutações de agregados com evento + teste.

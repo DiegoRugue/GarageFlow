@@ -1,0 +1,11 @@
+namespace GarageFlow.Adapters.Api.Users.UpdateMyProfile;
+
+public sealed record UpdateMyProfileResponse(
+    Guid Id,
+    string FullName,
+    string Email,
+    DateOnly BirthDate,
+    int Role,
+    bool MustChangePassword,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);

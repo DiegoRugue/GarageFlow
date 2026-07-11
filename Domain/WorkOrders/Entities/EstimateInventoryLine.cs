@@ -1,6 +1,6 @@
-using GarageFlow.BuildingBlocks.Domain.Entities;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.Entities;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 

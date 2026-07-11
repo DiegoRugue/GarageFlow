@@ -1,4 +1,4 @@
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 
 namespace GarageFlow.Domain.Vehicles.ValueObjects;
 

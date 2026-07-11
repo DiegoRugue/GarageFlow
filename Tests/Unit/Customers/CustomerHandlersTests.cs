@@ -1,16 +1,17 @@
-using GarageFlow.Application.Customers.CreateCustomer;
-using GarageFlow.Application.Customers.DeleteCustomer;
-using GarageFlow.Application.Customers.GetCustomerById;
-using GarageFlow.Application.Customers.ListCustomers;
-using GarageFlow.Application.Customers.UpdateCustomer;
-using GarageFlow.BuildingBlocks.Domain.Exceptions;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
-using GarageFlow.BuildingBlocks.Persistence;
+using GarageFlow.Application.Customers.UseCases.CreateCustomer;
+using GarageFlow.Application.Customers.UseCases.DeleteCustomer;
+using GarageFlow.Application.Customers.UseCases.GetCustomerById;
+using GarageFlow.Application.Customers.UseCases.ListCustomers;
+using GarageFlow.Application.Customers.UseCases.UpdateCustomer;
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Customers.Entities;
-using GarageFlow.Domain.Customers.Repositories;
+using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
-using GarageFlow.Domain.Vehicles.Repositories;
+using GarageFlow.Application.Vehicles.Ports;
+using GarageFlow.Application.Vehicles.ReadModels;
 using GarageFlow.Tests.Shared.Customers;
 using Moq;
 
@@ -24,7 +25,7 @@ public class CustomerHandlersTests
         var customers = new List<Customer>();
         var repositoryMock = CreateRepositoryMock(customers);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CreateCustomerHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new CreateCustomerHandler(repositoryMock.Object);
 
         var command = new CreateCustomerCommand(
             TaxDocument: "529.982.247-25",
@@ -42,9 +43,6 @@ public class CustomerHandlersTests
         Assert.Equal("11987654321", result.PhoneNumber);
 
         Assert.Single(customers);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -52,9 +50,9 @@ public class CustomerHandlersTests
     {
         var customer = new CustomerBuilder().Build();
         var repositoryMock = CreateRepositoryMock([customer]);
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock([]);
+        var vehicleQueriesMock = CreateVehicleQueriesMock([]);
 
-        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
+        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleQueriesMock.Object);
         var query = new GetCustomerByIdQuery(customer.Id.Value);
 
         var result = await handler.Handle(query, CancellationToken.None);
@@ -92,8 +90,8 @@ public class CustomerHandlersTests
                 Plate: "ABC1234",
                 CreatedAt: DateTime.UtcNow)
         };
-        var vehicleRepositoryMock = CreateVehicleRepositoryMock(vehicles);
-        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
+        var vehicleQueriesMock = CreateVehicleQueriesMock(vehicles);
+        var handler = new GetCustomerByIdHandler(repositoryMock.Object, vehicleQueriesMock.Object);
         var query = new GetCustomerByIdQuery(customer.Id.Value);
 
         var result = await handler.Handle(query, CancellationToken.None);
@@ -157,7 +155,7 @@ public class CustomerHandlersTests
         var repositoryMock = CreateRepositoryMock([customer]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
 
-        var handler = new UpdateCustomerHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new UpdateCustomerHandler(repositoryMock.Object);
         var command = new UpdateCustomerCommand(
             Id: customer.Id.Value,
             FullName: "John Updated",
@@ -170,10 +168,6 @@ public class CustomerHandlersTests
         Assert.Equal("John Updated", result.FullName);
         Assert.Equal("john.updated@example.com", result.Email);
         Assert.Equal("11912345678", result.PhoneNumber);
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -184,16 +178,13 @@ public class CustomerHandlersTests
         var vehicleRepositoryMock = CreateVehicleRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
 
-        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
         var command = new DeleteCustomerCommand(customer.Id.Value);
 
         await handler.Handle(command, CancellationToken.None);
         var deleted = await repositoryMock.Object.GetByIdAsync(customer.Id, CancellationToken.None);
 
         Assert.Null(deleted);
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         repositoryMock.Verify(x => x.Remove(It.Is<Customer>(c => c.Id == customer.Id)), Times.Once);
     }
 
@@ -204,13 +195,11 @@ public class CustomerHandlersTests
         var repositoryMock = CreateRepositoryMock([customer]);
         var vehicleRepositoryMock = CreateVehicleRepositoryMock(existsByCustomerId: true);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new DeleteCustomerHandler(repositoryMock.Object, vehicleRepositoryMock.Object);
         var command = new DeleteCustomerCommand(customer.Id.Value);
 
         await Assert.ThrowsAsync<BusinessRuleViolationException>(
             async () => await handler.Handle(command, CancellationToken.None));
-
-        unitOfWorkMock.Verify(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
         vehicleRepositoryMock.Verify(
             x => x.ExistsByCustomerIdAsync(It.Is<CustomerId>(id => id == customer.Id), It.IsAny<CancellationToken>()),
             Times.Once);
@@ -260,21 +249,28 @@ public class CustomerHandlersTests
     }
 
     private static Mock<IVehicleRepository> CreateVehicleRepositoryMock(
-        IReadOnlyList<VehicleDetailsReadModel>? initialVehicles = null,
         bool existsByCustomerId = false)
     {
         var repositoryMock = new Mock<IVehicleRepository>();
-        var vehicles = initialVehicles ?? [];
 
         repositoryMock
             .Setup(x => x.ExistsByCustomerIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existsByCustomerId);
 
-        repositoryMock
+        return repositoryMock;
+    }
+
+    private static Mock<IVehicleQueries> CreateVehicleQueriesMock(
+        IReadOnlyList<VehicleDetailsReadModel>? initialVehicles = null)
+    {
+        var queriesMock = new Mock<IVehicleQueries>();
+        var vehicles = initialVehicles ?? [];
+
+        queriesMock
             .Setup(x => x.ListDetailsByCustomerIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(vehicles);
 
-        return repositoryMock;
+        return queriesMock;
     }
 
     private static Mock<IUnitOfWork> CreateUnitOfWorkMock()

@@ -1,6 +1,6 @@
 using GarageFlow.Domain.InventoryItems.Enums;
-using GarageFlow.Infrastructure.DataAccess;
-using GarageFlow.Infrastructure.InventoryItems.Repositories;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Adapters.Infrastructure.InventoryItems.Repositories;
 using GarageFlow.Tests.Shared.InventoryItems;
 using Microsoft.EntityFrameworkCore;
 
@@ -58,6 +58,7 @@ public sealed class InventoryItemRepositoryTests
     {
         using var dbContext = CreateDbContext();
         var repository = new InventoryItemRepository(dbContext);
+        var queries = new EfInventoryItemQueries(dbContext);
         var item = new InventoryItemBuilder()
             .WithName("Cabin Filter")
             .WithDescription("Activated carbon cabin filter")
@@ -70,14 +71,14 @@ public sealed class InventoryItemRepositoryTests
         await repository.AddAsync(item);
         await dbContext.SaveChangesAsync();
 
-        var (items, totalCount) = await repository.ListDetailsAsync(page: 1, pageSize: 10);
+        var (items, totalCount) = await queries.ListDetailsAsync(page: 1, pageSize: 10);
 
         Assert.Equal(1, totalCount);
         var details = Assert.Single(items);
         Assert.Equal(item.Id.Value, details.Id);
         Assert.Equal("Cabin Filter", details.Name);
         Assert.Equal("Activated carbon cabin filter", details.Description);
-        Assert.Equal(InventoryItemType.Part, details.Type);
+        Assert.Equal((int)InventoryItemType.Part, details.Type);
         Assert.Equal(21.50m, details.Cost);
         Assert.Equal(49.90m, details.Price);
         Assert.Equal(8, details.StockQuantity);

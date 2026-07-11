@@ -1,0 +1,14 @@
+namespace GarageFlow.Application.Vehicles.UseCases.GetVehicleById;
+
+public sealed record VehicleDto(
+    Guid Id,
+    Guid CustomerId,
+    int Year,
+    Guid VehicleBrandId,
+    string VehicleBrandName,
+    Guid VehicleModelId,
+    string VehicleModelName,
+    Guid VehicleColorId,
+    string VehicleColorName,
+    string Plate,
+    DateTime CreatedAt);

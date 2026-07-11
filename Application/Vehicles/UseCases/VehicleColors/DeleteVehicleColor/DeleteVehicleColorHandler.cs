@@ -1,0 +1,35 @@
+using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.Application.Vehicles.Ports;
+using GarageFlow.Domain.Vehicles.ValueObjects;
+using Mediator;
+
+namespace GarageFlow.Application.Vehicles.UseCases.VehicleColors.DeleteVehicleColor;
+
+public sealed class DeleteVehicleColorHandler(
+    IVehicleColorRepository vehicleColorRepository,
+    IVehicleRepository vehicleRepository) : IRequestHandler<DeleteVehicleColorCommand, Unit>
+{
+    private readonly IVehicleColorRepository _vehicleColorRepository = vehicleColorRepository ?? throw new ArgumentNullException(nameof(vehicleColorRepository));
+    private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
+
+    public async ValueTask<Unit> Handle(DeleteVehicleColorCommand request, CancellationToken cancellationToken)
+    {
+        var vehicleColorId = VehicleColorId.From(request.Id);
+        var vehicleColor = await _vehicleColorRepository.GetByIdAsync(vehicleColorId, cancellationToken);
+        if (vehicleColor is null)
+        {
+            throw new NotFoundException($"Vehicle color with ID '{request.Id}' was not found.");
+        }
+
+        var hasVehicles = await _vehicleRepository.ExistsByVehicleColorIdAsync(vehicleColorId, cancellationToken);
+        if (hasVehicles)
+        {
+            throw new BusinessRuleViolationException($"Vehicle color with ID '{request.Id}' cannot be deleted because it has related vehicles.");
+        }
+
+        vehicleColor.Delete();
+        _vehicleColorRepository.Remove(vehicleColor);
+
+        return Unit.Value;
+    }
+}

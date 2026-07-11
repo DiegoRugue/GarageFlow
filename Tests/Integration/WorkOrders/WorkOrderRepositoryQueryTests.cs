@@ -1,15 +1,15 @@
 using System.Linq.Expressions;
 using System.Reflection;
-using GarageFlow.BuildingBlocks.Domain.ValueObjects;
+using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.InventoryItems.ValueObjects;
 using GarageFlow.Domain.Services.ValueObjects;
 using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
-using GarageFlow.Domain.WorkOrders.Repositories;
+using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
-using GarageFlow.Infrastructure.DataAccess;
-using GarageFlow.Infrastructure.WorkOrders.Repositories;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace GarageFlow.Tests.Integration.WorkOrders;
@@ -20,12 +20,12 @@ public sealed class WorkOrderRepositoryQueryTests
     public async Task GetAverageServiceTimeAsync_ShouldReturnZeroCountAndNullAverage_WhenNoServiceLinesMatchWindow()
     {
         using var dbContext = CreateDbContext();
-        var repository = new WorkOrderRepository(dbContext);
+        var queries = new EfWorkOrderQueries(dbContext);
 
         var from = new DateTime(2026, 1, 5, 8, 0, 0, DateTimeKind.Utc);
         var to = new DateTime(2026, 1, 5, 12, 0, 0, DateTimeKind.Utc);
 
-        var result = await repository.GetAverageServiceTimeAsync(from, to);
+        var result = await queries.GetAverageServiceTimeAsync(from, to);
 
         Assert.Equal(0, result.CompletedServicesCount);
         Assert.Null(result.AverageDurationMinutes);
@@ -35,7 +35,7 @@ public sealed class WorkOrderRepositoryQueryTests
     public async Task GetAverageServiceTimeAsync_ShouldIncludeCompletedAtBoundaries()
     {
         using var dbContext = CreateDbContext();
-        var repository = new WorkOrderRepository(dbContext);
+        var queries = new EfWorkOrderQueries(dbContext);
 
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
@@ -50,7 +50,7 @@ public sealed class WorkOrderRepositoryQueryTests
         CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, to, to.AddTicks(1));
         await dbContext.SaveChangesAsync();
 
-        var result = await repository.GetAverageServiceTimeAsync(from, to);
+        var result = await queries.GetAverageServiceTimeAsync(from, to);
 
         Assert.Equal(3, result.CompletedServicesCount);
     }
@@ -59,7 +59,7 @@ public sealed class WorkOrderRepositoryQueryTests
     public async Task GetAverageServiceTimeAsync_ShouldExcludeRowsWithNullStartedAtOrCompletedAt()
     {
         using var dbContext = CreateDbContext();
-        var repository = new WorkOrderRepository(dbContext);
+        var queries = new EfWorkOrderQueries(dbContext);
 
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
@@ -84,7 +84,7 @@ public sealed class WorkOrderRepositoryQueryTests
         CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, from.AddHours(4), from.AddHours(5));
         await dbContext.SaveChangesAsync();
 
-        var result = await repository.GetAverageServiceTimeAsync(from, to);
+        var result = await queries.GetAverageServiceTimeAsync(from, to);
 
         Assert.Equal(1, result.CompletedServicesCount);
         Assert.Equal(60d, result.AverageDurationMinutes);
@@ -94,7 +94,7 @@ public sealed class WorkOrderRepositoryQueryTests
     public async Task GetAverageServiceTimeAsync_ShouldComputeAverageFromCompletedAtMinusStartedAt()
     {
         using var dbContext = CreateDbContext();
-        var repository = new WorkOrderRepository(dbContext);
+        var queries = new EfWorkOrderQueries(dbContext);
 
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
@@ -110,7 +110,7 @@ public sealed class WorkOrderRepositoryQueryTests
         CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, serviceId, thirdCompletedAt.AddMinutes(-105), thirdCompletedAt);
         await dbContext.SaveChangesAsync();
 
-        var result = await repository.GetAverageServiceTimeAsync(from, to);
+        var result = await queries.GetAverageServiceTimeAsync(from, to);
 
         Assert.Equal(3, result.CompletedServicesCount);
         Assert.Equal(60d, result.AverageDurationMinutes);
@@ -120,7 +120,7 @@ public sealed class WorkOrderRepositoryQueryTests
     public async Task GetAverageServiceTimeAsync_ShouldFilterCompletedServiceLinesByServiceId()
     {
         using var dbContext = CreateDbContext();
-        var repository = new WorkOrderRepository(dbContext);
+        var queries = new EfWorkOrderQueries(dbContext);
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
         var targetServiceId = ServiceId.New();
@@ -131,7 +131,7 @@ public sealed class WorkOrderRepositoryQueryTests
         CreateWorkOrderWithCompletedService(dbContext, customerId, vehicleId, otherServiceId, from.AddHours(10), from.AddHours(12));
         await dbContext.SaveChangesAsync();
 
-        var result = await repository.GetAverageServiceTimeAsync(from, to, targetServiceId);
+        var result = await queries.GetAverageServiceTimeAsync(from, to, targetServiceId);
 
         Assert.Equal(1, result.CompletedServicesCount);
         Assert.Equal(60d, result.AverageDurationMinutes);
@@ -158,6 +158,7 @@ public sealed class WorkOrderRepositoryQueryTests
     {
         using var dbContext = CreateDbContext();
         var repository = new WorkOrderRepository(dbContext);
+        var queries = new EfWorkOrderQueries(dbContext);
 
         var customerId = CustomerId.New();
         var vehicleId = VehicleId.New();
@@ -197,7 +198,7 @@ public sealed class WorkOrderRepositoryQueryTests
         await repository.AddAsync(workOrder);
         await dbContext.SaveChangesAsync();
 
-        var (items, totalCount) = await repository.ListDetailsAsync(page: 1, pageSize: 10, customerId: customerId);
+        var (items, totalCount) = await queries.ListDetailsAsync(page: 1, pageSize: 10, customerId: customerId);
 
         Assert.Equal(1, totalCount);
 

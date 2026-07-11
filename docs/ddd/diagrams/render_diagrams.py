@@ -547,7 +547,7 @@ def bounded_contexts() -> Image.Image:
     )
 
     api = (595, 140, 1005, 235)
-    draw_box(draw, api, "GarageFlow.Api\nMinimal APIs + Scalar", "api", max_chars=28)
+    draw_box(draw, api, "GarageFlow.Adapters.Api\nMinimal APIs + Scalar", "api", max_chars=28)
     draw_centered_text(draw, (800, 270), "A API expõe os módulos abaixo por endpoints REST.", SMALL_FONT, "#475569")
 
     modules = [
