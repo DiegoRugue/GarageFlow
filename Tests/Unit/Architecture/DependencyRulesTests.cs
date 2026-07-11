@@ -220,7 +220,10 @@ public class DependencyRulesTests
             .Descendants("ProjectReference")
             .Select(reference => reference.Attribute("Include")?.Value)
             .Where(include => !string.IsNullOrWhiteSpace(include))
-            .Select(include => Path.GetRelativePath(RepositoryRoot, Path.GetFullPath(include!, projectDirectory)))
+            .Select(include => include!
+                .Replace('\\', Path.DirectorySeparatorChar)
+                .Replace('/', Path.DirectorySeparatorChar))
+            .Select(include => Path.GetRelativePath(RepositoryRoot, Path.GetFullPath(include, projectDirectory)))
             .Select(include => include.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar))
             .ToArray();
     }
