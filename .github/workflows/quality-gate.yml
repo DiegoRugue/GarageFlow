@@ -26,6 +26,116 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Validate Postman assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          collection_path = Path("docs/postman/GarageFlow.Phase2.postman_collection.json")
+          environment_path = Path("docs/postman/GarageFlow.Phase2.postman_environment.example.json")
+          collection = json.loads(collection_path.read_text(encoding="utf-8"))
+          environment = json.loads(environment_path.read_text(encoding="utf-8"))
+
+          expected_folders = [
+              "00 Health and OpenAPI",
+              "01 Authentication",
+              "02 Existing-ID Work Order Opening",
+              "03 Complete Intake",
+              "04 Status and Active Queue",
+              "05 Estimate Submission",
+              "06 Signed External Decision",
+              "07 Completion and Delivery",
+          ]
+          if collection["info"]["schema"] != "https://schema.getpostman.com/json/collection/v2.1.0/collection.json":
+              raise SystemExit("Postman collection must use schema v2.1")
+          if [folder["name"] for folder in collection["item"]] != expected_folders:
+              raise SystemExit("Postman folders are missing or out of order")
+
+          variables = {entry["key"]: entry.get("value", "") for entry in collection.get("variable", [])}
+          secret_keys = {"staffEmail", "staffPassword", "staffActivePassword", "webhookSecret"}
+          if secret_keys.intersection(variables):
+              raise SystemExit("Environment secrets must not be committed as collection variables")
+          if variables.get("token") != "":
+              raise SystemExit("Committed JWT variable must be empty")
+
+          environment_values = {entry["key"]: entry for entry in environment["values"]}
+          if set(environment_values) != {"baseUrl", *secret_keys}:
+              raise SystemExit("Example environment has unexpected keys")
+          for key in secret_keys:
+              if environment_values[key].get("value") != "" or environment_values[key].get("type") != "secret":
+                  raise SystemExit(f"Example environment secret {key} must be empty and typed secret")
+
+          scripts = []
+          request_names = []
+          for folder in collection["item"]:
+              for item in folder["item"]:
+                  request_names.append(item["name"])
+                  for event in item.get("event", []):
+                      source = "\n".join(event["script"].get("exec", []))
+                      scripts.append((f"{item['name']}:{event['listen']}", source))
+
+          aggregate = "\n".join(source for _, source in scripts)
+          if re.search(r"console\.(log|warn|error|debug)", aggregate):
+              raise SystemExit("Postman scripts must not write values to the console")
+
+          required_markers = [
+              "generateCpf",
+              "isValidCpf",
+              "generateMercosulPlate",
+              "[200, 401]",
+              "pm.execution.setNextRequest",
+              "intakeRawBody",
+              "changedPayload.services[0].price",
+              "pm.require('npm:crypto-js@4.2.0')",
+              "typeof pm.require === 'function'",
+              "CryptoLibrary.enc.Hex",
+              "pm.variables.replaceIn(pm.request.body.raw)",
+              "HmacSHA256(timestamp + '.' + rawBody, secret)",
+              "webhookRawBody",
+              "WaitingApproval",
+              "InProgress",
+              "Completed work order is excluded from the active queue",
+              "Delivered work order is excluded from the active queue",
+          ]
+          missing = [marker for marker in required_markers if marker not in aggregate]
+          if missing:
+              raise SystemExit("Postman scripts are missing required guards: " + ", ".join(missing))
+
+          required_requests = {
+              "Open work order with existing IDs",
+              "Create complete intake",
+              "Replay complete intake byte-for-byte",
+              "Reject changed complete intake replay",
+              "Submit intake estimate",
+              "Approve estimate with signed webhook",
+              "Replay signed webhook byte-for-byte",
+              "Start estimate service",
+              "Complete estimate service",
+              "Deliver work order",
+          }
+          if not required_requests.issubset(request_names):
+              raise SystemExit("Postman collection is missing required Phase 2 requests")
+
+          for name, source in scripts:
+              with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8", delete=False) as script_file:
+                  script_file.write(source)
+                  script_path = Path(script_file.name)
+              try:
+                  subprocess.run(["node", "--check", str(script_path)], check=True)
+              except subprocess.CalledProcessError as error:
+                  raise SystemExit(f"JavaScript syntax failed for {name}") from error
+              finally:
+                  script_path.unlink(missing_ok=True)
+
+          print(f"Validated {len(request_names)} Postman requests and {len(scripts)} scripts")
+          PY
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
