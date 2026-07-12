@@ -44,4 +44,11 @@ public sealed class IntegrationOutboxMessageEntity
         DateTime occurredAt,
         string? correlationId) =>
         new(id, eventKey, aggregateId, payload, occurredAt, correlationId);
+
+    internal void AcquireLease(Guid leaseId, DateTime leaseExpiresAt)
+    {
+        LeaseId = leaseId;
+        LeaseExpiresAt = leaseExpiresAt;
+        AttemptCount++;
+    }
 }

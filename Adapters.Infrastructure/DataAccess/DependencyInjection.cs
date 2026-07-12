@@ -23,6 +23,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace GarageFlow.Adapters.Infrastructure.DataAccess;
 
@@ -86,6 +87,13 @@ public static class DependencyInjection
         services.AddScoped<IEstimateDecisionInbox, EstimateDecisionInbox>();
         services.AddScoped<IIntegrationOutboxMapper, WorkOrderIntegrationOutboxMapper>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
+        services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();
+        services.AddScoped<IIntegrationOutboxProcessor, IntegrationOutboxProcessor>();
+        services.AddSingleton<IValidateOptions<IntegrationOutboxOptions>, IntegrationOutboxOptionsValidator>();
+        services.AddOptions<IntegrationOutboxOptions>()
+            .Bind(configuration.GetSection(IntegrationOutboxOptions.SectionName))
+            .ValidateOnStart();
+        services.AddHostedService<IntegrationOutboxPublisher>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.Configure<JwtTokenOptions>(configuration.GetSection(JwtTokenOptions.SectionName));
