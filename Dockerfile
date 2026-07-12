@@ -25,14 +25,13 @@ RUN dotnet publish "Host/GarageFlow.Host.csproj" -c Release -o /app/publish /p:U
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.9 AS runtime
 WORKDIR /app
-COPY --from=publish /app/publish .
-COPY scripts/seed-local.sql /app/scripts/seed-local.sql
-
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
-    && chown -R appuser:appuser /app
+    && useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser
+
+COPY --from=publish --chown=appuser:appuser /app/publish .
+COPY --chown=appuser:appuser scripts/seed-local.sql /app/scripts/seed-local.sql
 
 USER appuser
 

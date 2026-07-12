@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 077
 
 if (( $# != 1 )); then
   echo "usage: smoke-container.sh <image>" >&2
@@ -11,7 +12,20 @@ SUFFIX="$$"
 NETWORK="garageflow-smoke-${SUFFIX}"
 POSTGRES="garageflow-postgres-${SUFFIX}"
 API="garageflow-api-${SUFFIX}"
+WORK_DIR=""
+
+cleanup() {
+  docker rm -f "${API}" "${POSTGRES}" >/dev/null 2>&1 || true
+  docker network rm "${NETWORK}" >/dev/null 2>&1 || true
+  if [[ -n "${WORK_DIR}" && -d "${WORK_DIR}" && "${WORK_DIR##*/}" == garageflow-smoke.* ]]; then
+    rm -rf -- "${WORK_DIR}"
+  fi
+}
+
+trap cleanup EXIT
+
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/garageflow-smoke.XXXXXX")"
+chmod 700 "${WORK_DIR}"
 
 SMOKE_DB_NAME="garageflow_smoke"
 SMOKE_DB_USER="garageflow_smoke"
@@ -24,16 +38,14 @@ SMOKE_WEBHOOK_SECRET="synthetic-smoke-webhook-secret-2026-32chars"
 export SMOKE_DB_PASSWORD SMOKE_ADMIN_INITIAL_PASSWORD SMOKE_ADMIN_ACTIVE_PASSWORD
 export SMOKE_JWT_KEY SMOKE_WEBHOOK_SECRET
 
-cleanup() {
-  docker rm -f "${API}" "${POSTGRES}" >/dev/null 2>&1 || true
-  docker network rm "${NETWORK}" >/dev/null 2>&1 || true
-  rm -rf "${WORK_DIR}"
-}
-
 sanitize_logs() {
-  python3 -c '
+  local source="$1"
+  local target="$2"
+  python3 - "${source}" "${target}" <<'PY'
 import os, re, sys
-text = sys.stdin.read()
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
 for name in (
     "SMOKE_DB_PASSWORD",
     "SMOKE_ADMIN_INITIAL_PASSWORD",
@@ -44,23 +56,70 @@ for name in (
     value = os.environ.get(name)
     if value:
         text = text.replace(value, "[REDACTED]")
+text = re.sub(
+    r"(?i)(ConnectionStrings(?:__|:|\.)GarageFlow\s*[=:]\s*)(?:\"[^\"\r\n]*\"|[^\r\n]+)",
+    r"\1[REDACTED CONNECTION STRING]",
+    text,
+)
+text = re.sub(
+    r"(?i)(?<![A-Za-z])(?:Host|Server|Data Source)\s*=\s*[^;\r\n]+(?:\s*;\s*[^;=\r\n]+\s*=\s*[^;\r\n]+){2,}",
+    "[REDACTED CONNECTION STRING]",
+    text,
+)
+text = re.sub(r"(?i)\b(?:postgres(?:ql)?|npgsql)://[^\s\"']+", "[REDACTED CONNECTION STRING]", text)
 text = re.sub(r"(?i)(password\s*[=:]\s*)[^;\s]+", r"\1[REDACTED]", text)
 text = re.sub(r"(?i)(authorization:\s*bearer\s+)[A-Za-z0-9._~-]+", r"\1[REDACTED]", text)
 text = re.sub(r"(?i)(\"token\"\s*:\s*\")[^\"]+", r"\1[REDACTED]", text)
-sys.stderr.write(text)
-'
+text = re.sub(
+    r"(?i)((?:token|secret|password|pwd|api(?:[_:.-]+)?key|jwt(?:[_:.-]+)?key|hmac(?:[_:.-]+)?secret)\s*[=:]\s*)[^;\s\"']+",
+    r"\1[REDACTED]",
+    text,
+)
+text = re.sub(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b", "[REDACTED TOKEN]", text)
+Path(sys.argv[2]).write_text(text, encoding="utf-8")
+PY
+}
+
+emit_sanitized_file() {
+  local source="$1"
+  local label="$2"
+  local sanitized
+  sanitized="$(mktemp "${WORK_DIR}/sanitized.XXXXXX")"
+  chmod 600 "${sanitized}"
+  assert_private_mode "${sanitized}" 600 "Sanitized log artifact"
+  echo "--- ${label} ---" >&2
+  if sanitize_logs "${source}" "${sanitized}"; then
+    cat "${sanitized}" >&2
+  else
+    echo "Log sanitizer failed; raw logs withheld/unavailable." >&2
+  fi
+  rm -f -- "${sanitized}"
+}
+
+capture_and_print_container_logs() {
+  local container="$1"
+  local label="$2"
+  local captured
+  captured="$(mktemp "${WORK_DIR}/container-log.XXXXXX")"
+  chmod 600 "${captured}"
+  assert_private_mode "${captured}" 600 "Captured container log"
+  if docker logs "${container}" >"${captured}" 2>&1; then
+    emit_sanitized_file "${captured}" "${label}"
+  else
+    echo "--- ${label} ---" >&2
+    echo "Container logs unavailable; raw logs withheld." >&2
+  fi
+  rm -f -- "${captured}"
 }
 
 print_logs() {
   echo "Smoke failed; sanitized container logs follow." >&2
   if docker inspect "${API}" >/dev/null 2>&1; then
     docker inspect --format 'API state: running={{.State.Running}} exitCode={{.State.ExitCode}} oomKilled={{.State.OOMKilled}}' "${API}" >&2 || true
-    echo "--- API ---" >&2
-    docker logs "${API}" 2>&1 | sanitize_logs || true
+    capture_and_print_container_logs "${API}" "API"
   fi
   if docker inspect "${POSTGRES}" >/dev/null 2>&1; then
-    echo "--- PostgreSQL ---" >&2
-    docker logs "${POSTGRES}" 2>&1 | sanitize_logs || true
+    capture_and_print_container_logs "${POSTGRES}" "PostgreSQL"
   fi
 }
 
@@ -72,12 +131,29 @@ on_error() {
 }
 
 trap 'on_error "$?"' ERR
-trap cleanup EXIT
 
 fail() {
   echo "$1" >&2
   return 1
 }
+
+assert_private_mode() {
+  local target="$1"
+  local expected="$2"
+  local description="$3"
+  local actual
+  actual="$(stat -c '%a' "${target}")"
+  [[ "${actual}" == "${expected}" ]] || fail "${description} must have mode ${expected}, found ${actual}."
+}
+
+create_private_file() {
+  local target="$1"
+  : >"${target}"
+  chmod 600 "${target}"
+  assert_private_mode "${target}" 600 "Private smoke artifact"
+}
+
+assert_private_mode "${WORK_DIR}" 700 "Smoke work directory"
 
 assert_status() {
   local expected="$1"
@@ -93,6 +169,8 @@ request() {
   local response_file="$4"
   local headers_file="$5"
   local auth_config="${6:-}"
+  create_private_file "${response_file}"
+  create_private_file "${headers_file}"
   local args=(
     --silent --show-error
     --connect-timeout 5 --max-time 20
@@ -114,6 +192,7 @@ request() {
 write_json() {
   local target="$1"
   local expression="$2"
+  create_private_file "${target}"
   TARGET="${target}" EXPRESSION="${expression}" python3 - <<'PY'
 import json, os
 target = os.environ["TARGET"]
@@ -153,7 +232,7 @@ values = {
 with open(target, "w", encoding="utf-8") as stream:
     json.dump(values[expression], stream, separators=(",", ":"))
 PY
-  chmod 600 "${target}"
+  assert_private_mode "${target}" 600 "JSON request artifact"
 }
 
 export SMOKE_ADMIN_EMAIL
@@ -190,7 +269,17 @@ common_env=(
   --env Integrations__Sns__Region=us-east-1
 )
 
-docker run --rm --network "${NETWORK}" "${common_env[@]}" "${IMAGE}" --migrate-only
+MIGRATION_LOG="${WORK_DIR}/migration.log"
+create_private_file "${MIGRATION_LOG}"
+if docker run --rm --network "${NETWORK}" "${common_env[@]}" "${IMAGE}" --migrate-only >"${MIGRATION_LOG}" 2>&1; then
+  rm -f -- "${MIGRATION_LOG}"
+else
+  migration_status="$?"
+  echo "Database migration failed; sanitized output follows." >&2
+  emit_sanitized_file "${MIGRATION_LOG}" "Migration"
+  print_logs
+  exit "${migration_status}"
+fi
 echo "Database migration completed."
 
 docker run --detach --name "${API}" --network "${NETWORK}" \
@@ -204,7 +293,11 @@ HOST_PORT="${port_mapping##*:}"
 BASE_URL="http://127.0.0.1:${HOST_PORT}"
 
 ready_deadline=$((SECONDS + 120))
-until curl --silent --connect-timeout 2 --max-time 5 --output /dev/null "${BASE_URL}/health/ready" 2>/dev/null; do
+while true; do
+  ready_status="$(curl --silent --connect-timeout 2 --max-time 5 --output /dev/null --write-out '%{http_code}' "${BASE_URL}/health/ready" 2>/dev/null || true)"
+  if [[ "${ready_status}" == "200" ]]; then
+    break
+  fi
   if [[ "$(docker inspect --format '{{.State.Running}}' "${API}" 2>/dev/null || true)" != "true" ]]; then
     fail "API container stopped before becoming ready."
   fi
@@ -241,8 +334,9 @@ if payload.get("mustChangePassword") is not True or not payload.get("token"):
 print(payload["token"], end="")
 PY
 )"
+create_private_file "${WORK_DIR}/initial-auth.conf"
 printf 'header = "Authorization: Bearer %s"\n' "${INITIAL_TOKEN}" > "${WORK_DIR}/initial-auth.conf"
-chmod 600 "${WORK_DIR}/initial-auth.conf"
+assert_private_mode "${WORK_DIR}/initial-auth.conf" 600 "Initial auth config"
 unset INITIAL_TOKEN
 
 write_json "${WORK_DIR}/change-password.json" change-password
@@ -263,8 +357,9 @@ if payload.get("mustChangePassword") is not False or not payload.get("token"):
 print(payload["token"], end="")
 PY
 )"
+create_private_file "${WORK_DIR}/active-auth.conf"
 printf 'header = "Authorization: Bearer %s"\n' "${ACTIVE_TOKEN}" > "${WORK_DIR}/active-auth.conf"
-chmod 600 "${WORK_DIR}/active-auth.conf"
+assert_private_mode "${WORK_DIR}/active-auth.conf" 600 "Active auth config"
 unset ACTIVE_TOKEN
 
 write_json "${WORK_DIR}/intake.json" intake
