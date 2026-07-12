@@ -12,8 +12,8 @@ using Npgsql;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
+[Collection(E2eApiCollection.Name)]
 public sealed class EstimateDecisionInboxPostgresE2eTests(E2eApiFixture fixture)
-    : IClassFixture<E2eApiFixture>
 {
     private readonly E2eApiFixture _fixture = fixture;
 

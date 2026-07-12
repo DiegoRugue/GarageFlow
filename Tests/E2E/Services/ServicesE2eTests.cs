@@ -6,7 +6,8 @@ using GarageFlow.Tests.E2E.Support.Helpers;
 
 namespace GarageFlow.Tests.E2E.Services;
 
-public sealed class ServicesE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class ServicesE2eTests(E2eApiFixture fixture)
 {
     private const string NotFoundProblemTitle = "Resource not found";
 

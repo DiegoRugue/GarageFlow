@@ -6,7 +6,8 @@ using GarageFlow.Tests.E2E.Support.Helpers;
 
 namespace GarageFlow.Tests.E2E.Customers;
 
-public sealed class CustomersE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class CustomersE2eTests(E2eApiFixture fixture)
 {
     private const string CustomerRole = "Customer";
 

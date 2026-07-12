@@ -7,8 +7,8 @@ using Npgsql;
 
 namespace GarageFlow.Tests.E2E.Integrations;
 
+[Collection(E2eApiCollection.Name)]
 public sealed class OutboxRepositoryPostgresE2eTests(E2eApiFixture fixture)
-    : IClassFixture<E2eApiFixture>
 {
     private readonly E2eApiFixture _fixture = fixture;
     private static readonly DateTime Now = new(2026, 7, 12, 12, 0, 0, DateTimeKind.Utc);

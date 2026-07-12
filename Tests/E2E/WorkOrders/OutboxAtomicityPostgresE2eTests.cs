@@ -19,8 +19,8 @@ using Npgsql;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
+[Collection(E2eApiCollection.Name)]
 public sealed class OutboxAtomicityPostgresE2eTests(E2eApiFixture fixture)
-    : IClassFixture<E2eApiFixture>
 {
     private readonly E2eApiFixture _fixture = fixture;
 
@@ -28,7 +28,7 @@ public sealed class OutboxAtomicityPostgresE2eTests(E2eApiFixture fixture)
     public async Task TransactionBehavior_ShouldCommitDomainMutationAndOutboxTogether_InPostgreSql()
     {
         var dependencies = await CreateDependenciesAsync(
-            taxDocument: "52998224725",
+            taxDocument: "93541134780",
             email: "outbox-success@garageflow.local",
             phoneNumber: "11911111111",
             licensePlate: "OUT1B01");

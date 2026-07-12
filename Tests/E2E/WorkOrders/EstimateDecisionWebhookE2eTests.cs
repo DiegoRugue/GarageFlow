@@ -23,8 +23,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
+[Collection(E2eApiCollection.Name)]
 public sealed class EstimateDecisionWebhookE2eTests(E2eApiFixture fixture)
-    : IClassFixture<E2eApiFixture>
 {
     private const int ReservedQuantity = 3;
     private const int InitialStock = 10;

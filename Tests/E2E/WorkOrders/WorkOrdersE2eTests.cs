@@ -15,7 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
-public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class WorkOrdersE2eTests(E2eApiFixture fixture)
 {
     private const string NotFoundProblemTitle = "Resource not found";
     private const string ConflictProblemTitle = "Business rule violation";

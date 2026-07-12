@@ -5,7 +5,8 @@ using GarageFlow.Tests.E2E.Support.Helpers;
 
 namespace GarageFlow.Tests.E2E.Users;
 
-public sealed class UsersE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class UsersE2eTests(E2eApiFixture fixture)
 {
     private const int AttendantRoleValue = 2;
 

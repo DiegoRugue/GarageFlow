@@ -7,7 +7,8 @@ using Npgsql;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
-public sealed class Phase2StatusMigrationE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class Phase2StatusMigrationE2eTests(E2eApiFixture fixture)
 {
     private const string PreviousMigration = "20260502194707_EstimateServiceLineExecution";
     private readonly E2eApiFixture _fixture = fixture;
