@@ -1,6 +1,7 @@
 using GarageFlow.Application.Common.Behaviors;
 using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.Common.Messaging;
+using GarageFlow.Application.Common.Integrations;
 using GarageFlow.Application.InventoryItems.Ports;
 using GarageFlow.Application.WorkOrders.Common;
 using GarageFlow.Application.WorkOrders.Ports;
@@ -259,7 +260,9 @@ public sealed class ReceiveEstimateDecisionHandlerTests
 
         var behavior = new TransactionBehavior<ReceiveEstimateDecisionCommand, ReceiveEstimateDecisionResult>(
             unitOfWork.Object,
-            dispatcher.Object);
+            dispatcher.Object,
+            Mock.Of<IIntegrationOutboxMapper>(),
+            Mock.Of<IOutboxWriter>());
         MessageHandlerDelegate<ReceiveEstimateDecisionCommand, ReceiveEstimateDecisionResult> next =
             (message, cancellationToken) => fixture.Handler.Handle(message, cancellationToken);
 

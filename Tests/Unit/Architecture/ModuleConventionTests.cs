@@ -276,6 +276,12 @@ public class ModuleConventionTests
             return true;
         }
 
+        if (pathSegments.Contains("Integrations") &&
+            HasAnySuffix(filePath, "IntegrationEvent.cs", "OutboxMapper.cs"))
+        {
+            return true;
+        }
+
         if (pathSegments.Contains("Abstractions") && Path.GetFileName(filePath).StartsWith('I'))
         {
             return true;

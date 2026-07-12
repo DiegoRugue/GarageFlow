@@ -1,7 +1,4 @@
-using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.WorkOrders.Common;
-using GarageFlow.Application.WorkOrders.Events;
-using GarageFlow.Application.WorkOrders.Abstractions;
 using GarageFlow.Application.WorkOrders.UseCases.AddEstimateInventoryItem;
 using GarageFlow.Application.WorkOrders.UseCases.AddEstimateService;
 using GarageFlow.Application.WorkOrders.UseCases.ApproveMyEstimate;
@@ -52,7 +49,6 @@ using GarageFlow.Tests.Shared.Users;
 using GarageFlow.Tests.Shared.Vehicles;
 using GarageFlow.Tests.Shared.WorkOrders;
 using Mediator;
-using Microsoft.Extensions.Logging;
 using Moq;
 using MediatorUnit = Mediator.Unit;
 
@@ -535,85 +531,6 @@ public class WorkOrderHandlersTests
                 CancellationToken.None));
 
         Assert.Equal($"Work order with ID '{workOrderId}' was not found.", exception.Message);
-    }
-
-    [Fact]
-    public async Task WaitingApprovalHandler_ShouldSendApprovalEmail()
-    {
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
-        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
-        var domainEvent = new EstimateWaitingApprovalRequested(
-            WorkOrderId.From(Guid.NewGuid()),
-            EstimateId.From(Guid.NewGuid()),
-            CustomerId.From(Guid.NewGuid()),
-            DateTime.UtcNow);
-
-        await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None);
-
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                domainEvent.WorkOrderId.Value,
-                domainEvent.EstimateId.Value,
-                domainEvent.CustomerId.Value,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task WaitingApprovalHandler_ShouldNotThrow_WhenEmailSenderFails()
-    {
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
-        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
-        var domainEvent = new EstimateWaitingApprovalRequested(
-            WorkOrderId.From(Guid.NewGuid()),
-            EstimateId.From(Guid.NewGuid()),
-            CustomerId.From(Guid.NewGuid()),
-            DateTime.UtcNow);
-        emailSenderMock
-            .Setup(x => x.SendEstimateWaitingApprovalAsync(
-                domainEvent.WorkOrderId.Value,
-                domainEvent.EstimateId.Value,
-                domainEvent.CustomerId.Value,
-                It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Email sender failed."));
-
-        var exception = await Record.ExceptionAsync(
-            async () => await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None));
-
-        Assert.Null(exception);
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                domainEvent.WorkOrderId.Value,
-                domainEvent.EstimateId.Value,
-                domainEvent.CustomerId.Value,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task WaitingApprovalHandler_ShouldIgnoreNonMatchingDomainEvent()
-    {
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
-        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
-        var domainEvent = new EstimateSubmitted(
-            WorkOrderId.From(Guid.NewGuid()),
-            EstimateId.From(Guid.NewGuid()),
-            EstimateStatus.Pending,
-            125m,
-            DateTime.UtcNow);
-
-        await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None);
-
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
