@@ -832,7 +832,7 @@ function Test-AnonymousVideoReachability {
             $currentUri = [Uri]::new($currentUri, $result.Location)
             continue
         }
-        Assert-Condition ($result.StatusCode -ge 200 -and $result.StatusCode -lt 400) `
+        Assert-Condition ($result.StatusCode -ge 200 -and $result.StatusCode -lt 300) `
             "Anonymous video URL did not return a successful status."
         return
     }
