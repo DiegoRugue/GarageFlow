@@ -6,6 +6,7 @@ using GarageFlow.Tests.E2E.Support.Contracts.Common;
 using GarageFlow.Tests.E2E.Support.Fixtures;
 using GarageFlow.Tests.E2E.Support.Helpers;
 using GarageFlow.Tests.Shared.WorkOrders;
+using Npgsql;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
@@ -205,6 +206,87 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         HttpResponseAssertions.AssertStatus(customerHistoryResponse, HttpStatusCode.OK);
         var customerHistory = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(customerHistoryResponse);
         Assert.Contains(customerHistory.Items, item => item.Id == createdWorkOrder.Id && item.Status == "Delivered");
+    }
+
+    [Fact]
+    public async Task WorkOrders_ShouldTranslateActiveQueueOrderingFilteringAndPaging_InPostgreSql()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seed = Guid.NewGuid().ToString("N");
+        var targetSetup = await CreateWorkOrderSetupAsync(staffClient, seed);
+        var otherSetup = await CreateWorkOrderSetupAsync(staffClient, Guid.NewGuid().ToString("N"));
+
+        var inProgressOldest = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var inProgressNewest = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var waitingApproval = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var diagnosing = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var receivedFirst = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var receivedSecond = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var completed = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var delivered = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var cancelled = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var otherCustomerReceived = await CreateWorkOrderAsync(staffClient, otherSetup);
+
+        var idPrefix = Guid.NewGuid().ToString("N")[..30];
+        var receivedLowerId = Guid.ParseExact($"{idPrefix}01", "N");
+        var receivedHigherId = Guid.ParseExact($"{idPrefix}02", "N");
+        var baseline = new DateTime(2026, 7, 12, 8, 0, 0, DateTimeKind.Utc);
+
+        await SeedWorkOrderQueueAsync(
+        [
+            new(inProgressOldest.Id, inProgressOldest.Id, "InProgress", baseline),
+            new(inProgressNewest.Id, inProgressNewest.Id, "InProgress", baseline.AddMinutes(1)),
+            new(waitingApproval.Id, waitingApproval.Id, "WaitingApproval", baseline),
+            new(diagnosing.Id, diagnosing.Id, "Diagnosing", baseline),
+            new(receivedFirst.Id, receivedLowerId, "Received", baseline),
+            new(receivedSecond.Id, receivedHigherId, "Received", baseline),
+            new(completed.Id, completed.Id, "Completed", baseline),
+            new(delivered.Id, delivered.Id, "Delivered", baseline),
+            new(cancelled.Id, cancelled.Id, "Cancelled", baseline),
+            new(otherCustomerReceived.Id, otherCustomerReceived.Id, "Received", baseline)
+        ]);
+
+        Guid[] expectedIds =
+        [
+            inProgressOldest.Id,
+            inProgressNewest.Id,
+            waitingApproval.Id,
+            diagnosing.Id,
+            receivedLowerId,
+            receivedHigherId
+        ];
+        Guid[] terminalIds = [completed.Id, delivered.Id, cancelled.Id];
+
+        using var completeResponse = await staffClient.GetAsync(
+            $"/work-orders?page=1&pageSize=100&customerId={targetSetup.CustomerId}");
+        HttpResponseAssertions.AssertStatus(completeResponse, HttpStatusCode.OK);
+        var completeQueue = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(completeResponse);
+
+        Assert.Equal(6, completeQueue.TotalCount);
+        Assert.Equal(expectedIds, completeQueue.Items.Select(item => item.Id));
+        Assert.Equal(
+            ["InProgress", "InProgress", "WaitingApproval", "Diagnosing", "Received", "Received"],
+            completeQueue.Items.Select(item => item.Status));
+        Assert.DoesNotContain(completeQueue.Items, item => terminalIds.Contains(item.Id));
+        Assert.DoesNotContain(completeQueue.Items, item => item.Id == otherCustomerReceived.Id);
+
+        var pagedIds = new List<Guid>();
+        for (var page = 1; page <= 3; page++)
+        {
+            using var pageResponse = await staffClient.GetAsync(
+                $"/work-orders?page={page}&pageSize=2&customerId={targetSetup.CustomerId}");
+            HttpResponseAssertions.AssertStatus(pageResponse, HttpStatusCode.OK);
+            var pagePayload = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(pageResponse);
+
+            Assert.Equal(6, pagePayload.TotalCount);
+            Assert.Equal(page, pagePayload.Page);
+            Assert.Equal(2, pagePayload.PageSize);
+            Assert.Equal(2, pagePayload.Items.Count);
+            pagedIds.AddRange(pagePayload.Items.Select(item => item.Id));
+        }
+
+        Assert.Equal(expectedIds, pagedIds);
+        Assert.Equal(expectedIds.Length, pagedIds.Distinct().Count());
     }
 
     [Fact]
@@ -452,6 +534,47 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         return payload;
     }
 
+    private static async Task<CreateWorkOrderResponse> CreateWorkOrderAsync(
+        HttpClient client,
+        WorkOrderSetupIds setup)
+    {
+        using var response = await client.PostAsJsonAsync(
+            "/work-orders",
+            new CreateWorkOrderRequest(setup.CustomerId, setup.VehicleId));
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Created);
+        return await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderResponse>(response);
+    }
+
+    private async Task SeedWorkOrderQueueAsync(IReadOnlyCollection<WorkOrderQueueSeed> seeds)
+    {
+        await using var connection = new NpgsqlConnection(_fixture.DatabaseConnectionString);
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        foreach (var seed in seeds)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                UPDATE "WorkOrders"
+                SET "Id" = @seededId,
+                    "Status" = @status,
+                    "CreatedAt" = @createdAt,
+                    "UpdatedAt" = @createdAt
+                WHERE "Id" = @currentId;
+                """;
+            command.Parameters.AddWithValue("seededId", seed.SeededId);
+            command.Parameters.AddWithValue("status", seed.Status);
+            command.Parameters.AddWithValue("createdAt", seed.CreatedAt);
+            command.Parameters.AddWithValue("currentId", seed.CurrentId);
+
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        }
+
+        await transaction.CommitAsync();
+    }
+
     private static async Task<CreatedVehicleDependencies> CreateVehicleAsync(HttpClient client, Guid customerId, string seed)
     {
         var brandName = $"E2E WO Brand {seed[..8]}";
@@ -691,6 +814,12 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         string InventoryItemDescription,
         decimal InventoryItemCost,
         decimal InventoryItemPrice);
+
+    private sealed record WorkOrderQueueSeed(
+        Guid CurrentId,
+        Guid SeededId,
+        string Status,
+        DateTime CreatedAt);
 
     private sealed record ListWorkOrdersResponse(
         IReadOnlyList<WorkOrderDetailsResponse> Items,

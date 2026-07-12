@@ -19,6 +19,8 @@ public sealed class E2eApiFixture : IAsyncLifetime
 
     private E2eWebApplicationFactory? _factory;
 
+    public string DatabaseConnectionString => _postgres.GetConnectionString();
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
