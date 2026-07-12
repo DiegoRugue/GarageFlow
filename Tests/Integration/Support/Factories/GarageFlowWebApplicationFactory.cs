@@ -32,7 +32,8 @@ public sealed class GarageFlowWebApplicationFactory(string databaseName, bool di
                 ["Auth:BootstrapAdmin:FullName"] = IntegrationTestAuthSettings.BootstrapAdminFullName,
                 ["Auth:BootstrapAdmin:Email"] = IntegrationTestAuthSettings.BootstrapAdminEmail,
                 ["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate,
-                ["Auth:BootstrapAdmin:Password"] = IntegrationTestAuthSettings.BootstrapAdminInitialPassword
+                ["Auth:BootstrapAdmin:Password"] = IntegrationTestAuthSettings.BootstrapAdminInitialPassword,
+                ["Webhooks:EstimateDecisions:HmacSecret"] = IntegrationTestAuthSettings.EstimateDecisionWebhookSecret
             };
 
             if (_disableAutoMigrate)

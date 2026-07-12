@@ -59,7 +59,8 @@ public sealed class E2eWebApplicationFactory(string connectionString) : WebAppli
             ["Auth:BootstrapAdmin:FullName"] = E2eAuthSettings.BootstrapAdminFullName,
             ["Auth:BootstrapAdmin:Email"] = E2eAuthSettings.BootstrapAdminEmail,
             ["Auth:BootstrapAdmin:BirthDate"] = E2eAuthSettings.BootstrapAdminBirthDate,
-            ["Auth:BootstrapAdmin:Password"] = E2eAuthSettings.BootstrapAdminInitialPassword
+            ["Auth:BootstrapAdmin:Password"] = E2eAuthSettings.BootstrapAdminInitialPassword,
+            ["Webhooks:EstimateDecisions:HmacSecret"] = E2eAuthSettings.EstimateDecisionWebhookSecret
         };
     }
 }

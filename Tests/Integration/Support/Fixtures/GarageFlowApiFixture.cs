@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using GarageFlow.Tests.Integration.Support.Factories;
 using GarageFlow.Tests.Integration.Support.Helpers;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GarageFlow.Tests.Integration.Support.Fixtures;
 
@@ -16,6 +17,16 @@ public sealed class GarageFlowApiFixture : IAsyncLifetime
 
         _factories.Add(factory);
         return factory.CreateClient();
+    }
+
+    public HttpClient CreateClientWithScope(out IServiceScope scope)
+    {
+        var databaseName = $"garageflow-tests-{Interlocked.Increment(ref _databaseSequence):D4}-{Guid.NewGuid():N}";
+        var factory = new GarageFlowWebApplicationFactory(databaseName);
+        _factories.Add(factory);
+        var client = factory.CreateClient();
+        scope = factory.Services.CreateScope();
+        return client;
     }
 
     public async Task<HttpClient> CreateAuthenticatedClientAsync(bool disableAutoMigrate = false)

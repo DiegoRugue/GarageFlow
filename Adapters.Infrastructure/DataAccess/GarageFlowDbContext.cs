@@ -12,6 +12,7 @@ using GarageFlow.Adapters.Infrastructure.Users.Configurations;
 using GarageFlow.Adapters.Infrastructure.Vehicles.Configurations;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Configurations;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Inbox;
 using GarageFlow.SharedKernel.Domain.Events;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     public DbSet<VehicleColor> VehicleColors => Set<VehicleColor>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
     public DbSet<IntakeRequestReceipt> WorkOrderIntakeRequests => Set<IntakeRequestReceipt>();
+    public DbSet<EstimateDecisionInboxEvent> EstimateDecisionInboxEvents => Set<EstimateDecisionInboxEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -51,6 +53,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
         modelBuilder.ApplyConfiguration(new EstimateInventoryLineEntityConfiguration());
         modelBuilder.ApplyConfiguration(new EstimateServiceLineEntityConfiguration());
         modelBuilder.ApplyConfiguration(new IntakeRequestReceiptConfiguration());
+        modelBuilder.ApplyConfiguration(new EstimateDecisionInboxEventConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 

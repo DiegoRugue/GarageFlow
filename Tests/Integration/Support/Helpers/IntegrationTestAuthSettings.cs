@@ -2,6 +2,7 @@ namespace GarageFlow.Tests.Integration.Support.Helpers;
 
 public static class IntegrationTestAuthSettings
 {
+    public const string EstimateDecisionWebhookSecret = "integration-webhook-secret-32-characters-minimum";
     public const string JwtIssuer = "GarageFlow.IntegrationTests";
     public const string JwtAudience = "GarageFlow.IntegrationTests.Api";
     public const string JwtKey = "garageflow.integrationtests.jwt.key.2026";
