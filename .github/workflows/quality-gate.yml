@@ -367,6 +367,73 @@ jobs:
           print(f"Validated {len(request_entries)} Postman requests and {len(scripts)} scripts")
           PY
 
+      - name: Validate Documentation Links
+        run: pwsh -File scripts/validate-doc-links.ps1
+
+      - name: Inspect k6 Load Test
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker run --rm --network none \
+            --volume "${PWD}:/workspace:ro" \
+            --workdir /workspace \
+            --env BASE_URL=http://127.0.0.1:8080 \
+            --env STAFF_EMAIL=ci-inspect@example.invalid \
+            --env STAFF_PASSWORD=ci-inspect-only-password \
+            --env WORK_ORDER_ID=00000000-0000-4000-8000-000000000001 \
+            grafana/k6:1.7.1 \
+            inspect --include-system-env-vars scripts/load-test/work-orders.js
+
+      - name: Validate Generated Phase 2 Diagrams
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pwsh -File scripts/render-phase2-diagrams.ps1
+          git diff --exit-code -- \
+            docs/architecture/diagrams/images/application.svg \
+            docs/architecture/diagrams/images/application.png \
+            docs/architecture/diagrams/images/aws-academy.svg \
+            docs/architecture/diagrams/images/aws-academy.png \
+            docs/architecture/diagrams/images/kubernetes.svg \
+            docs/architecture/diagrams/images/kubernetes.png \
+            docs/architecture/diagrams/images/database-reliability.svg \
+            docs/architecture/diagrams/images/database-reliability.png \
+            docs/architecture/diagrams/images/deployment-flow.svg \
+            docs/architecture/diagrams/images/deployment-flow.png \
+            docs/ddd/diagrams/images/work-order-state-machine.svg \
+            docs/ddd/diagrams/images/work-order-state-machine.png
+
+      - name: Validate Evidence Sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+
+          Get-Content -LiteralPath docs/delivery/phase-2-evidence.schema.json -Raw |
+            ConvertFrom-Json -Depth 100 |
+            Out-Null
+
+          $tokens = $null
+          $parseErrors = $null
+          $collectorPath = (Resolve-Path docs/delivery/collect-phase2-evidence.ps1).Path
+          $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $collectorPath,
+            [ref] $tokens,
+            [ref] $parseErrors)
+
+          if ($parseErrors.Count -ne 0) {
+            throw "Evidence collector has $($parseErrors.Count) PowerShell parse error(s)."
+          }
+
+          $invokeExpressionCommands = @($ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.CommandAst] -and
+              $node.GetCommandName() -ceq 'Invoke-Expression'
+          }, $true))
+          if ($invokeExpressionCommands.Count -ne 0) {
+            throw 'Evidence collector must not use Invoke-Expression.'
+          }
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
