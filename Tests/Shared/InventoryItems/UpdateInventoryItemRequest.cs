@@ -3,6 +3,6 @@ namespace GarageFlow.Tests.Shared.InventoryItems;
 public sealed record UpdateInventoryItemRequest(
     string Name,
     string Description,
-    int Type,
+    string Type,
     decimal Cost,
     decimal Price);

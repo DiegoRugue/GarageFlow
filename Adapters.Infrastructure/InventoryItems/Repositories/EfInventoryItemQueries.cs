@@ -28,7 +28,7 @@ public sealed class EfInventoryItemQueries(GarageFlowDbContext dbContext) : IInv
             inventoryItem.Id.Value,
             inventoryItem.Name.Value,
             inventoryItem.Description.Value,
-            (int)inventoryItem.Type,
+            inventoryItem.Type.ToString(),
             inventoryItem.Cost.Value,
             inventoryItem.Price.Value,
             inventoryItem.StockQuantity.Value,

@@ -4,7 +4,7 @@ public sealed record InventoryItemDto(
     Guid Id,
     string Name,
     string Description,
-    int Type,
+    string Type,
     decimal Cost,
     decimal Price,
     int StockQuantity,

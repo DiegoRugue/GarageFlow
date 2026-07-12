@@ -8,6 +8,12 @@ namespace GarageFlow.Tests.Unit.Customers;
 public class CustomerTests
 {
     [Fact]
+    public void Create_ShouldRemoveBrazilCountryCode_WhenPhoneStartsWithPlus55()
+    {
+        Assert.Equal("11999999999", PhoneNumber.Create("+55 11 99999-9999").Value);
+    }
+
+    [Fact]
     public void Create_ShouldRaiseCustomerCreatedEvent()
     {
         var taxDocument = TaxDocument.Create("11144477735");

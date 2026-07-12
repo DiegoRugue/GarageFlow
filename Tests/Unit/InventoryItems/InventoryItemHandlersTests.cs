@@ -4,6 +4,7 @@ using GarageFlow.Application.InventoryItems.UseCases.GetInventoryItemById;
 using GarageFlow.Application.InventoryItems.UseCases.ListInventoryItems;
 using GarageFlow.Application.InventoryItems.UseCases.UpdateInventoryItem;
 using GarageFlow.Application.InventoryItems.UseCases.UpdateInventoryItemStock;
+using GarageFlow.Application.InventoryItems.Common;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.InventoryItems.Entities;
@@ -19,6 +20,29 @@ namespace GarageFlow.Tests.Unit.InventoryItems;
 
 public class InventoryItemHandlersTests
 {
+    [Theory]
+    [InlineData("Part", InventoryItemType.Part)]
+    [InlineData("part", InventoryItemType.Part)]
+    [InlineData("Supply", InventoryItemType.Supply)]
+    public void Parse_ShouldReturnDomainType_WhenStringIsValid(string value, InventoryItemType expected)
+    {
+        Assert.Equal(expected, InventoryItemTypeParser.Parse(value));
+    }
+
+    [Fact]
+    public void Parse_ShouldThrowValidationException_WhenStringIsUnknown()
+    {
+        var exception = Assert.Throws<ValidationException>(() => InventoryItemTypeParser.Parse("Fluid"));
+
+        Assert.Equal("Inventory item type 'Fluid' is invalid. Allowed values: Part, Supply.", exception.Message);
+    }
+
+    [Fact]
+    public void Parse_ShouldRejectNumericEnumRepresentation()
+    {
+        Assert.Throws<ValidationException>(() => InventoryItemTypeParser.Parse("0"));
+    }
+
     [Fact]
     public async Task Handle_ShouldCreateInventoryItem_WhenDataIsValid()
     {
@@ -30,7 +54,7 @@ public class InventoryItemHandlersTests
         var command = new CreateInventoryItemCommand(
             Name: "Brake Pads",
             Description: "High-quality ceramic brake pad set.",
-            Type: (int)InventoryItemType.Part,
+            Type: InventoryItemType.Part.ToString(),
             Cost: 29.90m,
             Price: 59.80m,
             StockQuantity: 12);
@@ -40,7 +64,7 @@ public class InventoryItemHandlersTests
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal("Brake Pads", result.Name);
         Assert.Equal("High-quality ceramic brake pad set.", result.Description);
-        Assert.Equal((int)InventoryItemType.Part, result.Type);
+        Assert.Equal(InventoryItemType.Part.ToString(), result.Type);
         Assert.Equal(29.90m, result.Cost);
         Assert.Equal(59.80m, result.Price);
         Assert.Equal(12, result.StockQuantity);
@@ -61,7 +85,7 @@ public class InventoryItemHandlersTests
         var command = new CreateInventoryItemCommand(
             Name: "Brake Pads",
             Description: "High-quality ceramic brake pad set.",
-            Type: (int)InventoryItemType.Part,
+            Type: InventoryItemType.Part.ToString(),
             Cost: 29.90m,
             Price: 59.80m,
             StockQuantity: 12);
@@ -82,7 +106,7 @@ public class InventoryItemHandlersTests
                 new CreateInventoryItemCommand(
                     Name: "Brake Pads",
                     Description: "   ",
-                    Type: (int)InventoryItemType.Part,
+                    Type: InventoryItemType.Part.ToString(),
                     Cost: 29.90m,
                     Price: 59.80m,
                     StockQuantity: 12),
@@ -101,7 +125,7 @@ public class InventoryItemHandlersTests
                 new CreateInventoryItemCommand(
                     Name: "Brake Pads",
                     Description: "High-quality ceramic brake pad set.",
-                    Type: (int)InventoryItemType.Part,
+                    Type: InventoryItemType.Part.ToString(),
                     Cost: -1m,
                     Price: 59.80m,
                     StockQuantity: 12),
@@ -120,7 +144,7 @@ public class InventoryItemHandlersTests
                 new CreateInventoryItemCommand(
                     Name: "Brake Pads",
                     Description: "High-quality ceramic brake pad set.",
-                    Type: (int)InventoryItemType.Part,
+                    Type: InventoryItemType.Part.ToString(),
                     Cost: 29.90m,
                     Price: 59.999m,
                     StockQuantity: 12),
@@ -142,7 +166,7 @@ public class InventoryItemHandlersTests
         Assert.Equal(item.Id.Value, result.Id);
         Assert.Equal(item.Name.Value, result.Name);
         Assert.Equal(item.Description.Value, result.Description);
-        Assert.Equal((int)item.Type, result.Type);
+        Assert.Equal(item.Type.ToString(), result.Type);
         Assert.Equal(item.Cost.Value, result.Cost);
         Assert.Equal(item.Price.Value, result.Price);
         Assert.Equal(item.StockQuantity.Value, result.StockQuantity);
@@ -217,7 +241,7 @@ public class InventoryItemHandlersTests
                 Id: item.Id.Value,
                 Name: "Synthetic Brake Pads",
                 Description: "Ceramic set with low-dust formula.",
-                Type: (int)InventoryItemType.Supply,
+                Type: InventoryItemType.Supply.ToString(),
                 Cost: 30m,
                 Price: 55m),
             CancellationToken.None);
@@ -225,7 +249,7 @@ public class InventoryItemHandlersTests
         Assert.Equal(item.Id.Value, result.Id);
         Assert.Equal("Synthetic Brake Pads", result.Name);
         Assert.Equal("Ceramic set with low-dust formula.", result.Description);
-        Assert.Equal((int)InventoryItemType.Supply, result.Type);
+        Assert.Equal(InventoryItemType.Supply.ToString(), result.Type);
         Assert.Equal(30m, result.Cost);
         Assert.Equal(55m, result.Price);
     }
@@ -243,7 +267,7 @@ public class InventoryItemHandlersTests
                     Guid.NewGuid(),
                     "Synthetic Brake Pads",
                     "Ceramic set.",
-                    (int)InventoryItemType.Supply,
+                    InventoryItemType.Supply.ToString(),
                     30m,
                     55m),
                 CancellationToken.None));
@@ -264,7 +288,7 @@ public class InventoryItemHandlersTests
                     item.Id.Value,
                     "Synthetic Brake Pads",
                     "   ",
-                    (int)InventoryItemType.Supply,
+                    InventoryItemType.Supply.ToString(),
                     30m,
                     55m),
                 CancellationToken.None));
@@ -284,7 +308,7 @@ public class InventoryItemHandlersTests
                     item.Id.Value,
                     "Synthetic Brake Pads",
                     "Ceramic set.",
-                    (int)InventoryItemType.Supply,
+                    InventoryItemType.Supply.ToString(),
                     -1m,
                     55m),
                 CancellationToken.None));
@@ -304,7 +328,7 @@ public class InventoryItemHandlersTests
                     item.Id.Value,
                     "Synthetic Brake Pads",
                     "Ceramic set.",
-                    (int)InventoryItemType.Supply,
+                    InventoryItemType.Supply.ToString(),
                     30m,
                     55.999m),
                 CancellationToken.None));
@@ -407,13 +431,13 @@ public class InventoryItemHandlersTests
                 new CreateInventoryItemCommand(
                     Name: "Brake Pads",
                     Description: "High-quality ceramic brake pad set.",
-                    Type: 999,
+                    Type: "Fluid",
                     Cost: 29.90m,
                     Price: 59.80m,
                     StockQuantity: 12),
                 CancellationToken.None));
 
-        Assert.Equal("Inventory item type '999' is invalid.", exception.Message);
+        Assert.Equal("Inventory item type 'Fluid' is invalid. Allowed values: Part, Supply.", exception.Message);
         repositoryMock.Verify(x => x.AddAsync(It.IsAny<InventoryItem>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -431,12 +455,12 @@ public class InventoryItemHandlersTests
                     item.Id.Value,
                     "Synthetic Brake Pads",
                     "Ceramic set.",
-                    999,
+                    "Fluid",
                     30m,
                     55m),
                 CancellationToken.None));
 
-        Assert.Equal("Inventory item type '999' is invalid.", exception.Message);
+        Assert.Equal("Inventory item type 'Fluid' is invalid. Allowed values: Part, Supply.", exception.Message);
     }
 
     private static Mock<IInventoryItemRepository> CreateInventoryItemRepositoryMock(List<InventoryItem>? initialInventoryItems = null)
@@ -493,7 +517,7 @@ public class InventoryItemHandlersTests
                         item.Id.Value,
                         item.Name.Value,
                         item.Description.Value,
-                        (int)item.Type,
+                        item.Type.ToString(),
                         item.Cost.Value,
                         item.Price.Value,
                         item.StockQuantity.Value,

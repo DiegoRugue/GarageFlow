@@ -78,7 +78,7 @@ public sealed class InventoryItemRepositoryTests
         Assert.Equal(item.Id.Value, details.Id);
         Assert.Equal("Cabin Filter", details.Name);
         Assert.Equal("Activated carbon cabin filter", details.Description);
-        Assert.Equal((int)InventoryItemType.Part, details.Type);
+        Assert.Equal(InventoryItemType.Part.ToString(), details.Type);
         Assert.Equal(21.50m, details.Cost);
         Assert.Equal(49.90m, details.Price);
         Assert.Equal(8, details.StockQuantity);

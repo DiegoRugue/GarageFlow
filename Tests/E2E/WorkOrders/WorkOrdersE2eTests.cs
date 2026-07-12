@@ -394,7 +394,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         var request = new CreateInventoryItemRequest(
             Name: $"E2E WO Item {seed[..8]}",
             Description: $"E2E WO Item Description {seed[..8]}",
-            Type: 0,
+            Type: "Part",
             Cost: 50m,
             Price: 95m,
             StockQuantity: 12);
@@ -705,7 +705,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
     private sealed record CreateInventoryItemRequest(
         string Name,
         string Description,
-        int Type,
+        string Type,
         decimal Cost,
         decimal Price,
         int StockQuantity);
@@ -714,7 +714,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Guid Id,
         string Name,
         string Description,
-        int Type,
+        string Type,
         decimal Cost,
         decimal Price,
         int StockQuantity,
