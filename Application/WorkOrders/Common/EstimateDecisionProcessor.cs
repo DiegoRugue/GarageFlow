@@ -10,6 +10,10 @@ public sealed class EstimateDecisionProcessor(IInventoryItemRepository inventory
     private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository
         ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Approval and rejection intentionally share the injected decision processor contract.")]
     public void Approve(WorkOrder workOrder, EstimateId estimateId) =>
         workOrder.ApproveEstimate(estimateId);
 

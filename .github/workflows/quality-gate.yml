@@ -6,11 +6,14 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
     environment: SONAR_PROJECT_KEY
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       DOTNET_NOLOGO: true
       SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || secrets.SONAR_HOST_URL }}
@@ -26,12 +29,13 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
 
       - name: Detect SonarQube configuration
         id: sonar-config
         shell: bash
         run: |
+          set -Eeuo pipefail
           missing=()
           [[ -z "${SONAR_HOST_URL}" ]] && missing+=("SONAR_HOST_URL")
           [[ -z "${SONAR_TOKEN}" ]] && missing+=("SONAR_TOKEN")
@@ -39,10 +43,10 @@ jobs:
           [[ -z "${SONAR_PROJECT_KEY}" ]] && missing+=("SONAR_PROJECT_KEY")
 
           if [[ -n "${SONAR_HOST_URL}" && -n "${SONAR_TOKEN}" && -n "${SONAR_ORGANIZATION}" && -n "${SONAR_PROJECT_KEY}" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "enabled=true" >> "${GITHUB_OUTPUT}"
           else
             echo "Missing SonarQube configuration: ${missing[*]}"
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "enabled=false" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Setup Java (SonarQube)
@@ -56,8 +60,9 @@ jobs:
         if: steps.sonar-config.outputs.enabled == 'true'
         shell: bash
         run: |
+          set -Eeuo pipefail
           dotnet tool install --global dotnet-sonarscanner
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          echo "${HOME}/.dotnet/tools" >> "${GITHUB_PATH}"
 
       - name: Restore
         run: dotnet restore GarageFlow.slnx
@@ -65,12 +70,13 @@ jobs:
       - name: SonarQube Begin
         id: sonar-begin
         if: steps.sonar-config.outputs.enabled == 'true'
+        shell: bash
         run: >
           dotnet sonarscanner begin
-          /o:"${{ env.SONAR_ORGANIZATION }}"
-          /k:"${{ env.SONAR_PROJECT_KEY }}"
-          /d:sonar.host.url="${{ env.SONAR_HOST_URL }}"
-          /d:sonar.token="${{ env.SONAR_TOKEN }}"
+          /o:"${SONAR_ORGANIZATION}"
+          /k:"${SONAR_PROJECT_KEY}"
+          /d:sonar.host.url="${SONAR_HOST_URL}"
+          /d:sonar.token="${SONAR_TOKEN}"
           /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
           /d:sonar.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql"
           /d:sonar.coverage.exclusions="**/Tests/E2E/**,**/Adapters.Infrastructure/DataAccess/Migrations/**,**/Adapters.Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Adapters.Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs"
@@ -78,13 +84,7 @@ jobs:
           /d:sonar.qualitygate.wait=true
 
       - name: Build
-        run: dotnet build GarageFlow.slnx --no-restore
-
-      - name: Restore E2E Project
-        run: dotnet restore Tests/E2E/GarageFlow.Tests.E2E.csproj
-
-      - name: Build E2E Project
-        run: dotnet build Tests/E2E/GarageFlow.Tests.E2E.csproj --no-restore
+        run: dotnet build GarageFlow.slnx --no-restore -warnaserror
 
       - name: Architecture Tests
         run: >
@@ -100,6 +100,7 @@ jobs:
           dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
           --no-build
           --settings coverlet.runsettings
+          --filter "FullyQualifiedName!~Architecture"
           --collect:"XPlat Code Coverage"
           --results-directory TestResults/Unit
 
@@ -113,18 +114,25 @@ jobs:
           --
           RunConfiguration.MaxCpuCount=1
 
-      - name: E2E Coverage Tests Against PostgreSQL
+      - name: E2E Tests Against PostgreSQL
         run: >
           dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj
           --no-build
-          --settings coverlet.runsettings
-          --collect:"XPlat Code Coverage"
           --results-directory TestResults/E2E
           --logger "trx;LogFileName=e2e.trx"
+
+      - name: Upload E2E TRX
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: TestResults/E2E/e2e.trx
+          if-no-files-found: ignore
 
       - name: Validate Coverage Threshold (80%)
         shell: bash
         run: |
+          set -Eeuo pipefail
           python3 - <<'PY'
           import glob
           import os
@@ -174,42 +182,55 @@ jobs:
 
       - name: SonarQube End
         if: always() && steps.sonar-config.outputs.enabled == 'true' && steps.sonar-begin.outcome == 'success'
-        run: dotnet sonarscanner end /d:sonar.token="${{ env.SONAR_TOKEN }}"
+        shell: bash
+        run: dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
 
-  e2e-real-api:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      DOTNET_NOLOGO: true
+      - name: Build Container Image
+        shell: bash
+        run: docker build -t "garageflow:${GITHUB_SHA}" .
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Smoke Container Image
+        shell: bash
+        run: bash scripts/smoke-container.sh "garageflow:${GITHUB_SHA}"
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+      - name: Validate Compose Configuration
+        shell: bash
+        run: docker compose config --quiet
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
         with:
-          dotnet-version: 10.0.x
+          version: v1.36.0
 
-      - name: Restore Solution
-        run: dotnet restore GarageFlow.slnx
+      - name: Validate Kubernetes Manifests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rendered="$(mktemp)"
+          trap 'rm -f -- "${rendered}"' EXIT
+          chmod 600 "${rendered}"
 
-      - name: Build Solution
-        run: dotnet build GarageFlow.slnx --no-restore
+          kubectl kustomize k8s > "${rendered}"
 
-      - name: Restore E2E Project
-        run: dotnet restore Tests/E2E/GarageFlow.Tests.E2E.csproj
+          if grep -Fq 'template-only' "${rendered}"; then
+            echo "Rendered Kubernetes output contains the Secret template marker." >&2
+            exit 1
+          fi
 
-      - name: Build E2E Project
-        run: dotnet build Tests/E2E/GarageFlow.Tests.E2E.csproj --no-restore
+          variable_marker='$'
+          if grep -Fq "${variable_marker}{" "${rendered}"; then
+            echo "Rendered Kubernetes output contains an unresolved shell variable marker." >&2
+            exit 1
+          fi
 
-      - name: Run E2E Tests
-        run: dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj --no-build --logger "trx;LogFileName=e2e.trx"
+          if grep -Eq '^kind:[[:space:]]*Secret[[:space:]]*$' "${rendered}"; then
+            echo "Rendered Kubernetes output contains a Secret resource." >&2
+            exit 1
+          fi
 
-      - name: Upload E2E TRX
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-test-results
-          path: Tests/E2E/TestResults/**/*.trx
-          if-no-files-found: ignore
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.7.0 \
+            -strict \
+            -summary \
+            -kubernetes-version 1.36.0 \
+            -ignore-missing-schemas \
+            - < "${rendered}"
