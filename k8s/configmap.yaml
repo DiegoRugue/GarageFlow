@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garageflow-config
+  namespace: garageflow
+  labels:
+    app.kubernetes.io/name: garageflow-api
+    app.kubernetes.io/part-of: garageflow
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  Database__Provider: Postgres
+  Database__AutoMigrate: "false"
+  Database__AutoSeed: "false"
+  Auth__Jwt__Issuer: GarageFlow
+  Auth__Jwt__Audience: GarageFlow.Adapters.Api
+  Auth__Jwt__ExpiresMinutes: "120"
+  Auth__BootstrapAdmin__FullName: GarageFlow Academy Admin
+  Auth__BootstrapAdmin__BirthDate: "1990-01-01"
+  Integrations__Outbox__Enabled: "true"
+  Integrations__Outbox__BatchSize: "10"
+  Integrations__Outbox__PollingIntervalSeconds: "5"
+  Integrations__Outbox__LeaseDurationSeconds: "300"
+  Integrations__Outbox__InitialRetryDelaySeconds: "5"
+  Integrations__Outbox__MaxRetryDelaySeconds: "300"
+  Integrations__Sns__Region: us-east-1
+  Integrations__Sns__TopicArn: ""
