@@ -735,11 +735,12 @@ public class WorkOrderHandlersTests
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var inventoryItemRepositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            CreateEstimateDecisionProcessor());
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var result = await handler.Handle(
             new ApproveMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -748,6 +749,11 @@ public class WorkOrderHandlersTests
         Assert.Equal(MediatorUnit.Value, result);
         Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
         Assert.Equal(EstimateStatus.Approved, workOrder.Estimates.Single().Status);
+        inventoryItemRepositoryMock.Verify(
+            repository => repository.GetByIdForStockReservationAsync(
+                It.IsAny<InventoryItemId>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

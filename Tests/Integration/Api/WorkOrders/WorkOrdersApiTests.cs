@@ -610,6 +610,102 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task Staff_ShouldRestoreDraftPendingAndApprovedReservationsExactlyOnce_WhenCancellingInProgressWorkOrder()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var attendantClient = await CreateAuthenticatedAttendantClientAsync(_fixture);
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        var workOrder = await CreateWorkOrderAsync(staffClient, seededVehicle.CustomerId, seededVehicle.VehicleId);
+        const int originalStock = 30;
+        const int draftQuantity = 2;
+        const int pendingQuantity = 3;
+        const int approvedQuantity = 4;
+        const int totalReservedQuantity = draftQuantity + pendingQuantity + approvedQuantity;
+        var inventoryItem = await CreateInventoryItemAsync(
+            attendantClient,
+            new InventoryItemBuilder()
+                .WithName($"Cancellation-Reservations-{Guid.NewGuid():N}")
+                .WithDescription("Reservations restored on cancellation")
+                .WithCost(40m)
+                .WithPrice(80m)
+                .WithStockQuantity(originalStock));
+        var service = await CreateServiceAsync(
+            staffClient,
+            new ServiceBuilder()
+                .WithDescription($"Cancellation service {Guid.NewGuid():N}")
+                .WithPrice(100m));
+        var draftEstimate = await CreateEstimateAsync(staffClient, workOrder.Id);
+        var pendingEstimate = await CreateEstimateAsync(staffClient, workOrder.Id);
+        var approvedEstimate = await CreateEstimateAsync(staffClient, workOrder.Id);
+
+        foreach (var reservation in new[]
+                 {
+                     (Estimate: draftEstimate, Quantity: draftQuantity),
+                     (Estimate: pendingEstimate, Quantity: pendingQuantity),
+                     (Estimate: approvedEstimate, Quantity: approvedQuantity)
+                 })
+        {
+            var addInventoryResponse = await staffClient.PostAsJsonAsync(
+                $"/work-orders/{workOrder.Id}/estimates/{reservation.Estimate.Id}/inventory-items",
+                new AddEstimateInventoryItemRequest(inventoryItem.Id, reservation.Quantity));
+            HttpResponseAssertions.AssertStatus(addInventoryResponse, HttpStatusCode.OK);
+
+            var addServiceResponse = await staffClient.PostAsJsonAsync(
+                $"/work-orders/{workOrder.Id}/estimates/{reservation.Estimate.Id}/services",
+                new AddEstimateServiceRequest(service.Id));
+            HttpResponseAssertions.AssertStatus(addServiceResponse, HttpStatusCode.OK);
+        }
+
+        var submitPendingResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{pendingEstimate.Id}/submit",
+            content: null);
+        HttpResponseAssertions.AssertStatus(submitPendingResponse, HttpStatusCode.NoContent);
+        var submitApprovedResponse = await staffClient.PostAsync(
+            $"/work-orders/{workOrder.Id}/estimates/{approvedEstimate.Id}/submit",
+            content: null);
+        HttpResponseAssertions.AssertStatus(submitApprovedResponse, HttpStatusCode.NoContent);
+
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            _fixture,
+            staffClient,
+            seededVehicle.CustomerId,
+            "Customer.Cancel.Reservations#123");
+        var approveResponse = await customerClient.PostAsync(
+            $"/me/work-orders/{workOrder.Id}/estimates/{approvedEstimate.Id}/approve",
+            content: null);
+        HttpResponseAssertions.AssertStatus(approveResponse, HttpStatusCode.NoContent);
+
+        var stockAfterApprovalResponse = await attendantClient.GetAsync($"/inventory-items/{inventoryItem.Id}");
+        HttpResponseAssertions.AssertStatus(stockAfterApprovalResponse, HttpStatusCode.OK);
+        var stockAfterApproval = await HttpResponseAssertions.ReadRequiredJsonAsync<InventoryItemResponse>(stockAfterApprovalResponse);
+        Assert.Equal(originalStock - totalReservedQuantity, stockAfterApproval.StockQuantity);
+
+        var cancelResponse = await staffClient.PostAsync($"/work-orders/{workOrder.Id}/cancel", content: null);
+        HttpResponseAssertions.AssertStatus(cancelResponse, HttpStatusCode.NoContent);
+
+        var stockAfterCancellationResponse = await attendantClient.GetAsync($"/inventory-items/{inventoryItem.Id}");
+        HttpResponseAssertions.AssertStatus(stockAfterCancellationResponse, HttpStatusCode.OK);
+        var stockAfterCancellation = await HttpResponseAssertions.ReadRequiredJsonAsync<InventoryItemResponse>(stockAfterCancellationResponse);
+        Assert.Equal(originalStock, stockAfterCancellation.StockQuantity);
+
+        var repeatedCancelResponse = await staffClient.PostAsync($"/work-orders/{workOrder.Id}/cancel", content: null);
+        HttpResponseAssertions.AssertStatus(repeatedCancelResponse, HttpStatusCode.NoContent);
+
+        var stockAfterRepeatedCancellationResponse = await attendantClient.GetAsync($"/inventory-items/{inventoryItem.Id}");
+        HttpResponseAssertions.AssertStatus(stockAfterRepeatedCancellationResponse, HttpStatusCode.OK);
+        var stockAfterRepeatedCancellation = await HttpResponseAssertions.ReadRequiredJsonAsync<InventoryItemResponse>(stockAfterRepeatedCancellationResponse);
+        Assert.Equal(originalStock, stockAfterRepeatedCancellation.StockQuantity);
+
+        var details = await GetWorkOrderDetailsAsync(staffClient, workOrder.Id);
+        Assert.Equal("Cancelled", details.Status);
+        Assert.Contains(details.Estimates, estimate => estimate.Id == draftEstimate.Id && estimate.Status == "Draft");
+        Assert.Contains(details.Estimates, estimate => estimate.Id == pendingEstimate.Id && estimate.Status == "Pending");
+        Assert.Contains(details.Estimates, estimate => estimate.Id == approvedEstimate.Id && estimate.Status == "Approved");
+    }
+
+    [Fact]
     public async Task Customer_ShouldReceive404_WhenApprovingAnotherCustomersEstimate()
     {
         using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
