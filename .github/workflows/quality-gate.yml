@@ -26,6 +26,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.7
+
+      - name: Validate Terraform
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          terraform fmt -check -recursive infra
+          terraform -chdir=infra/bootstrap/state-backend init -backend=false -input=false
+          terraform -chdir=infra/bootstrap/state-backend validate
+          terraform -chdir=infra/environments/academy init -backend=false -input=false
+          terraform -chdir=infra/environments/academy validate
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
