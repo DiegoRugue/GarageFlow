@@ -219,6 +219,146 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task WorkOrderIntake_ShouldReturn401_WhenRequestHasNoToken()
+    {
+        using var client = _fixture.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", CreateIntakeRequest());
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldReturn403_WhenAuthenticatedUserIsCustomer()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            _fixture,
+            staffClient,
+            seededVehicle.CustomerId,
+            "Customer.Intake.Forbidden#123");
+
+        using var response = await customerClient.PostAsJsonAsync("/work-orders/intake", CreateIntakeRequest());
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldCreateThenReplayTheSameBusinessResponse()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest();
+
+        using var firstResponse = await client.PostAsJsonAsync("/work-orders/intake", request);
+
+        HttpResponseAssertions.AssertStatus(firstResponse, HttpStatusCode.Created);
+        var created = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderIntakeResponse>(firstResponse);
+        Assert.Equal($"/work-orders/{created.WorkOrderId}", firstResponse.Headers.Location?.OriginalString);
+        AssertIntakeResponse(created);
+
+        using var replayResponse = await client.PostAsJsonAsync("/work-orders/intake", request);
+
+        HttpResponseAssertions.AssertStatus(replayResponse, HttpStatusCode.OK);
+        var replayed = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderIntakeResponse>(replayResponse);
+        Assert.Equal(JsonSerializer.Serialize(created), JsonSerializer.Serialize(replayed));
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldReturn409_WhenRequestIdIsReusedWithChangedServicePrice()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest("11144477735", "DEF4G56", "request-id");
+        using var createdResponse = await client.PostAsJsonAsync("/work-orders/intake", request);
+        HttpResponseAssertions.AssertStatus(createdResponse, HttpStatusCode.Created);
+        var changed = request with
+        {
+            Services = [new IntakeServiceRequest("Oil and filter replacement request-id", 181m)]
+        };
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", changed);
+
+        await AssertProblemAsync(response, HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldReturn409_WhenTaxDocumentAlreadyExists()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest("93541134780", "GHI7J89", "tax-document");
+        using var createdResponse = await client.PostAsJsonAsync("/work-orders/intake", request);
+        HttpResponseAssertions.AssertStatus(createdResponse, HttpStatusCode.Created);
+        var duplicateTaxDocument = request with
+        {
+            RequestId = Guid.NewGuid(),
+            Vehicle = request.Vehicle! with { Plate = "MNO2P34" }
+        };
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", duplicateTaxDocument);
+
+        await AssertProblemAsync(response, HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldReturn409_WhenPlateAlreadyExists()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest("12345678909", "JKL1M23", "plate");
+        using var createdResponse = await client.PostAsJsonAsync("/work-orders/intake", request);
+        HttpResponseAssertions.AssertStatus(createdResponse, HttpStatusCode.Created);
+        var duplicatePlate = request with
+        {
+            RequestId = Guid.NewGuid(),
+            Customer = request.Customer! with
+            {
+                TaxDocument = "39053344705",
+                Email = "ana.plate@example.com"
+            }
+        };
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", duplicatePlate);
+
+        await AssertProblemAsync(response, HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldReturn400_WhenServicesAreEmpty()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest() with { Services = [] };
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", request);
+
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldReturn409_WhenInventoryStockIsInsufficient()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest() with
+        {
+            InventoryItems =
+            [
+                new IntakeInventoryItemRequest(
+                    "5W30 engine oil",
+                    "Synthetic engine oil",
+                    "Part",
+                    35m,
+                    55m,
+                    StockQuantity: 3,
+                    Quantity: 4)
+            ]
+        };
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", request);
+
+        await AssertProblemAsync(response, HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task StartEstimateService_ShouldReturn401_WhenRequestHasNoToken()
     {
         using var client = _fixture.CreateClient();
@@ -1083,6 +1223,56 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         Assert.DoesNotContain("unitCost", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("totalCost", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"cost\"", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static CreateWorkOrderIntakeRequest CreateIntakeRequest(
+        string taxDocument = "52998224725",
+        string plate = "ABC1D23",
+        string? suffix = null)
+    {
+        var nameSuffix = string.IsNullOrWhiteSpace(suffix) ? string.Empty : $" {suffix}";
+        var emailSuffix = string.IsNullOrWhiteSpace(suffix) ? string.Empty : $".{suffix}";
+
+        return new(
+            Guid.NewGuid(),
+            new IntakeCustomerRequest(
+                taxDocument,
+                $"Maria Oliveira{nameSuffix}",
+                $"maria{emailSuffix}@example.com",
+                "+5511999999999"),
+            new IntakeVehicleRequest(plate, 2022, $"Toyota{nameSuffix}", $"Corolla{nameSuffix}", $"Black{nameSuffix}"),
+            [new IntakeServiceRequest($"Oil and filter replacement{nameSuffix}", 180m)],
+            [
+                new IntakeInventoryItemRequest(
+                    $"5W30 engine oil{nameSuffix}",
+                    $"Synthetic engine oil{nameSuffix}",
+                    "Part",
+                    35m,
+                    55m,
+                    StockQuantity: 10,
+                    Quantity: 4)
+            ]);
+    }
+
+    private static void AssertIntakeResponse(CreateWorkOrderIntakeResponse response)
+    {
+        Assert.NotEqual(Guid.Empty, response.WorkOrderId);
+        Assert.NotEqual(Guid.Empty, response.CustomerId);
+        Assert.NotEqual(Guid.Empty, response.VehicleId);
+        Assert.NotEqual(Guid.Empty, response.EstimateId);
+        Assert.NotEqual(Guid.Empty, Assert.Single(response.ServiceIds));
+        Assert.NotEqual(Guid.Empty, Assert.Single(response.InventoryItemIds));
+        Assert.Equal("Received", response.Status);
+        Assert.NotEqual(default, response.CreatedAt);
+    }
+
+    private static async Task AssertProblemAsync(HttpResponseMessage response, HttpStatusCode statusCode)
+    {
+        HttpResponseAssertions.AssertStatus(response, statusCode);
+        var problem = await HttpResponseAssertions.ReadRequiredJsonAsync<ProblemDetailsResponse>(response);
+        Assert.Equal((int)statusCode, problem.Status);
+        Assert.False(string.IsNullOrWhiteSpace(problem.Title));
+        Assert.False(string.IsNullOrWhiteSpace(problem.Detail));
     }
 
     private sealed record CreateWorkOrderResponse(

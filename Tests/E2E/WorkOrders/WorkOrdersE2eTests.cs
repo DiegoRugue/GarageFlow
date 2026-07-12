@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using GarageFlow.Tests.E2E.Support.Contracts.Auth;
 using GarageFlow.Tests.E2E.Support.Contracts.Common;
 using GarageFlow.Tests.E2E.Support.Fixtures;
 using GarageFlow.Tests.E2E.Support.Helpers;
+using GarageFlow.Tests.Shared.WorkOrders;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
@@ -185,6 +187,55 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
     }
 
     [Fact]
+    public async Task WorkOrderIntake_ShouldSerializeConcurrentIdenticalRequests_AndRejectChangedReplay()
+    {
+        using var firstClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var secondClient = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest();
+
+        var firstTask = firstClient.PostAsJsonAsync("/work-orders/intake", request);
+        var secondTask = secondClient.PostAsJsonAsync("/work-orders/intake", request);
+        var responses = await Task.WhenAll(firstTask, secondTask);
+        using var firstResponse = responses[0];
+        using var secondResponse = responses[1];
+
+        Assert.Equal(
+            [HttpStatusCode.OK, HttpStatusCode.Created],
+            responses.Select(response => response.StatusCode).Order().ToArray());
+        var first = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderIntakeResponse>(firstResponse);
+        var second = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderIntakeResponse>(secondResponse);
+        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.NotEqual(Guid.Empty, first.WorkOrderId);
+        Assert.NotEqual(Guid.Empty, first.CustomerId);
+        Assert.NotEqual(Guid.Empty, first.VehicleId);
+
+        using var detailsResponse = await firstClient.GetAsync($"/work-orders/{first.WorkOrderId}");
+        HttpResponseAssertions.AssertStatus(detailsResponse, HttpStatusCode.OK);
+        var details = await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(detailsResponse);
+        Assert.Equal(first.CustomerId, details.CustomerId);
+        Assert.Equal(first.VehicleId, details.VehicleId);
+        Assert.Equal(first.EstimateId, Assert.Single(details.Estimates).Id);
+
+        using var listResponse = await firstClient.GetAsync("/work-orders?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(listResponse, HttpStatusCode.OK);
+        var list = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(listResponse);
+        var listed = Assert.Single(list.Items, item => item.Id == first.WorkOrderId);
+        Assert.Equal(first.CustomerId, listed.CustomerId);
+        Assert.Equal(first.VehicleId, listed.VehicleId);
+
+        var changed = request with
+        {
+            Services = [new IntakeServiceRequest("Oil and filter replacement", 181m)]
+        };
+        using var conflictResponse = await firstClient.PostAsJsonAsync("/work-orders/intake", changed);
+
+        HttpResponseAssertions.AssertStatus(conflictResponse, HttpStatusCode.Conflict);
+        var problem = await HttpResponseAssertions.ReadRequiredJsonAsync<ProblemDetailsResponse>(conflictResponse);
+        Assert.Equal((int)HttpStatusCode.Conflict, problem.Status);
+        Assert.Equal(ConflictProblemTitle, problem.Title);
+    }
+
+    [Fact]
     public async Task WorkOrders_ShouldReturnForbidden_ForCustomerListingStaffWorkOrders()
     {
         // Given a customer portal user authenticated for their own customer account.
@@ -286,6 +337,26 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
             inventoryItem.Cost,
             inventoryItem.Price);
     }
+
+    private static CreateWorkOrderIntakeRequest CreateIntakeRequest() => new(
+        Guid.NewGuid(),
+        new IntakeCustomerRequest(
+            "52998224725",
+            "Maria Oliveira",
+            "maria@example.com",
+            "+5511999999999"),
+        new IntakeVehicleRequest("ABC1D23", 2022, "Toyota", "Corolla", "Black"),
+        [new IntakeServiceRequest("Oil and filter replacement", 180m)],
+        [
+            new IntakeInventoryItemRequest(
+                "5W30 engine oil",
+                "Synthetic engine oil",
+                "Part",
+                35m,
+                55m,
+                StockQuantity: 10,
+                Quantity: 4)
+        ]);
 
     private static async Task<CreateCustomerResponse> CreateCustomerAsync(HttpClient client, string seed)
     {
@@ -549,6 +620,12 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         string InventoryItemDescription,
         decimal InventoryItemCost,
         decimal InventoryItemPrice);
+
+    private sealed record ListWorkOrdersResponse(
+        IReadOnlyList<WorkOrderDetailsResponse> Items,
+        int TotalCount,
+        int Page,
+        int PageSize);
 
     private sealed record CreatedVehicleDependencies(Guid Id);
 
