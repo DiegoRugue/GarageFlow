@@ -62,16 +62,39 @@ text = re.sub(
     text,
 )
 text = re.sub(
-    r"(?i)(?<![A-Za-z])(?:Host|Server|Data Source)\s*=\s*[^;\r\n]+(?:\s*;\s*[^;=\r\n]+\s*=\s*[^;\r\n]+){2,}",
+    r'''(?ix)
+        (?<![A-Za-z])
+        (?:Host|Server|Data\s+Source)\s*=\s*
+        (?:"[^"\r\n]*"|'[^'\r\n]*'|[^;,\r\n"'{}\[\]]+)
+        (?:
+            \s*;\s*[A-Za-z][A-Za-z0-9 ._-]*\s*=\s*
+            (?:"[^"\r\n]*"|'[^'\r\n]*'|[^;,\r\n"'{}\[\]]+)
+        )+
+    ''',
     "[REDACTED CONNECTION STRING]",
     text,
 )
 text = re.sub(r"(?i)\b(?:postgres(?:ql)?|npgsql)://[^\s\"']+", "[REDACTED CONNECTION STRING]", text)
 text = re.sub(r"(?i)(password\s*[=:]\s*)[^;\s]+", r"\1[REDACTED]", text)
 text = re.sub(r"(?i)(authorization:\s*bearer\s+)[A-Za-z0-9._~-]+", r"\1[REDACTED]", text)
-text = re.sub(r"(?i)(\"token\"\s*:\s*\")[^\"]+", r"\1[REDACTED]", text)
+sensitive_name = (
+    r"(?:password|pwd|(?:(?:access|refresh|id)[-_]?)?token|"
+    r"(?:(?:client|hmac)[-_]?)?secret|api[-_]?key|jwt[-_]?key)"
+)
 text = re.sub(
-    r"(?i)((?:token|secret|password|pwd|api(?:[_:.-]+)?key|jwt(?:[_:.-]+)?key|hmac(?:[_:.-]+)?secret)\s*[=:]\s*)[^;\s\"']+",
+    rf'''(?ix)
+        ("{sensitive_name}"\s*:\s*")
+        (?:\\.|[^"\\])*
+        (")
+    ''',
+    r"\1[REDACTED]\2",
+    text,
+)
+text = re.sub(
+    rf'''(?ix)
+        ({sensitive_name}\s*[=:]\s*)
+        (?:"[^"\r\n]*"|'[^'\r\n]*'|[^;\s"']+)
+    ''',
     r"\1[REDACTED]",
     text,
 )
