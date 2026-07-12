@@ -219,9 +219,59 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         using var listResponse = await firstClient.GetAsync("/work-orders?page=1&pageSize=100");
         HttpResponseAssertions.AssertStatus(listResponse, HttpStatusCode.OK);
         var list = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(listResponse);
-        var listed = Assert.Single(list.Items, item => item.Id == first.WorkOrderId);
+        var listed = Assert.Single(
+            list.Items,
+            item => item.CustomerId == first.CustomerId && item.VehicleId == first.VehicleId);
+        Assert.Equal(first.WorkOrderId, listed.Id);
         Assert.Equal(first.CustomerId, listed.CustomerId);
         Assert.Equal(first.VehicleId, listed.VehicleId);
+        var listedEstimate = Assert.Single(listed.Estimates);
+        Assert.Equal(first.EstimateId, listedEstimate.Id);
+        Assert.Equal(Assert.Single(first.ServiceIds), Assert.Single(listedEstimate.ServiceLines).ServiceId);
+        Assert.Equal(
+            Assert.Single(first.InventoryItemIds),
+            Assert.Single(listedEstimate.InventoryLines).InventoryItemId);
+
+        using var customersResponse = await firstClient.GetAsync("/customers?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(customersResponse, HttpStatusCode.OK);
+        var customers = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<CreateCustomerResponse>>(
+            customersResponse);
+        var persistedCustomer = Assert.Single(
+            customers.Items,
+            customer => customer.TaxDocument == request.Customer!.TaxDocument);
+        Assert.Equal(first.CustomerId, persistedCustomer.Id);
+
+        using var vehiclesResponse = await firstClient.GetAsync("/vehicles?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(vehiclesResponse, HttpStatusCode.OK);
+        var vehicles = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<CreateVehicleResponse>>(
+            vehiclesResponse);
+        var persistedVehicle = Assert.Single(
+            vehicles.Items,
+            vehicle => vehicle.Plate == request.Vehicle!.Plate);
+        Assert.Equal(first.VehicleId, persistedVehicle.Id);
+        Assert.Equal(first.CustomerId, persistedVehicle.CustomerId);
+
+        using var servicesResponse = await firstClient.GetAsync("/services?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(servicesResponse, HttpStatusCode.OK);
+        var services = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<ServiceResponse>>(
+            servicesResponse);
+        var requestedService = Assert.Single(request.Services!);
+        var persistedService = Assert.Single(
+            services.Items,
+            service => service.Description == requestedService.Description);
+        Assert.Equal(Assert.Single(first.ServiceIds), persistedService.Id);
+
+        using var inventoryClient = await _fixture.CreateAuthenticatedClientAsync();
+        _ = await inventoryClient.AuthenticateAsActiveAttendantAsync(Guid.NewGuid().ToString("N"));
+        using var inventoryItemsResponse = await inventoryClient.GetAsync("/inventory-items?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(inventoryItemsResponse, HttpStatusCode.OK);
+        var inventoryItems = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<InventoryItemResponse>>(
+            inventoryItemsResponse);
+        var requestedInventoryItem = Assert.Single(request.InventoryItems!);
+        var persistedInventoryItem = Assert.Single(
+            inventoryItems.Items,
+            item => item.Name == requestedInventoryItem.Name);
+        Assert.Equal(Assert.Single(first.InventoryItemIds), persistedInventoryItem.Id);
 
         var changed = request with
         {
@@ -623,6 +673,12 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
 
     private sealed record ListWorkOrdersResponse(
         IReadOnlyList<WorkOrderDetailsResponse> Items,
+        int TotalCount,
+        int Page,
+        int PageSize);
+
+    private sealed record PaginatedResponse<T>(
+        IReadOnlyList<T> Items,
         int TotalCount,
         int Page,
         int PageSize);

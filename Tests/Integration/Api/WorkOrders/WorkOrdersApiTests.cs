@@ -264,6 +264,48 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         HttpResponseAssertions.AssertStatus(replayResponse, HttpStatusCode.OK);
         var replayed = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderIntakeResponse>(replayResponse);
         Assert.Equal(JsonSerializer.Serialize(created), JsonSerializer.Serialize(replayed));
+
+        using var workOrdersResponse = await client.GetAsync("/work-orders?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(workOrdersResponse, HttpStatusCode.OK);
+        var workOrders = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<WorkOrderDetailsResponse>>(
+            workOrdersResponse);
+        var persistedWorkOrder = Assert.Single(
+            workOrders.Items,
+            item => item.CustomerId == created.CustomerId && item.VehicleId == created.VehicleId);
+        Assert.Equal(created.WorkOrderId, persistedWorkOrder.Id);
+        var persistedEstimate = Assert.Single(persistedWorkOrder.Estimates);
+        Assert.Equal(created.EstimateId, persistedEstimate.Id);
+        Assert.Equal(Assert.Single(created.ServiceIds), Assert.Single(persistedEstimate.ServiceLines).ServiceId);
+        Assert.Equal(
+            Assert.Single(created.InventoryItemIds),
+            Assert.Single(persistedEstimate.InventoryLines).InventoryItemId);
+
+        using var customersResponse = await client.GetAsync("/customers?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(customersResponse, HttpStatusCode.OK);
+        var customers = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<CustomerResponse>>(
+            customersResponse);
+        var persistedCustomer = Assert.Single(
+            customers.Items,
+            customer => customer.TaxDocument == request.Customer!.TaxDocument);
+        Assert.Equal(created.CustomerId, persistedCustomer.Id);
+
+        using var vehiclesResponse = await client.GetAsync("/vehicles?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(vehiclesResponse, HttpStatusCode.OK);
+        var vehicles = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<VehicleResponse>>(
+            vehiclesResponse);
+        var persistedVehicle = Assert.Single(
+            vehicles.Items,
+            vehicle => vehicle.Plate == request.Vehicle!.Plate);
+        Assert.Equal(created.VehicleId, persistedVehicle.Id);
+
+        using var servicesResponse = await client.GetAsync("/services?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(servicesResponse, HttpStatusCode.OK);
+        var services = await HttpResponseAssertions.ReadRequiredJsonAsync<ListServicesResponse>(servicesResponse);
+        var requestedService = Assert.Single(request.Services!);
+        var persistedService = Assert.Single(
+            services.Items,
+            service => service.Description == requestedService.Description);
+        Assert.Equal(Assert.Single(created.ServiceIds), persistedService.Id);
     }
 
     [Fact]
