@@ -2,71 +2,65 @@
 title: Topologia AWS Academy do GarageFlow
 ---
 flowchart TB
-    Internet["Internet<br/>tráfego HTTP com dados sintéticos"]
-    Email["E-mail confirmado<br/>notificações de status"]
-    Pipeline["GitHub Actions protegido<br/>deploy-demo-destroy"]
-    Terraform["Terraform<br/>estado remoto bloqueado"]
+    Actions["GitHub Actions protegido<br/>workflow de deploy"]
+    Terraform["Terraform plan + apply"]
 
     subgraph AWS["AWS Academy — us-east-1"]
-        S3["S3 de estado Terraform<br/>privado, criptografado, versionado e retido"]
+        direction TB
+        TerraformSession["Sessão Terraform<br/>com credenciais temporárias"]
+        DeploySession["Sessão de deploy<br/>com credenciais temporárias"]
+        S3["S3 de estado remoto<br/>privado, criptografado,<br/>versionado e retido"]
+        Secrets["AWS Secrets Manager<br/>valores gerados"]
         ECR["Amazon ECR<br/>imagem imutável por SHA"]
-        SNS["Amazon SNS<br/>tópico de ordens de serviço"]
-        Secrets["AWS Secrets Manager<br/>segredos gerados para o runtime"]
 
         subgraph VPC["VPC 10.42.0.0/16 — sem NAT Gateway"]
-            IGW["Internet Gateway"]
-            LB["LoadBalancer do Kubernetes<br/>entrada pública"]
+            direction TB
+            Internet["Internet<br/>somente dados sintéticos"]
+            LB["Service LoadBalancer<br/>entrada pública HTTP"]
 
-            subgraph AZA["Zona de disponibilidade A"]
-                PublicA["Subnet pública A<br/>EKS e balanceador"]
-                NodeA["Nó EKS t3.small A"]
-                PodA["Pod GarageFlow API A"]
-                PrivateA["Subnet privada de banco A<br/>sem IP público"]
+            subgraph Public["Camada pública em duas zonas de disponibilidade"]
+                direction LR
+                PublicA["Subnet pública<br/>AZ A"]
+                PublicB["Subnet pública<br/>AZ B"]
             end
 
-            subgraph AZB["Zona de disponibilidade B"]
-                PublicB["Subnet pública B<br/>EKS e balanceador"]
-                NodeB["Nó EKS t3.small B"]
-                PodB["Pod GarageFlow API B"]
-                PrivateB["Subnet privada de banco B<br/>sem IP público"]
+            NodeGroup["Amazon EKS managed node group<br/>2 × t3.small nas duas subnets<br/>distribuição por AZ não é garantida"]
+            Replicas["Deployment GarageFlow<br/>2 réplicas iniciais<br/>posicionamento por AZ não é garantido"]
+            K8sSecret["Kubernetes Secret<br/>criado no deploy"]
+
+            subgraph Private["DB subnet group privado em duas zonas"]
+                direction LR
+                PrivateA["Subnet privada<br/>AZ A"]
+                PrivateB["Subnet privada<br/>AZ B"]
             end
 
-            EKS["Amazon EKS<br/>control plane gerenciado"]
-            RDS["Amazon RDS PostgreSQL 17<br/>Single-AZ, privado, db.t3.micro"]
-            NoNat["Controle de custo<br/>nenhum NAT Gateway"]
+            RDS["RDS PostgreSQL 17<br/>Single-AZ, privado, db.t3.micro"]
         end
+
+        SNS["Amazon SNS<br/>notificações de status"]
+        Email["Assinatura de e-mail<br/>confirmada manualmente"]
     end
 
-    Internet --> IGW --> LB
-    LB --> PodA
-    LB --> PodB
-    PublicA --- NodeA --> PodA
-    PublicB --- NodeB --> PodB
-    EKS --> NodeA
-    EKS --> NodeB
-    PodA -->|"TCP 5432 pelo security group"| RDS
-    PodB -->|"TCP 5432 pelo security group"| RDS
+    Actions --> Terraform --> TerraformSession
+    Actions --> DeploySession
+    TerraformSession -->|"estado remoto"| S3
+    TerraformSession -->|"provisiona"| VPC
+    DeploySession -->|"build e push"| ECR
+    DeploySession -->|"lê valores no deploy"| Secrets
+    Secrets --> K8sSecret -->|"consumido pelos pods"| Replicas
+    ECR -->|"imagem por commit SHA"| Replicas
+    PublicA --> NodeGroup
+    PublicB --> NodeGroup
+    NodeGroup --> Replicas
+    Internet --> LB --> Replicas
+    Replicas -->|"TCP 5432 pelo security group"| RDS
     PrivateA --- RDS
     PrivateB --- RDS
-    RDS -.->|"instância em uma AZ; subnet group em duas"| PrivateA
-    ECR -->|"pull da imagem"| NodeA
-    ECR -->|"pull da imagem"| NodeB
-    Secrets -->|"materializa Secret do namespace"| PodA
-    Secrets -->|"materializa Secret do namespace"| PodB
-    PodA -->|"publicação assíncrona"| SNS
-    PodB -->|"publicação assíncrona"| SNS
-    SNS --> Email
-    Pipeline --> Terraform --> S3
-    Pipeline -->|"build e push"| ECR
-    Terraform -->|"provisiona recursos"| VPC
-    NoNat -.-> PublicA
-    NoNat -.-> PublicB
+    Replicas -->|"publicação assíncrona"| SNS --> Email
 
     classDef aws fill:#fff7ed,stroke:#c2410c,color:#111827,stroke-width:2px;
     classDef network fill:#eff6ff,stroke:#1d4ed8,color:#111827;
     classDef private fill:#ecfdf5,stroke:#047857,color:#111827;
-    classDef warning fill:#fef2f2,stroke:#b91c1c,color:#111827,stroke-width:2px;
-    class S3,ECR,SNS,Secrets,EKS,RDS aws;
-    class IGW,LB,PublicA,PublicB,NodeA,NodeB,PodA,PodB network;
+    class S3,ECR,SNS,Secrets,RDS aws;
+    class LB,PublicA,PublicB,NodeGroup,Replicas,K8sSecret network;
     class PrivateA,PrivateB private;
-    class NoNat warning;

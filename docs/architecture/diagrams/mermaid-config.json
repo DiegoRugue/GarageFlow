@@ -8,13 +8,14 @@
     "lineColor": "#374151",
     "secondaryColor": "#e0f2fe",
     "tertiaryColor": "#fef3c7",
-    "fontFamily": "Arial, sans-serif"
+    "fontFamily": "Arial, sans-serif",
+    "fontSize": "18px"
   },
   "fontFamily": "Arial, sans-serif",
   "securityLevel": "strict",
   "flowchart": {
-    "nodeSpacing": 60,
-    "rankSpacing": 80,
+    "nodeSpacing": 55,
+    "rankSpacing": 70,
     "curve": "basis",
     "htmlLabels": false,
     "useMaxWidth": false

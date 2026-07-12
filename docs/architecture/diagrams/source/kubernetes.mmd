@@ -1,25 +1,27 @@
 ---
 title: Runtime Kubernetes do GarageFlow
 ---
-flowchart LR
+flowchart TB
     subgraph Configuracao["Configuração do namespace garageflow"]
+        direction LR
         ConfigMap["ConfigMap garageflow-config<br/>opções não sensíveis"]
         Secret["Secret garageflow-secrets<br/>valores materializados no deploy"]
     end
 
     subgraph Preparacao["Preparação obrigatória"]
-        Job["Job garageflow-migration<br/>DatabaseMigration__Enabled=true"]
+        Job["Job garageflow-migration<br/>args: --migrate-only<br/>Database__AutoMigrate=false"]
         Complete["Condição Complete<br/>antes do rollout"]
     end
 
     subgraph Aplicacao["Aplicação disponível"]
+        direction TB
         Deployment["Deployment garageflow-api<br/>2 réplicas iniciais; RollingUpdate"]
-        Pod1["Pod API 1<br/>probes e recursos definidos"]
-        Pod2["Pod API 2<br/>probes e recursos definidos"]
         Service["Service garageflow-api<br/>type LoadBalancer, porta 80"]
+        Pods["Pods selecionados pelo Service<br/>2 réplicas iniciais; placement não garantido"]
     end
 
     subgraph Escala["Escala horizontal"]
+        direction LR
         Metrics["Metrics Server<br/>CPU e memória dos pods"]
         HPA["HPA garageflow-api<br/>mínimo 2, máximo 6<br/>CPU 60% e memória 70%"]
     end
@@ -32,13 +34,10 @@ flowchart LR
     Job --> Complete --> Deployment
     ConfigMap --> Deployment
     Secret --> Deployment
-    Deployment --> Pod1
-    Deployment --> Pod2
-    Pod1 --> Service
-    Pod2 --> Service
+    Deployment --> Pods
     Client --> Service
-    Pod1 --> Database
-    Pod2 --> Database
+    Service -->|"selector encaminha tráfego"| Pods
+    Pods --> Database
     Metrics --> HPA
     HPA -->|"ajusta réplicas entre 2 e 6"| Deployment
 

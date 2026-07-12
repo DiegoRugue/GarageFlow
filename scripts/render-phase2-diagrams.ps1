@@ -22,6 +22,38 @@ if ($diagrams.Count -ne 6) {
     throw "Expected exactly six Mermaid diagrams, found $($diagrams.Count)."
 }
 
+function Assert-SourceContract {
+    param(
+        [Parameter(Mandatory)] [string] $RelativePath,
+        [Parameter(Mandatory)] [string[]] $Required,
+        [string[]] $Forbidden = @()
+    )
+
+    $content = Get-Content -LiteralPath (Join-Path $repositoryRoot $RelativePath) -Raw
+    foreach ($pattern in $Required) {
+        if ($content -notmatch $pattern) {
+            throw "Required diagram contract '$pattern' is missing from $RelativePath."
+        }
+    }
+    foreach ($pattern in $Forbidden) {
+        if ($content -match $pattern) {
+            throw "Forbidden diagram claim '$pattern' was found in $RelativePath."
+        }
+    }
+}
+
+Assert-SourceContract -RelativePath 'docs/architecture/diagrams/source/kubernetes.mmd' `
+    -Required @('--migrate-only', 'Database__AutoMigrate=false', 'Service\s+-->', 'HPA\s+-->') `
+    -Forbidden @('DatabaseMigration__Enabled', 'Pod\w*\s+-->\s+Service')
+Assert-SourceContract -RelativePath 'docs/architecture/diagrams/source/aws-academy.mmd' `
+    -Required @('distribuição por AZ não é garantida', 'posicionamento por AZ não é garantido', 'Actions\s+-->', 'Secrets\s+-->\s+K8sSecret', 'K8sSecret\s+-->.*Replicas') `
+    -Forbidden @('NodeA|NodeB|PodA|PodB|deploy-demo-destroy')
+Assert-SourceContract -RelativePath 'docs/architecture/diagrams/source/database-reliability.mmd' `
+    -Required @('Command comum', 'Webhook HMAC válido', 'aggregate \+ outbox', 'aggregate \+ inbox \+ outbox', 'UPDATE condicional MarkProcessed', 'UPDATE condicional Reschedule', 'OwnershipLost')
+Assert-SourceContract -RelativePath 'docs/architecture/diagrams/source/deployment-flow.mmd' `
+    -Required @('deploy-aws-academy\.yml', 'Demonstração manual', 'destroy-aws-academy\.yml') `
+    -Forbidden @('deploy-demo-destroy')
+
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
     throw "Mermaid configuration was not found: $configPath"
 }
@@ -60,6 +92,23 @@ function Invoke-MermaidRender {
     $outputSize = (Get-Item -LiteralPath $Output).Length
     if ($outputSize -le 10KB) {
         throw "Rendered output must be larger than 10 KB: $Output ($outputSize bytes)."
+    }
+
+    if ($Png) {
+        $pngBytes = [System.IO.File]::ReadAllBytes($Output)
+        if ($pngBytes.Length -lt 24 -or
+            $pngBytes[0] -ne 0x89 -or $pngBytes[1] -ne 0x50 -or
+            $pngBytes[2] -ne 0x4E -or $pngBytes[3] -ne 0x47) {
+            throw "Rendered output does not have a valid PNG signature: $Output"
+        }
+        $pngWidth =
+            ($pngBytes[16] * 16777216) +
+            ($pngBytes[17] * 65536) +
+            ($pngBytes[18] * 256) +
+            $pngBytes[19]
+        if ($pngWidth -gt 1600) {
+            throw "PNG natural width must not exceed 1600px for 900px readability: $Output ($($pngWidth)px)."
+        }
     }
 }
 
