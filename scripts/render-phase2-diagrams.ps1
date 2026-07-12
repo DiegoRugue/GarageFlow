@@ -43,8 +43,8 @@ function Assert-SourceContract {
 }
 
 Assert-SourceContract -RelativePath 'docs/architecture/diagrams/source/kubernetes.mmd' `
-    -Required @('--migrate-only', 'Database__AutoMigrate=false', 'Service\s+-->', 'HPA\s+-->') `
-    -Forbidden @('DatabaseMigration__Enabled', 'Pod\w*\s+-->\s+Service')
+    -Required @('--migrate-only', 'Database__AutoMigrate=false', 'Service\s+-->', 'HPA\s+-->', 'class\s+Deployment,Pods,Service\s+runtime') `
+    -Forbidden @('DatabaseMigration__Enabled', 'Pod\w*\s+-->\s+Service', '\bPod1\b|\bPod2\b')
 Assert-SourceContract -RelativePath 'docs/architecture/diagrams/source/aws-academy.mmd' `
     -Required @('distribuição por AZ não é garantida', 'posicionamento por AZ não é garantido', 'Actions\s+-->', 'Secrets\s+-->\s+K8sSecret', 'K8sSecret\s+-->.*Replicas') `
     -Forbidden @('NodeA|NodeB|PodA|PodB|deploy-demo-destroy')
