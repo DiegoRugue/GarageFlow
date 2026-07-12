@@ -18,7 +18,6 @@ using GarageFlow.Application.WorkOrders.UseCases.ListWorkOrders;
 using GarageFlow.Application.WorkOrders.UseCases.RejectMyEstimate;
 using GarageFlow.Application.WorkOrders.UseCases.StartDiagnosis;
 using GarageFlow.Application.WorkOrders.UseCases.StartEstimateService;
-using GarageFlow.Application.WorkOrders.UseCases.StartWork;
 using GarageFlow.Application.WorkOrders.UseCases.SubmitEstimate;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
@@ -61,7 +60,7 @@ namespace GarageFlow.Tests.Unit.WorkOrders;
 public class WorkOrderHandlersTests
 {
     [Fact]
-    public async Task CreateWorkOrder_ShouldCreateCreatedWorkOrder_WhenVehicleBelongsToCustomer()
+    public async Task CreateWorkOrder_ShouldCreateReceivedWorkOrder_WhenVehicleBelongsToCustomer()
     {
         var customer = new CustomerBuilder().Build();
         var vehicle = new VehicleBuilder().WithCustomerId(customer.Id.Value).Build();
@@ -80,9 +79,9 @@ public class WorkOrderHandlersTests
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal(customer.Id.Value, result.CustomerId);
         Assert.Equal(vehicle.Id.Value, result.VehicleId);
-        Assert.Equal("Created", result.Status);
+        Assert.Equal("Received", result.Status);
         Assert.Single(workOrders);
-        Assert.Equal(WorkOrderStatus.Created, workOrders[0].Status);
+        Assert.Equal(WorkOrderStatus.Received, workOrders[0].Status);
     }
 
     [Fact]
@@ -242,7 +241,7 @@ public class WorkOrderHandlersTests
                     Quantity: 1),
                 CancellationToken.None));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
         Assert.Equal(6, inventoryItem.StockQuantity.Value);
         inventoryItemRepositoryMock.Verify(
             x => x.GetByIdForStockReservationAsync(It.IsAny<InventoryItemId>(), It.IsAny<CancellationToken>()),
@@ -365,7 +364,7 @@ public class WorkOrderHandlersTests
                 new AddEstimateServiceCommand(workOrder.Id.Value, estimateId.Value, service.Id.Value),
                 CancellationToken.None));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
         serviceRepositoryMock.Verify(
             x => x.GetByIdAsync(It.IsAny<ServiceId>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -631,20 +630,6 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
-    public async Task StartWork_ShouldTransitionToInProgress_WhenWorkOrderIsApproved()
-    {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new StartWorkHandler(workOrderRepositoryMock.Object);
-
-        var result = await handler.Handle(new StartWorkCommand(workOrder.Id.Value), CancellationToken.None);
-
-        Assert.Equal(MediatorUnit.Value, result);
-        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
-    }
-
-    [Fact]
     public async Task CancelWorkOrder_ShouldTransitionToCancelled_WhenWorkOrderIsCreated()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
@@ -714,7 +699,7 @@ public class WorkOrderHandlersTests
             CancellationToken.None);
 
         Assert.Equal(MediatorUnit.Value, result);
-        Assert.Equal(WorkOrderStatus.Approved, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
         Assert.Equal(EstimateStatus.Approved, workOrder.Estimates.Single().Status);
     }
 

@@ -27,7 +27,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
             "/work-orders",
             new CreateWorkOrderRequest(setup.CustomerId, setup.VehicleId));
 
-        // Then the work order starts in the Created state.
+        // Then the work order starts in the Received state.
         HttpResponseAssertions.AssertStatus(createWorkOrderResponse, HttpStatusCode.Created);
         Assert.NotNull(createWorkOrderResponse.Headers.Location);
 
@@ -35,7 +35,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Assert.NotEqual(Guid.Empty, createdWorkOrder.Id);
         Assert.Equal(setup.CustomerId, createdWorkOrder.CustomerId);
         Assert.Equal(setup.VehicleId, createdWorkOrder.VehicleId);
-        Assert.Equal("Created", createdWorkOrder.Status);
+        Assert.Equal("Received", createdWorkOrder.Status);
         Assert.NotEqual(default, createdWorkOrder.CreatedAt);
 
         // When staff creates the first estimate for the work order.
@@ -105,13 +105,13 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
             $"/me/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/approve",
             content: null);
 
-        // Then the approval is accepted and the work order becomes approved.
+        // Then the approval is accepted and the work order enters execution.
         HttpResponseAssertions.AssertStatus(approveEstimateResponse, HttpStatusCode.NoContent);
 
         using var detailsAfterApprovalResponse = await staffClient.GetAsync($"/work-orders/{createdWorkOrder.Id}");
         HttpResponseAssertions.AssertStatus(detailsAfterApprovalResponse, HttpStatusCode.OK);
         var detailsAfterApproval = await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(detailsAfterApprovalResponse);
-        Assert.Equal("Approved", detailsAfterApproval.Status);
+        Assert.Equal("InProgress", detailsAfterApproval.Status);
 
         var estimateAfterApproval = Assert.Single(detailsAfterApproval.Estimates);
         Assert.Equal(createdEstimate.Id, estimateAfterApproval.Id);
@@ -121,13 +121,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Assert.Null(approvedServiceLine.StartedAt);
         Assert.Null(approvedServiceLine.CompletedAt);
 
-        // When staff starts the work order and completes the approved service line.
-        using var startWorkResponse = await staffClient.PostAsync(
-            $"/work-orders/{createdWorkOrder.Id}/start-work",
-            content: null);
-
-        HttpResponseAssertions.AssertStatus(startWorkResponse, HttpStatusCode.NoContent);
-
+        // When staff starts and completes the approved service line.
         using var startServiceResponse = await staffClient.PostAsync(
             $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/services/{approvedServiceLine.Id}/start",
             content: null);
@@ -232,7 +226,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
     }
 
     [Fact]
-    public async Task WorkOrders_ShouldReturnConflict_ForInvalidTransition()
+    public async Task WorkOrders_ShouldReturnNotFound_ForRemovedExecutionRoute()
     {
         // Given staff created a work order and submitted an estimate that still awaits customer approval.
         using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
@@ -265,19 +259,13 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
 
         HttpResponseAssertions.AssertStatus(submitEstimateResponse, HttpStatusCode.NoContent);
 
-        // When staff tries to start work before customer approval.
-        using var invalidTransitionResponse = await staffClient.PostAsync(
+        // When staff calls the removed execution route.
+        using var removedRouteResponse = await staffClient.PostAsync(
             $"/work-orders/{createdWorkOrder.Id}/start-work",
             content: null);
 
-        // Then the domain state machine is exposed as a conflict ProblemDetails response.
-        HttpResponseAssertions.AssertStatus(invalidTransitionResponse, HttpStatusCode.Conflict);
-
-        var problem = await HttpResponseAssertions.ReadRequiredJsonAsync<ProblemDetailsResponse>(invalidTransitionResponse);
-        Assert.False(string.IsNullOrWhiteSpace(problem.Type));
-        Assert.Equal((int)HttpStatusCode.Conflict, problem.Status);
-        Assert.Equal(ConflictProblemTitle, problem.Title);
-        Assert.Equal("Work order cannot start while waiting for customer approval.", problem.Detail);
+        // Then the API no longer advertises or handles it.
+        HttpResponseAssertions.AssertStatus(removedRouteResponse, HttpStatusCode.NotFound);
     }
 
     private async Task<WorkOrderSetupIds> CreateWorkOrderSetupAsync(HttpClient staffClient, string seed)

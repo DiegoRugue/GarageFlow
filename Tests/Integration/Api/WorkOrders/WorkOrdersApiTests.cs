@@ -335,7 +335,7 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
-    public async Task Staff_ShouldCreateWorkOrder_WithCreatedStatus()
+    public async Task Staff_ShouldCreateWorkOrder_WithReceivedStatus()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();
         var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
@@ -345,7 +345,7 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var created = await CreateWorkOrderAsync(client, seededVehicle.CustomerId, seededVehicle.VehicleId);
 
         Assert.NotEqual(Guid.Empty, created.Id);
-        Assert.Equal("Created", created.Status);
+        Assert.Equal("Received", created.Status);
         Assert.Equal(seededVehicle.CustomerId, created.CustomerId);
         Assert.Equal(seededVehicle.VehicleId, created.VehicleId);
     }
@@ -605,7 +605,7 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
         var detailsResponse = await customerClient.GetAsync($"/me/work-orders/{workOrder.Id}");
         HttpResponseAssertions.AssertStatus(detailsResponse, HttpStatusCode.OK);
         var details = await HttpResponseAssertions.ReadRequiredJsonAsync<CustomerWorkOrderDetailsResponse>(detailsResponse);
-        Assert.Equal("Approved", details.Status);
+        Assert.Equal("InProgress", details.Status);
         Assert.Contains(details.Estimates, item => item.Id == estimate.Id && item.Status == "Approved");
     }
 

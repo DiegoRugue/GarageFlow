@@ -15,17 +15,17 @@ namespace GarageFlow.Tests.Unit.WorkOrders;
 public class WorkOrderTests
 {
     [Fact]
-    public void Create_ShouldCreateWorkOrder_WithCreatedStatus()
+    public void Create_ShouldCreateWorkOrder_WithReceivedStatus()
     {
         var workOrder = WorkOrder.Create(CustomerId.New(), VehicleId.New());
 
-        Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.Received, workOrder.Status);
         Assert.Empty(workOrder.Estimates);
         var createdEvent = Assert.Single(workOrder.DomainEvents.OfType<WorkOrderCreated>());
         Assert.Equal(workOrder.Id, createdEvent.WorkOrderId);
         Assert.Equal(workOrder.CustomerId, createdEvent.CustomerId);
         Assert.Equal(workOrder.VehicleId, createdEvent.VehicleId);
-        Assert.Equal(WorkOrderStatus.Created, createdEvent.Status);
+        Assert.Equal(WorkOrderStatus.Received, createdEvent.Status);
     }
 
     [Fact]
@@ -39,36 +39,36 @@ public class WorkOrderTests
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
 
         Assert.Equal("Estimate must contain at least one service line before submission.", exception.Message);
-        Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.Received, workOrder.Status);
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
         Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
         Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
     }
 
     [Fact]
-    public void ApproveEstimate_ShouldApprovePendingEstimate_AndMoveWorkOrderToApproved()
+    public void ApproveEstimate_ShouldApprovePendingEstimate_AndMoveWorkOrderToInProgress()
     {
         var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
         var estimateId = workOrder.Estimates.Single().Id;
 
         workOrder.ApproveEstimate(estimateId);
 
-        Assert.Equal(WorkOrderStatus.Approved, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
         var estimate = workOrder.Estimates.Single();
         Assert.Equal(EstimateStatus.Approved, estimate.Status);
-        Assert.Contains(workOrder.DomainEvents, domainEvent => domainEvent is WorkOrderStatusChanged statusChanged && statusChanged.NewStatus == WorkOrderStatus.Approved);
+        Assert.Contains(workOrder.DomainEvents, domainEvent => domainEvent is WorkOrderStatusChanged statusChanged && statusChanged.NewStatus == WorkOrderStatus.InProgress);
         Assert.Single(workOrder.DomainEvents.OfType<EstimateApproved>());
     }
 
     [Fact]
-    public void RejectEstimate_ShouldRejectPendingEstimate_AndKeepWorkOrderWaitingApproval()
+    public void RejectEstimate_ShouldRejectPendingEstimate_AndMoveWorkOrderToDiagnosing()
     {
         var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
         var estimateId = workOrder.Estimates.Single().Id;
 
         var rejectedEstimate = workOrder.RejectEstimate(estimateId);
 
-        Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.Diagnosing, workOrder.Status);
         Assert.Equal(EstimateStatus.Rejected, rejectedEstimate.Status);
         Assert.Same(workOrder.Estimates.Single(), rejectedEstimate);
         Assert.Single(workOrder.DomainEvents.OfType<EstimateRejected>());
@@ -105,16 +105,6 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void StartWork_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsWaitingApproval()
-    {
-        var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
-
-        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.StartWork());
-
-        Assert.Equal("Work order cannot start while waiting for customer approval.", exception.Message);
-    }
-
-    [Fact]
     public void StartDiagnosis_ShouldNotSetServiceTiming()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
@@ -127,57 +117,24 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void StartWork_ShouldSetStartedAt_WhenTransitioningToInProgress()
-    {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-        var beforeStart = DateTime.UtcNow;
-
-        workOrder.StartWork();
-
-        var afterStart = DateTime.UtcNow;
-        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
-        Assert.NotNull(workOrder.StartedAt);
-        Assert.InRange(workOrder.StartedAt.Value, beforeStart, afterStart);
-        Assert.Null(workOrder.CompletedAt);
-    }
-
-    [Fact]
     public void CompleteEstimateService_ShouldSetWorkOrderCompletedAt_WhenLastServiceCompletes()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
         var estimate = workOrder.Estimates.Single();
         var serviceLine = estimate.ServiceLines.Single();
-        var beforeStart = DateTime.UtcNow;
+        var approvalStartedAt = workOrder.StartedAt;
+        var beforeServiceStart = DateTime.UtcNow;
         workOrder.StartEstimateService(estimate.Id, serviceLine.Id);
-        var afterStart = DateTime.UtcNow;
+        var afterServiceStart = DateTime.UtcNow;
 
         workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id);
 
         Assert.Equal(WorkOrderStatus.Completed, workOrder.Status);
         Assert.NotNull(workOrder.StartedAt);
         Assert.NotNull(workOrder.CompletedAt);
-        Assert.InRange(workOrder.StartedAt.Value, beforeStart, afterStart);
+        Assert.Equal(approvalStartedAt, workOrder.StartedAt);
+        Assert.InRange(serviceLine.StartedAt!.Value, beforeServiceStart, afterServiceStart);
         Assert.True(workOrder.CompletedAt.Value >= workOrder.StartedAt.Value);
-    }
-
-    [Fact]
-    public void StartWork_CalledTwice_ShouldNotOverwriteStartedAt_OrDuplicateInProgressTransitionEvent()
-    {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-
-        workOrder.StartWork();
-        var originalStartedAt = workOrder.StartedAt;
-        var inProgressTransitionsBeforeSecondCall = workOrder.DomainEvents
-            .OfType<WorkOrderStatusChanged>()
-            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.InProgress);
-
-        workOrder.StartWork();
-
-        var inProgressTransitionsAfterSecondCall = workOrder.DomainEvents
-            .OfType<WorkOrderStatusChanged>()
-            .Count(domainEvent => domainEvent.NewStatus == WorkOrderStatus.InProgress);
-        Assert.Equal(originalStartedAt, workOrder.StartedAt);
-        Assert.Equal(inProgressTransitionsBeforeSecondCall, inProgressTransitionsAfterSecondCall);
     }
 
     [Fact]
@@ -193,19 +150,6 @@ public class WorkOrderTests
             () => workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id));
 
         Assert.Equal("Work order must be in progress before completing services.", exception.Message);
-    }
-
-    [Fact]
-    public void StartWork_ShouldNotSetStartedAt_WhenTransitionIsRejected()
-    {
-        var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
-
-        var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.StartWork());
-
-        Assert.Equal("Work order cannot start while waiting for customer approval.", exception.Message);
-        Assert.Equal(WorkOrderStatus.WaitingApproval, workOrder.Status);
-        Assert.Null(workOrder.StartedAt);
-        Assert.Null(workOrder.CompletedAt);
     }
 
     [Fact]
@@ -249,24 +193,22 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void CreateEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsApproved()
+    public void CreateEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgressAfterApproval()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.CreateEstimate());
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
     public void CreateEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgress()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-        workOrder.StartWork();
-
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.CreateEstimate());
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
@@ -304,7 +246,7 @@ public class WorkOrderTests
             Description.Create("Additional labor"),
             Price.Create(30.00m)));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
@@ -426,7 +368,7 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void AddInventoryLine_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsApproved()
+    public void AddInventoryLine_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgressAfterApproval()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
         var estimateId = workOrder.Estimates.Single().Id;
@@ -439,14 +381,13 @@ public class WorkOrderTests
             Price.Create(10.00m),
             Price.Create(20.00m)));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
     public void AddInventoryLine_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgress()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-        workOrder.StartWork();
         var estimateId = workOrder.Estimates.Single().Id;
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.AddInventoryLine(
@@ -457,14 +398,13 @@ public class WorkOrderTests
             Price.Create(10.00m),
             Price.Create(20.00m)));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
     public void AddServiceLine_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgress()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-        workOrder.StartWork();
         var estimateId = workOrder.Estimates.Single().Id;
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.AddServiceLine(
@@ -473,7 +413,7 @@ public class WorkOrderTests
             Description.Create("In-progress additional labor"),
             Price.Create(30.00m)));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
     }
 
     [Fact]
@@ -564,7 +504,7 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsApproved_AndKeepEstimateDraft()
+    public void SubmitEstimate_ShouldThrowBusinessRuleViolationException_WhenWorkOrderIsInProgress_AndKeepEstimateDraft()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var approvedEstimate = workOrder.CreateEstimate();
@@ -580,8 +520,8 @@ public class WorkOrderTests
 
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
 
-        Assert.Equal("Work order status 'Approved' does not allow estimate submission.", exception.Message);
-        Assert.Equal(WorkOrderStatus.Approved, workOrder.Status);
+        Assert.Equal("Work order status 'InProgress' does not allow estimate submission.", exception.Message);
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
         Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
     }
@@ -669,7 +609,7 @@ public class WorkOrderTests
         var exception = Assert.Throws<NotFoundException>(() => workOrder.SubmitEstimate(missingEstimateId));
 
         Assert.Equal($"Estimate with ID '{missingEstimateId.Value}' was not found.", exception.Message);
-        Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.Received, workOrder.Status);
         Assert.Equal(statusChangedEventsBefore, workOrder.DomainEvents.OfType<WorkOrderStatusChanged>().Count());
         Assert.Equal(submittedEventsBefore, workOrder.DomainEvents.OfType<EstimateSubmitted>().Count());
     }
@@ -866,7 +806,7 @@ public class WorkOrderTests
     }
 
     [Fact]
-    public void StartEstimateService_ShouldMovePendingServiceToInProgress_AndStartWorkOrder()
+    public void StartEstimateService_ShouldMovePendingServiceToInProgress_AndKeepWorkOrderInProgress()
     {
         var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
         var estimate = workOrder.Estimates.Single();
@@ -881,7 +821,7 @@ public class WorkOrderTests
         Assert.NotNull(workOrder.StartedAt);
         Assert.NotNull(serviceLine.StartedAt);
         Assert.InRange(serviceLine.StartedAt.Value, beforeStart, afterStart);
-        Assert.Equal(workOrder.StartedAt, serviceLine.StartedAt);
+        Assert.True(workOrder.StartedAt!.Value <= serviceLine.StartedAt!.Value);
         var startedEvent = Assert.Single(workOrder.DomainEvents.OfType<EstimateServiceLineStarted>());
         Assert.Equal(workOrder.Id, startedEvent.WorkOrderId);
         Assert.Equal(estimate.Id, startedEvent.EstimateId);
@@ -947,7 +887,7 @@ public class WorkOrderTests
         var exception = Assert.Throws<BusinessRuleViolationException>(
             () => workOrder.CompleteEstimateService(estimate.Id, serviceLine.Id));
 
-        Assert.Equal("Work order must be in progress before completing services.", exception.Message);
+        Assert.Equal("Estimate service line status transition from 'Pending' to 'Completed' is not allowed.", exception.Message);
         Assert.Equal(EstimateServiceLineStatus.Pending, serviceLine.Status);
         Assert.Null(serviceLine.CompletedAt);
     }
@@ -1009,7 +949,7 @@ public class WorkOrderTests
         var exception = Assert.Throws<BusinessRuleViolationException>(() => workOrder.SubmitEstimate(estimate.Id));
 
         Assert.Equal("Estimate must contain at least one service line before submission.", exception.Message);
-        Assert.Equal(WorkOrderStatus.Created, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.Received, workOrder.Status);
         Assert.Equal(EstimateStatus.Draft, estimate.Status);
     }
 
