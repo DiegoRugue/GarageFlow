@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Amazon.SimpleNotificationService;
 using GarageFlow.Tests.Integration.Support.Helpers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
@@ -16,7 +17,10 @@ public sealed class GarageFlowWebApplicationFactory(
     bool disableAutoMigrate = false,
     string estimateDecisionWebhookSecret = IntegrationTestAuthSettings.EstimateDecisionWebhookSecret,
     string environmentName = "IntegrationTests",
-    bool outboxEnabled = false)
+    bool outboxEnabled = false,
+    string? snsRegion = null,
+    string? snsTopicArn = null,
+    IAmazonSimpleNotificationService? snsClient = null)
     : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = databaseName;
@@ -24,6 +28,9 @@ public sealed class GarageFlowWebApplicationFactory(
     private readonly string _estimateDecisionWebhookSecret = estimateDecisionWebhookSecret;
     private readonly string _environmentName = environmentName;
     private readonly bool _outboxEnabled = outboxEnabled;
+    private readonly string? _snsRegion = snsRegion;
+    private readonly string? _snsTopicArn = snsTopicArn;
+    private readonly IAmazonSimpleNotificationService? _snsClient = snsClient;
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
@@ -31,7 +38,9 @@ public sealed class GarageFlowWebApplicationFactory(
         {
             configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Integrations:Outbox:Enabled"] = _outboxEnabled.ToString(CultureInfo.InvariantCulture)
+                ["Integrations:Outbox:Enabled"] = _outboxEnabled.ToString(CultureInfo.InvariantCulture),
+                ["Integrations:Sns:Region"] = _snsRegion,
+                ["Integrations:Sns:TopicArn"] = _snsTopicArn
             });
         });
 
@@ -48,6 +57,11 @@ public sealed class GarageFlowWebApplicationFactory(
 
         builder.ConfigureServices(services =>
         {
+            if (_snsClient is not null)
+            {
+                services.AddSingleton(_snsClient);
+            }
+
             services.PostConfigureAll<JwtBearerOptions>(options =>
             {
                 options.TokenValidationParameters.ValidIssuer = IntegrationTestAuthSettings.JwtIssuer;
@@ -73,7 +87,9 @@ public sealed class GarageFlowWebApplicationFactory(
             ["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate,
             ["Auth:BootstrapAdmin:Password"] = IntegrationTestAuthSettings.BootstrapAdminInitialPassword,
             ["Webhooks:EstimateDecisions:HmacSecret"] = _estimateDecisionWebhookSecret,
-            ["Integrations:Outbox:Enabled"] = _outboxEnabled.ToString(CultureInfo.InvariantCulture)
+            ["Integrations:Outbox:Enabled"] = _outboxEnabled.ToString(CultureInfo.InvariantCulture),
+            ["Integrations:Sns:Region"] = _snsRegion,
+            ["Integrations:Sns:TopicArn"] = _snsTopicArn
         };
 
         if (_disableAutoMigrate)

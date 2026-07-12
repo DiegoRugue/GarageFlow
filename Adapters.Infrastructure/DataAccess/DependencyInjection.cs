@@ -1,3 +1,5 @@
+using Amazon;
+using Amazon.SimpleNotificationService;
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Customers.Ports;
@@ -18,6 +20,7 @@ using GarageFlow.Adapters.Infrastructure.Vehicles.Repositories;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Inbox;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Notifications;
 using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -94,6 +97,15 @@ public static class DependencyInjection
             .ValidateOnStart();
         if (configuration.GetValue<bool>($"{IntegrationOutboxOptions.SectionName}:Enabled"))
         {
+            services.AddSingleton<IValidateOptions<AmazonSnsStatusNotificationOptions>,
+                AmazonSnsStatusNotificationOptionsValidator>();
+            services.AddOptions<AmazonSnsStatusNotificationOptions>()
+                .Bind(configuration.GetSection(AmazonSnsStatusNotificationOptions.SectionName))
+                .ValidateOnStart();
+            services.AddSingleton<IAmazonSimpleNotificationService>(
+                _ => new AmazonSimpleNotificationServiceClient(RegionEndpoint.USEast1));
+            services.AddScoped<IWorkOrderStatusNotificationPublisher,
+                AmazonSnsWorkOrderStatusNotificationPublisher>();
             services.AddScoped<IIntegrationOutboxProcessor, IntegrationOutboxProcessor>();
             services.AddHostedService<IntegrationOutboxPublisher>();
         }
