@@ -1,12 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Application.Common.Integrations;
+using GarageFlow.Application.WorkOrders.Integrations;
 using GarageFlow.Tests.E2E.Support.Contracts.Auth;
 using GarageFlow.Tests.E2E.Support.Contracts.Common;
 using GarageFlow.Tests.E2E.Support.Fixtures;
 using GarageFlow.Tests.E2E.Support.Helpers;
 using GarageFlow.Tests.Shared.WorkOrders;
 using Npgsql;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
@@ -115,6 +120,25 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         HttpResponseAssertions.AssertStatus(detailsAfterApprovalResponse, HttpStatusCode.OK);
         var detailsAfterApproval = await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(detailsAfterApprovalResponse);
         Assert.Equal("InProgress", detailsAfterApproval.Status);
+
+        using (var approvalScope = _fixture.CreateScope())
+        {
+            var approvalContext = approvalScope.ServiceProvider.GetRequiredService<GarageFlowDbContext>();
+            var approvalNotifications = (await approvalContext.IntegrationOutboxMessages
+                    .AsNoTracking()
+                    .Where(message => message.AggregateId == createdWorkOrder.Id)
+                    .ToListAsync())
+                .Select(message => IntegrationEventJson.Deserialize<WorkOrderStatusChangedIntegrationEvent>(message.Payload))
+                .Where(notification => notification is
+                {
+                    PreviousStatus: "WaitingApproval",
+                    CurrentStatus: "InProgress"
+                })
+                .ToList();
+            var approvalNotification = Assert.Single(approvalNotifications);
+            Assert.NotNull(approvalNotification);
+            Assert.Equal(createdWorkOrder.Id, approvalNotification.WorkOrderId);
+        }
 
         var estimateAfterApproval = Assert.Single(detailsAfterApproval.Estimates);
         Assert.Equal(createdEstimate.Id, estimateAfterApproval.Id);

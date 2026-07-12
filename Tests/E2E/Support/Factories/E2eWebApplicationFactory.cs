@@ -11,9 +11,12 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace GarageFlow.Tests.E2E.Support.Factories;
 
-public sealed class E2eWebApplicationFactory(string connectionString) : WebApplicationFactory<Program>
+public sealed class E2eWebApplicationFactory(
+    string connectionString,
+    Action<IServiceCollection>? configureTestServices = null) : WebApplicationFactory<Program>
 {
     private readonly string _connectionString = connectionString;
+    private readonly Action<IServiceCollection>? _configureTestServices = configureTestServices;
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
@@ -42,6 +45,8 @@ public sealed class E2eWebApplicationFactory(string connectionString) : WebAppli
                 options.TokenValidationParameters.IssuerSigningKey =
                     new SymmetricSecurityKey(Encoding.UTF8.GetBytes(E2eAuthSettings.JwtKey));
             });
+
+            _configureTestServices?.Invoke(services);
         });
     }
 
@@ -60,7 +65,8 @@ public sealed class E2eWebApplicationFactory(string connectionString) : WebAppli
             ["Auth:BootstrapAdmin:Email"] = E2eAuthSettings.BootstrapAdminEmail,
             ["Auth:BootstrapAdmin:BirthDate"] = E2eAuthSettings.BootstrapAdminBirthDate,
             ["Auth:BootstrapAdmin:Password"] = E2eAuthSettings.BootstrapAdminInitialPassword,
-            ["Webhooks:EstimateDecisions:HmacSecret"] = E2eAuthSettings.EstimateDecisionWebhookSecret
+            ["Webhooks:EstimateDecisions:HmacSecret"] = E2eAuthSettings.EstimateDecisionWebhookSecret,
+            ["Integrations:Outbox:Enabled"] = "false"
         };
     }
 }
