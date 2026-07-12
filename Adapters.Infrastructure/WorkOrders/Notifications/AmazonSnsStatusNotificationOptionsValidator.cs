@@ -51,12 +51,17 @@ public sealed class AmazonSnsStatusNotificationOptionsValidator
             return false;
         }
 
-        var normalizedTopicName = parts[5].ToLowerInvariant();
+        var normalizedTopicName = parts[5]
+            .Replace("_", string.Empty, StringComparison.Ordinal)
+            .ToLowerInvariant();
         return !normalizedTopicName.Contains("placeholder", StringComparison.Ordinal) &&
                !normalizedTopicName.Contains("replace", StringComparison.Ordinal) &&
-               !normalizedTopicName.Contains("changeme", StringComparison.Ordinal);
+               !normalizedTopicName.Contains("changeme", StringComparison.Ordinal) &&
+               !normalizedTopicName.Contains("setme", StringComparison.Ordinal) &&
+               !normalizedTopicName.Contains("configure", StringComparison.Ordinal) &&
+               !normalizedTopicName.Contains("todo", StringComparison.Ordinal);
     }
 
     private static bool IsValidTopicNameCharacter(char character) =>
-        char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.';
+        char.IsAsciiLetterOrDigit(character) || character is '_' or '-';
 }

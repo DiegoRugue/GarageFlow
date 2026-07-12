@@ -63,6 +63,11 @@ public sealed class IntegrationOutboxStartupTests
     [InlineData("eu-west-1", "arn:aws:sns:us-east-1:123456789012:garageflow-work-orders")]
     [InlineData("us-east-1", "")]
     [InlineData("us-east-1", "arn:aws:sns:us-east-1:123456789012:placeholder")]
+    [InlineData("us-east-1", "arn:aws:sns:us-east-1:123456789012:garageflow.work-orders")]
+    [InlineData("us-east-1", "arn:aws:sns:us-east-1:123456789012:garageflow-work-orders.fifo")]
+    [InlineData("us-east-1", "arn:aws:sns:us-east-1:123456789012:__SET_ME__")]
+    [InlineData("us-east-1", "arn:aws:sns:us-east-1:123456789012:CONFIGURE_ME")]
+    [InlineData("us-east-1", "arn:aws:sns:us-east-1:123456789012:TODO")]
     public void DevelopmentHost_ShouldRejectInvalidSnsSettingsWhenOutboxIsEnabled(
         string region,
         string topicArn)
