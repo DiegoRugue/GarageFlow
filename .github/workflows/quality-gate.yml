@@ -232,5 +232,4 @@ jobs:
             -strict \
             -summary \
             -kubernetes-version 1.36.0 \
-            -ignore-missing-schemas \
             - < "${rendered}"
