@@ -88,12 +88,15 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationOutboxMapper, WorkOrderIntegrationOutboxMapper>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
         services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();
-        services.AddScoped<IIntegrationOutboxProcessor, IntegrationOutboxProcessor>();
         services.AddSingleton<IValidateOptions<IntegrationOutboxOptions>, IntegrationOutboxOptionsValidator>();
         services.AddOptions<IntegrationOutboxOptions>()
             .Bind(configuration.GetSection(IntegrationOutboxOptions.SectionName))
             .ValidateOnStart();
-        services.AddHostedService<IntegrationOutboxPublisher>();
+        if (configuration.GetValue<bool>($"{IntegrationOutboxOptions.SectionName}:Enabled"))
+        {
+            services.AddScoped<IIntegrationOutboxProcessor, IntegrationOutboxProcessor>();
+            services.AddHostedService<IntegrationOutboxPublisher>();
+        }
         services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.Configure<JwtTokenOptions>(configuration.GetSection(JwtTokenOptions.SectionName));

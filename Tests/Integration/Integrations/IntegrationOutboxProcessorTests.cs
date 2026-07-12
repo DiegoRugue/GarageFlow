@@ -2,6 +2,9 @@ using System.Text.Json;
 using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 using GarageFlow.Application.WorkOrders.Integrations;
 using GarageFlow.Application.WorkOrders.Ports;
+using GarageFlow.Domain.WorkOrders.Enums;
+using GarageFlow.Domain.WorkOrders.Events;
+using GarageFlow.Domain.WorkOrders.ValueObjects;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -14,17 +17,38 @@ public sealed class IntegrationOutboxProcessorTests
     [Fact]
     public async Task ProcessBatchAsync_ShouldPublishKnownEventThenMarkProcessed()
     {
-        var integrationEvent = new WorkOrderStatusChangedIntegrationEvent(
-            Guid.NewGuid(), "Received", "Diagnosing", Now);
-        var claim = CreateClaim(1, JsonSerializer.Serialize(integrationEvent));
+        var workOrderId = Guid.NewGuid();
+        var mapped = Assert.Single(new WorkOrderIntegrationOutboxMapper().Map(
+            [new WorkOrderStatusChanged(
+                WorkOrderId.From(workOrderId),
+                WorkOrderStatus.Received,
+                WorkOrderStatus.Diagnosing,
+                Now)],
+            "correlation"));
+        var claim = new ClaimedIntegrationOutboxMessage(
+            mapped.Id,
+            mapped.EventKey,
+            mapped.AggregateId,
+            mapped.Payload,
+            mapped.OccurredAt,
+            mapped.CorrelationId,
+            1,
+            Guid.NewGuid(),
+            Now.AddMinutes(5));
         var repository = new RecordingRepository(claim);
         var publisher = new RecordingPublisher();
         var processor = CreateProcessor(repository, publisher);
 
         var result = await processor.ProcessBatchAsync();
 
-        Assert.Equal(integrationEvent, Assert.Single(publisher.Published));
-        Assert.Equal((claim.Id, claim.LeaseId), Assert.Single(repository.Marked));
+        Assert.Equal(
+            new WorkOrderStatusChangedIntegrationEvent(
+                workOrderId,
+                nameof(WorkOrderStatus.Received),
+                nameof(WorkOrderStatus.Diagnosing),
+                Now),
+            Assert.Single(publisher.Published));
+        Assert.Equal((claim.Id, claim.LeaseId, Now), Assert.Single(repository.Marked));
         Assert.Equal(1, result.ProcessedCount);
         Assert.Equal(0, result.OwnershipLostCount);
     }
@@ -43,6 +67,61 @@ public sealed class IntegrationOutboxProcessorTests
         Assert.Equal(Now.AddSeconds(20), retry.NextAttemptAt);
         Assert.Equal(1_024, retry.Error.Length);
         Assert.Equal(1, result.RescheduledCount);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldRescheduleSemanticallyInvalidKnownEvent()
+    {
+        var aggregateId = Guid.NewGuid();
+        var payload = JsonSerializer.Serialize(new WorkOrderStatusChangedIntegrationEvent(
+            Guid.Empty,
+            "",
+            "Diagnosing",
+            DateTime.SpecifyKind(Now, DateTimeKind.Unspecified)));
+        var claim = CreateClaim(1, payload, aggregateId: aggregateId);
+        var repository = new RecordingRepository(claim);
+        var publisher = new RecordingPublisher();
+        var processor = CreateProcessor(repository, publisher);
+
+        var result = await processor.ProcessBatchAsync();
+
+        Assert.Empty(publisher.Published);
+        Assert.Equal(
+            "Invalid integration event payload for 'work-order.status-changed.v1'.",
+            Assert.Single(repository.Rescheduled).Error);
+        Assert.Equal(1, result.RescheduledCount);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldMarkProcessedAtPublishCompletionTime()
+    {
+        var clock = new AdjustableTimeProvider(Now);
+        var workOrderId = Guid.NewGuid();
+        var claim = CreateClaim(1, ValidPayload(workOrderId), aggregateId: workOrderId);
+        var repository = new RecordingRepository(claim);
+        var publisher = new RecordingPublisher(onPublish: () => clock.Advance(TimeSpan.FromSeconds(8)));
+        var processor = CreateProcessor(repository, publisher, clock);
+
+        await processor.ProcessBatchAsync();
+
+        Assert.Equal(Now.AddSeconds(8), Assert.Single(repository.Marked).ProcessedAt);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldScheduleRetryFromPublishFailureTime()
+    {
+        var clock = new AdjustableTimeProvider(Now);
+        var workOrderId = Guid.NewGuid();
+        var claim = CreateClaim(1, ValidPayload(workOrderId), aggregateId: workOrderId);
+        var repository = new RecordingRepository(claim);
+        var publisher = new RecordingPublisher(
+            new InvalidOperationException("publish failed"),
+            () => clock.Advance(TimeSpan.FromSeconds(8)));
+        var processor = CreateProcessor(repository, publisher, clock);
+
+        await processor.ProcessBatchAsync();
+
+        Assert.Equal(Now.AddSeconds(13), Assert.Single(repository.Rescheduled).NextAttemptAt);
     }
 
     [Theory]
@@ -77,35 +156,41 @@ public sealed class IntegrationOutboxProcessorTests
 
     private static IntegrationOutboxProcessor CreateProcessor(
         IIntegrationOutboxRepository repository,
-        IWorkOrderStatusNotificationPublisher publisher) =>
+        IWorkOrderStatusNotificationPublisher publisher,
+        TimeProvider? timeProvider = null) =>
         new(
             repository,
             publisher,
             Options.Create(new IntegrationOutboxOptions { Enabled = true }),
-            new FixedTimeProvider(Now),
+            timeProvider ?? new FixedTimeProvider(Now),
             NullLogger<IntegrationOutboxProcessor>.Instance);
 
     private static ClaimedIntegrationOutboxMessage CreateClaim(
         int attemptCount,
         string payload,
-        string eventKey = WorkOrderStatusChangedIntegrationEvent.EventKey)
+        string eventKey = WorkOrderStatusChangedIntegrationEvent.EventKey,
+        Guid? aggregateId = null)
     {
-        var aggregateId = Guid.NewGuid();
+        var resolvedAggregateId = aggregateId ?? Guid.NewGuid();
         if (payload == "{}")
         {
             payload = JsonSerializer.Serialize(new WorkOrderStatusChangedIntegrationEvent(
-                aggregateId, "Received", "Diagnosing", Now));
+                resolvedAggregateId, "Received", "Diagnosing", Now));
         }
 
         return new ClaimedIntegrationOutboxMessage(
-            Guid.NewGuid(), eventKey, aggregateId, payload, Now, "correlation", attemptCount, Guid.NewGuid(), Now.AddMinutes(5));
+            Guid.NewGuid(), eventKey, resolvedAggregateId, payload, Now, "correlation", attemptCount, Guid.NewGuid(), Now.AddMinutes(5));
     }
+
+    private static string ValidPayload(Guid? workOrderId = null) =>
+        JsonSerializer.Serialize(new WorkOrderStatusChangedIntegrationEvent(
+            workOrderId ?? Guid.NewGuid(), "Received", "Diagnosing", Now));
 
     private sealed class RecordingRepository(params ClaimedIntegrationOutboxMessage[] claims)
         : IIntegrationOutboxRepository
     {
         public bool UpdateResult { get; init; } = true;
-        public List<(Guid Id, Guid LeaseId)> Marked { get; } = [];
+        public List<(Guid Id, Guid LeaseId, DateTime ProcessedAt)> Marked { get; } = [];
         public List<(Guid Id, Guid LeaseId, DateTime NextAttemptAt, string Error)> Rescheduled { get; } = [];
 
         public Task<IReadOnlyList<ClaimedIntegrationOutboxMessage>> ClaimBatchAsync(
@@ -114,7 +199,7 @@ public sealed class IntegrationOutboxProcessorTests
 
         public Task<bool> MarkProcessedAsync(Guid id, Guid leaseId, DateTime processedAt, CancellationToken cancellationToken = default)
         {
-            Marked.Add((id, leaseId));
+            Marked.Add((id, leaseId, processedAt));
             return Task.FromResult(UpdateResult);
         }
 
@@ -125,13 +210,16 @@ public sealed class IntegrationOutboxProcessorTests
         }
     }
 
-    private sealed class RecordingPublisher(Exception? exception = null) : IWorkOrderStatusNotificationPublisher
+    private sealed class RecordingPublisher(
+        Exception? exception = null,
+        Action? onPublish = null) : IWorkOrderStatusNotificationPublisher
     {
         public List<WorkOrderStatusChangedIntegrationEvent> Published { get; } = [];
 
         public Task PublishAsync(WorkOrderStatusChangedIntegrationEvent notification, CancellationToken cancellationToken = default)
         {
             Published.Add(notification);
+            onPublish?.Invoke();
             return exception is null ? Task.CompletedTask : Task.FromException(exception);
         }
     }
@@ -139,5 +227,14 @@ public sealed class IntegrationOutboxProcessorTests
     private sealed class FixedTimeProvider(DateTime utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(utcNow);
+    }
+
+    private sealed class AdjustableTimeProvider(DateTime utcNow) : TimeProvider
+    {
+        private DateTimeOffset _utcNow = new(utcNow);
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public void Advance(TimeSpan elapsed) => _utcNow = _utcNow.Add(elapsed);
     }
 }

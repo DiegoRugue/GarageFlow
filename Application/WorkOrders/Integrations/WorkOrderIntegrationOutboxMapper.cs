@@ -1,4 +1,3 @@
-using System.Text.Json;
 using GarageFlow.Application.Common.Integrations;
 using GarageFlow.Domain.WorkOrders.Events;
 using GarageFlow.SharedKernel.Domain.Events;
@@ -7,8 +6,6 @@ namespace GarageFlow.Application.WorkOrders.Integrations;
 
 public sealed class WorkOrderIntegrationOutboxMapper : IIntegrationOutboxMapper
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-
     public IReadOnlyList<IntegrationOutboxMessage> Map(
         IReadOnlyCollection<DomainEvent> domainEvents,
         string? correlationId)
@@ -35,7 +32,7 @@ public sealed class WorkOrderIntegrationOutboxMapper : IIntegrationOutboxMapper
             Guid.NewGuid(),
             WorkOrderStatusChangedIntegrationEvent.EventKey,
             integrationEvent.WorkOrderId,
-            JsonSerializer.Serialize(integrationEvent, SerializerOptions),
+            IntegrationEventJson.Serialize(integrationEvent),
             integrationEvent.OccurredAt,
             correlationId);
     }

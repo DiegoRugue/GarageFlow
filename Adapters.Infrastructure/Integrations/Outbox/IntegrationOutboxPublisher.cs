@@ -45,10 +45,10 @@ public sealed class IntegrationOutboxPublisher(
 
     private async Task PollSafelyAsync(CancellationToken cancellationToken)
     {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var processor = scope.ServiceProvider.GetRequiredService<IIntegrationOutboxProcessor>();
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var processor = scope.ServiceProvider.GetRequiredService<IIntegrationOutboxProcessor>();
             var result = await processor.ProcessBatchAsync(cancellationToken);
             LogPollResult(
                 _logger,

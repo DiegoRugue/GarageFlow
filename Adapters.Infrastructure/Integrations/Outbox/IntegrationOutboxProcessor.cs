@@ -48,7 +48,7 @@ public sealed class IntegrationOutboxProcessor(
         var ownershipLost = 0;
         foreach (var claim in claims)
         {
-            var outcome = await ProcessClaimAsync(claim, now, cancellationToken);
+            var outcome = await ProcessClaimAsync(claim, cancellationToken);
             switch (outcome)
             {
                 case ProcessingOutcome.Processed:
@@ -68,7 +68,6 @@ public sealed class IntegrationOutboxProcessor(
 
     private async Task<ProcessingOutcome> ProcessClaimAsync(
         ClaimedIntegrationOutboxMessage claim,
-        DateTime now,
         CancellationToken cancellationToken)
     {
         if (!string.Equals(
@@ -78,7 +77,6 @@ public sealed class IntegrationOutboxProcessor(
         {
             return await RescheduleAsync(
                 claim,
-                now,
                 $"Unsupported integration event key '{claim.EventKey}'.",
                 cancellationToken);
         }
@@ -86,15 +84,22 @@ public sealed class IntegrationOutboxProcessor(
         WorkOrderStatusChangedIntegrationEvent notification;
         try
         {
-            notification = JsonSerializer.Deserialize<WorkOrderStatusChangedIntegrationEvent>(claim.Payload)
+            notification = IntegrationEventJson.Deserialize<WorkOrderStatusChangedIntegrationEvent>(claim.Payload)
                 ?? throw new JsonException("The integration event payload deserialized to null.");
         }
         catch (JsonException)
         {
             return await RescheduleAsync(
                 claim,
-                now,
                 $"Malformed integration event payload for '{claim.EventKey}'.",
+                cancellationToken);
+        }
+
+        if (!IsValid(notification, claim.AggregateId))
+        {
+            return await RescheduleAsync(
+                claim,
+                $"Invalid integration event payload for '{claim.EventKey}'.",
                 cancellationToken);
         }
 
@@ -110,7 +115,6 @@ public sealed class IntegrationOutboxProcessor(
         {
             return await RescheduleAsync(
                 claim,
-                now,
                 $"Publisher failure ({exception.GetType().Name}): {exception.Message}",
                 cancellationToken);
         }
@@ -118,7 +122,7 @@ public sealed class IntegrationOutboxProcessor(
         var marked = await _repository.MarkProcessedAsync(
             claim.Id,
             claim.LeaseId,
-            now,
+            _timeProvider.GetUtcNow().UtcDateTime,
             cancellationToken);
         var outcome = marked ? ProcessingOutcome.Processed : ProcessingOutcome.OwnershipLost;
         LogOutcome(claim.Id, outcome);
@@ -127,7 +131,6 @@ public sealed class IntegrationOutboxProcessor(
 
     private async Task<ProcessingOutcome> RescheduleAsync(
         ClaimedIntegrationOutboxMessage claim,
-        DateTime now,
         string diagnostic,
         CancellationToken cancellationToken)
     {
@@ -141,13 +144,22 @@ public sealed class IntegrationOutboxProcessor(
         var updated = await _repository.RescheduleAsync(
             claim.Id,
             claim.LeaseId,
-            now.Add(delay),
+            _timeProvider.GetUtcNow().UtcDateTime.Add(delay),
             boundedDiagnostic,
             cancellationToken);
         var outcome = updated ? ProcessingOutcome.Rescheduled : ProcessingOutcome.OwnershipLost;
         LogOutcome(claim.Id, outcome);
         return outcome;
     }
+
+    private static bool IsValid(
+        WorkOrderStatusChangedIntegrationEvent notification,
+        Guid aggregateId) =>
+        notification.WorkOrderId != Guid.Empty
+        && notification.WorkOrderId == aggregateId
+        && !string.IsNullOrWhiteSpace(notification.PreviousStatus)
+        && !string.IsNullOrWhiteSpace(notification.CurrentStatus)
+        && notification.OccurredAt.Kind == DateTimeKind.Utc;
 
     private void LogOutcome(Guid messageId, ProcessingOutcome outcome) =>
         LogMessageOutcome(_logger, messageId, outcome, null);
