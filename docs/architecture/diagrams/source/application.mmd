@@ -1,0 +1,40 @@
+---
+title: Arquitetura da aplicação GarageFlow
+---
+flowchart LR
+    subgraph Runtime["Composição e execução"]
+        Host["GarageFlow.Host<br/>única raiz de composição"]
+    end
+
+    subgraph Entrada["Adaptador de entrada"]
+        Api["GarageFlow.Adapters.Api<br/>Minimal APIs, contratos HTTP e políticas"]
+    end
+
+    subgraph Core["Núcleo da aplicação"]
+        Application["GarageFlow.Application<br/>casos de uso, portas, orquestração e transações"]
+        Domain["GarageFlow.Domain<br/>agregados, invariantes, value objects e eventos"]
+        SharedKernel["GarageFlow.SharedKernel<br/>primitivas genéricas e IUnitOfWork"]
+    end
+
+    subgraph Saida["Adaptador de saída"]
+        Infrastructure["GarageFlow.Adapters.Infrastructure<br/>EF Core, PostgreSQL, repositórios, JWT e SNS"]
+    end
+
+    Host -->|"registra endpoints e políticas"| Api
+    Host -->|"registra Mediator e casos de uso"| Application
+    Host -->|"registra persistência e integrações"| Infrastructure
+    Host -->|"mapeia exceções transversais"| SharedKernel
+    Api -->|"envia commands e queries"| Application
+    Infrastructure -->|"implementa portas"| Application
+    Infrastructure -->|"persiste agregados"| Domain
+    Infrastructure -->|"implementa unidade de trabalho"| SharedKernel
+    Application -->|"executa comportamento de negócio"| Domain
+    Application -->|"usa contratos genéricos"| SharedKernel
+    Domain -->|"usa primitivas genéricas"| SharedKernel
+
+    classDef composition fill:#dbeafe,stroke:#1d4ed8,color:#111827,stroke-width:2px;
+    classDef adapter fill:#ecfeff,stroke:#0e7490,color:#111827,stroke-width:2px;
+    classDef core fill:#fefce8,stroke:#a16207,color:#111827,stroke-width:2px;
+    class Host composition;
+    class Api,Infrastructure adapter;
+    class Application,Domain,SharedKernel core;

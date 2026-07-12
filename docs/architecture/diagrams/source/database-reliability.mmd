@@ -1,0 +1,57 @@
+---
+title: Consistência transacional, inbox e outbox
+---
+flowchart LR
+    Request["Command autenticado<br/>ou webhook HMAC válido"]
+
+    subgraph Transaction["TransactionBehavior — uma transação PostgreSQL"]
+        direction TB
+        Handler["Handler do caso de uso<br/>orquestra portas e domínio"]
+        Aggregate["Aggregate WorkOrder<br/>invariantes e eventos de domínio"]
+        Inbox["EstimateDecisionInboxEvents<br/>eventId + payloadHash únicos"]
+        Events["DequeueDomainEvents<br/>antes do commit"]
+        Map["IntegrationOutboxMapper<br/>evento de mudança de status"]
+        Outbox["IntegrationOutboxMessages<br/>payload, tentativa e próximo envio"]
+        Commit["Commit atômico<br/>aggregate + inbox + outbox"]
+    end
+
+    subgraph Publisher["IntegrationOutboxPublisher — processamento assíncrono"]
+        direction TB
+        Poll["Polling em lote"]
+        Lease["Claim com leaseId e leaseExpiresAt<br/>SKIP LOCKED"]
+        Validate["Valida eventKey, aggregateId<br/>e payload UTC"]
+        Publish["Publica mudança de status"]
+        Success["Sucesso<br/>marca ProcessedAt com o mesmo lease"]
+        Retry["Falha transitória ou payload inválido<br/>incrementa tentativa e libera lease"]
+        Schedule["Backoff exponencial limitado<br/>define NextAttemptAt"]
+        Lost["Lease perdido<br/>não sobrescreve outro worker"]
+    end
+
+    SNS["Amazon SNS<br/>entrega eventual; duplicata possível"]
+    Email["Assinatura de e-mail confirmada"]
+    Replay["Replay idempotente do webhook<br/>mesmo hash: sem efeito duplicado<br/>hash diferente: conflito"]
+
+    Request --> Handler --> Aggregate
+    Request --> Inbox
+    Inbox --> Replay
+    Aggregate --> Events --> Map --> Outbox
+    Handler --> Commit
+    Inbox --> Commit
+    Outbox --> Commit
+    Commit --> Poll --> Lease --> Validate --> Publish
+    Publish -->|"aceito"| SNS --> Email
+    Publish --> Success
+    Validate -->|"não publicável"| Retry
+    Publish -->|"exceção"| Retry
+    Retry --> Schedule -->|"nova tentativa após o prazo"| Poll
+    Success -.->|"ownership check falha"| Lost
+    Retry -.->|"ownership check falha"| Lost
+
+    classDef transaction fill:#eff6ff,stroke:#1d4ed8,color:#111827;
+    classDef async fill:#fef3c7,stroke:#a16207,color:#111827;
+    classDef success fill:#ecfdf5,stroke:#047857,color:#111827;
+    classDef retry fill:#fef2f2,stroke:#b91c1c,color:#111827;
+    class Handler,Aggregate,Inbox,Events,Map,Outbox,Commit transaction;
+    class Poll,Lease,Validate,Publish async;
+    class Success,SNS,Email success;
+    class Retry,Schedule,Lost retry;
