@@ -11,12 +11,16 @@ public interface IWorkOrderQueries
         WorkOrderId id,
         CancellationToken cancellationToken = default);
 
+    Task<WorkOrderStatusReadModel?> GetStatusByIdAsync(
+        WorkOrderId id,
+        CancellationToken cancellationToken = default);
+
     Task<WorkOrderDetailsReadModel?> GetCustomerDetailsByIdAsync(
         WorkOrderId id,
         CustomerId customerId,
         CancellationToken cancellationToken = default);
 
-    Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)> ListDetailsAsync(
+    Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)> ListActiveDetailsAsync(
         int page,
         int pageSize,
         CustomerId? customerId = null,

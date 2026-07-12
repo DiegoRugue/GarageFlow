@@ -533,6 +533,64 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task WorkOrderStatus_ShouldReturn401_WhenRequestHasNoToken()
+    {
+        using var client = _fixture.CreateClient();
+
+        var response = await client.GetAsync($"/work-orders/{Guid.NewGuid()}/status");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task WorkOrderStatus_ShouldReturn403_WhenAuthenticatedUserIsCustomer()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            staffClient,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        using var customerClient = await CreateAuthenticatedCustomerClientAsync(
+            _fixture,
+            staffClient,
+            seededVehicle.CustomerId,
+            "Customer.Status.Forbidden#123");
+
+        var response = await customerClient.GetAsync($"/work-orders/{Guid.NewGuid()}/status");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task WorkOrderStatus_ShouldReturn404_WhenWorkOrderDoesNotExist()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+
+        var response = await client.GetAsync($"/work-orders/{Guid.NewGuid()}/status");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task WorkOrderStatus_ShouldReturnOnlyIdStatusAndUpdatedAt_WhenWorkOrderExists()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var seededVehicle = await VehicleSeed.CreateWithDependenciesAsync(
+            client,
+            customerBuilder: CustomerSeed.CreateUniqueBuilder());
+        var workOrder = await CreateWorkOrderAsync(client, seededVehicle.CustomerId, seededVehicle.VehicleId);
+
+        var response = await client.GetAsync($"/work-orders/{workOrder.Id}/status");
+
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.OK);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = document.RootElement;
+        Assert.Equal(["id", "status", "updatedAt"], root.EnumerateObject().Select(property => property.Name).Order());
+        Assert.Equal(workOrder.Id, root.GetProperty("id").GetGuid());
+        Assert.Equal("Received", root.GetProperty("status").GetString());
+        Assert.NotEqual(default, root.GetProperty("updatedAt").GetDateTime());
+    }
+
+    [Fact]
     public async Task Staff_ShouldReceive409_WhenVehicleBelongsToAnotherCustomer()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();

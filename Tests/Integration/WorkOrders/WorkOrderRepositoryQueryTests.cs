@@ -8,6 +8,8 @@ using GarageFlow.Domain.Vehicles.ValueObjects;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
+using GarageFlow.Domain.WorkOrders.Enums;
+using GarageFlow.Tests.Shared.WorkOrders;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
@@ -212,7 +214,7 @@ public sealed class WorkOrderRepositoryQueryTests
     }
 
     [Fact]
-    public async Task ListDetailsAsync_ShouldReturnExpectedLineCounts_ForWorkOrderWithMultipleLines()
+    public async Task ListActiveDetailsAsync_ShouldReturnExpectedLineCounts_ForWorkOrderWithMultipleLines()
     {
         using var dbContext = CreateDbContext();
         var repository = new WorkOrderRepository(dbContext);
@@ -256,7 +258,7 @@ public sealed class WorkOrderRepositoryQueryTests
         await repository.AddAsync(workOrder);
         await dbContext.SaveChangesAsync();
 
-        var (items, totalCount) = await queries.ListDetailsAsync(page: 1, pageSize: 10, customerId: customerId);
+        var (items, totalCount) = await queries.ListActiveDetailsAsync(page: 1, pageSize: 10, customerId: customerId);
 
         Assert.Equal(1, totalCount);
 
@@ -267,6 +269,109 @@ public sealed class WorkOrderRepositoryQueryTests
         Assert.Equal(2, detailEstimate.ServiceLines.Count);
     }
 
+    [Fact]
+    public async Task ListActiveDetailsAsync_ShouldFilterOrderAndPageActiveQueue_OnServerQuery()
+    {
+        using var dbContext = CreateDbContext();
+        var customerId = CustomerId.New();
+        var otherCustomerId = CustomerId.New();
+        var oldest = new DateTime(2026, 7, 10, 8, 0, 0, DateTimeKind.Utc);
+        var newest = oldest.AddHours(1);
+
+        var inProgressNewest = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var inProgressOldest = new WorkOrderBuilder().BuildWithApprovedEstimate();
+        var waiting = new WorkOrderBuilder().BuildWithPendingEstimate();
+        var diagnosing = WorkOrder.Create(customerId, VehicleId.New());
+        diagnosing.StartDiagnosis();
+        var receivedHigherId = WorkOrder.Create(customerId, VehicleId.New());
+        var receivedLowerId = WorkOrder.Create(customerId, VehicleId.New());
+        if (receivedHigherId.Id.Value.CompareTo(receivedLowerId.Id.Value) < 0)
+        {
+            (receivedHigherId, receivedLowerId) = (receivedLowerId, receivedHigherId);
+        }
+
+        var completed = new WorkOrderBuilder().BuildCompleted();
+        var delivered = new WorkOrderBuilder().BuildDelivered();
+        var cancelled = new WorkOrderBuilder().BuildCancelled();
+        var otherCustomer = WorkOrder.Create(otherCustomerId, VehicleId.New());
+        dbContext.WorkOrders.AddRange(
+            inProgressNewest, inProgressOldest, waiting, diagnosing,
+            receivedHigherId, receivedLowerId, completed, delivered, cancelled, otherCustomer);
+        dbContext.Entry(inProgressNewest).Property(workOrder => workOrder.CustomerId).CurrentValue = customerId;
+        dbContext.Entry(inProgressOldest).Property(workOrder => workOrder.CustomerId).CurrentValue = customerId;
+        dbContext.Entry(waiting).Property(workOrder => workOrder.CustomerId).CurrentValue = customerId;
+        SetCreatedAt(dbContext, inProgressNewest, newest);
+        SetCreatedAt(dbContext, inProgressOldest, oldest);
+        SetCreatedAt(dbContext, waiting, oldest);
+        SetCreatedAt(dbContext, diagnosing, oldest);
+        SetCreatedAt(dbContext, receivedHigherId, oldest);
+        SetCreatedAt(dbContext, receivedLowerId, oldest);
+        await dbContext.SaveChangesAsync();
+
+        var queries = new EfWorkOrderQueries(dbContext);
+        var (items, totalCount) = await queries.ListActiveDetailsAsync(1, 10);
+
+        Assert.Equal(7, totalCount);
+        Assert.Equal(
+            [
+                inProgressOldest.Id.Value,
+                inProgressNewest.Id.Value,
+                waiting.Id.Value,
+                diagnosing.Id.Value,
+                receivedLowerId.Id.Value,
+                receivedHigherId.Id.Value,
+                otherCustomer.Id.Value
+            ],
+            items.Select(item => item.Id));
+
+        var (filteredItems, filteredCount) = await queries.ListActiveDetailsAsync(1, 3, customerId);
+        Assert.Equal(6, filteredCount);
+        Assert.Equal(
+            [inProgressOldest.Id.Value, inProgressNewest.Id.Value, waiting.Id.Value],
+            filteredItems.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task ListCustomerDetailsAsync_ShouldIncludeTerminalWorkOrders()
+    {
+        using var dbContext = CreateDbContext();
+        var customerId = CustomerId.New();
+        var completed = new WorkOrderBuilder().BuildCompleted();
+        var delivered = new WorkOrderBuilder().BuildDelivered();
+        var cancelled = WorkOrder.Create(customerId, VehicleId.New());
+        cancelled.Cancel();
+        dbContext.WorkOrders.AddRange(completed, delivered, cancelled);
+        dbContext.Entry(completed).Property(workOrder => workOrder.CustomerId).CurrentValue = customerId;
+        dbContext.Entry(delivered).Property(workOrder => workOrder.CustomerId).CurrentValue = customerId;
+        await dbContext.SaveChangesAsync();
+
+        var (items, totalCount) = await new EfWorkOrderQueries(dbContext)
+            .ListCustomerDetailsAsync(1, 10, customerId);
+
+        Assert.Equal(3, totalCount);
+        Assert.Equal(
+            [WorkOrderStatus.Cancelled.ToString(), WorkOrderStatus.Completed.ToString(), WorkOrderStatus.Delivered.ToString()],
+            items.Select(item => item.Status).Order());
+    }
+
+    [Fact]
+    public async Task GetStatusByIdAsync_ShouldReturnOnlyFocusedStatusProjection()
+    {
+        using var dbContext = CreateDbContext();
+        var workOrder = WorkOrder.Create(CustomerId.New(), VehicleId.New());
+        workOrder.StartDiagnosis();
+        dbContext.WorkOrders.Add(workOrder);
+        await dbContext.SaveChangesAsync();
+
+        var result = await new EfWorkOrderQueries(dbContext).GetStatusByIdAsync(workOrder.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(workOrder.Id.Value, result.Id);
+        Assert.Equal("Diagnosing", result.Status);
+        Assert.Equal(workOrder.UpdatedAt, result.UpdatedAt);
+        Assert.Equal(["Id", "Status", "UpdatedAt"], result.GetType().GetProperties().Select(property => property.Name).Order());
+    }
+
     private static GarageFlowDbContext CreateDbContext(string? databaseName = null)
     {
         var options = new DbContextOptionsBuilder<GarageFlowDbContext>()
@@ -274,6 +379,11 @@ public sealed class WorkOrderRepositoryQueryTests
             .Options;
 
         return new GarageFlowDbContext(options);
+    }
+
+    private static void SetCreatedAt(GarageFlowDbContext dbContext, WorkOrder workOrder, DateTime createdAt)
+    {
+        dbContext.Entry(workOrder).Property("CreatedAt").CurrentValue = createdAt;
     }
 
     private static WorkOrder CreateWorkOrderWithCompletedService(

@@ -15,6 +15,7 @@ using GarageFlow.Application.WorkOrders.UseCases.GetMyWorkOrderById;
 using GarageFlow.Application.WorkOrders.UseCases.GetWorkOrderById;
 using GarageFlow.Application.WorkOrders.UseCases.ListMyWorkOrders;
 using GarageFlow.Application.WorkOrders.UseCases.ListWorkOrders;
+using GarageFlow.Application.WorkOrders.UseCases.GetWorkOrderStatus;
 using GarageFlow.Application.WorkOrders.UseCases.RejectMyEstimate;
 using GarageFlow.Application.WorkOrders.UseCases.StartDiagnosis;
 using GarageFlow.Application.WorkOrders.UseCases.StartEstimateService;
@@ -1258,6 +1259,34 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
+    public async Task GetWorkOrderStatus_ShouldReturnFocusedStatus_WhenWorkOrderExists()
+    {
+        var workOrderId = Guid.NewGuid();
+        var updatedAt = new DateTime(2026, 7, 12, 12, 30, 0, DateTimeKind.Utc);
+        var status = new WorkOrderStatusReadModel(workOrderId, "Diagnosing", updatedAt);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(statusById: [status]);
+        var handler = new GetWorkOrderStatusHandler(workOrderQueriesMock.Object);
+
+        var result = await handler.Handle(new GetWorkOrderStatusQuery(workOrderId), CancellationToken.None);
+
+        Assert.Equal(workOrderId, result.Id);
+        Assert.Equal("Diagnosing", result.Status);
+        Assert.Equal(updatedAt, result.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task GetWorkOrderStatus_ShouldThrowNotFoundException_WhenWorkOrderDoesNotExist()
+    {
+        var workOrderId = Guid.NewGuid();
+        var handler = new GetWorkOrderStatusHandler(CreateWorkOrderQueriesMock().Object);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(new GetWorkOrderStatusQuery(workOrderId), CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrderId}' was not found.", exception.Message);
+    }
+
+    [Fact]
     public async Task ListWorkOrders_ShouldReturnMappedPage_WhenPageRequestIsValid()
     {
         var customerId = Guid.NewGuid();
@@ -1281,7 +1310,7 @@ public class WorkOrderHandlersTests
         Assert.Equal(2, result.Page);
         Assert.Equal(2, result.PageSize);
         workOrderQueriesMock.Verify(
-            x => x.ListDetailsAsync(2, 2, It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
+            x => x.ListActiveDetailsAsync(2, 2, It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -1298,7 +1327,7 @@ public class WorkOrderHandlersTests
 
         Assert.Equal("Page must be greater than or equal to 1. Received: 0.", exception.Message);
         workOrderQueriesMock.Verify(
-            x => x.ListDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
+            x => x.ListActiveDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -1407,12 +1436,14 @@ public class WorkOrderHandlersTests
         List<WorkOrderDetailsReadModel>? detailsList = null,
         List<WorkOrderDetailsReadModel>? customerDetailsById = null,
         List<WorkOrderDetailsReadModel>? customerDetailsList = null,
-        AverageServiceTimeReadModel? averageServiceTime = null)
+        AverageServiceTimeReadModel? averageServiceTime = null,
+        List<WorkOrderStatusReadModel>? statusById = null)
     {
         var staffDetailsById = detailsById ?? [];
         var staffDetailsList = detailsList ?? [];
         var customerDetailsByIdList = customerDetailsById ?? [];
         var customerDetailsListPage = customerDetailsList ?? [];
+        var statusByIdList = statusById ?? [];
         var queriesMock = new Mock<IWorkOrderQueries>();
 
         queriesMock
@@ -1431,7 +1462,7 @@ public class WorkOrderHandlersTests
                 customerDetailsByIdList.SingleOrDefault(item => item.Id == id.Value && item.CustomerId == customerId.Value));
 
         queriesMock
-            .Setup(x => x.ListDetailsAsync(
+            .Setup(x => x.ListActiveDetailsAsync(
                 It.IsAny<int>(),
                 It.IsAny<int>(),
                 It.IsAny<CustomerId?>(),
@@ -1452,6 +1483,13 @@ public class WorkOrderHandlersTests
                 var totalCount = filtered.Count();
                 return ((IReadOnlyList<WorkOrderDetailsReadModel>)pageItems, totalCount);
             });
+
+        queriesMock
+            .Setup(x => x.GetStatusByIdAsync(
+                It.IsAny<WorkOrderId>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WorkOrderId id, CancellationToken _) =>
+                statusByIdList.SingleOrDefault(item => item.Id == id.Value));
 
         queriesMock
             .Setup(x => x.ListCustomerDetailsAsync(

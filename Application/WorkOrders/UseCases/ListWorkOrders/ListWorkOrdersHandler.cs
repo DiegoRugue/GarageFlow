@@ -32,7 +32,7 @@ public sealed class ListWorkOrdersHandler(
         }
 
         CustomerId? customerId = request.CustomerId is null ? null : CustomerId.From(request.CustomerId.Value);
-        var (items, totalCount) = await _workOrderQueries.ListDetailsAsync(
+        var (items, totalCount) = await _workOrderQueries.ListActiveDetailsAsync(
             request.Page,
             request.PageSize,
             customerId,

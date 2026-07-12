@@ -11,6 +11,7 @@ using GarageFlow.Adapters.Api.WorkOrders.DeliverWorkOrder;
 using GarageFlow.Adapters.Api.WorkOrders.GetAverageServiceTime;
 using GarageFlow.Adapters.Api.WorkOrders.GetMyWorkOrderById;
 using GarageFlow.Adapters.Api.WorkOrders.GetWorkOrderById;
+using GarageFlow.Adapters.Api.WorkOrders.GetWorkOrderStatus;
 using GarageFlow.Adapters.Api.WorkOrders.ListMyWorkOrders;
 using GarageFlow.Adapters.Api.WorkOrders.ListWorkOrders;
 using GarageFlow.Adapters.Api.WorkOrders.RejectMyEstimate;
@@ -32,6 +33,7 @@ public static class WorkOrderEndpoints
         staffRoutes.MapListWorkOrdersEndpoint();
         staffRoutes.MapGetAverageServiceTimeEndpoint();
         staffRoutes.MapGetWorkOrderByIdEndpoint();
+        staffRoutes.MapGetWorkOrderStatusEndpoint();
         staffRoutes.MapCreateEstimateEndpoint();
         staffRoutes.MapAddEstimateInventoryItemEndpoint();
         staffRoutes.MapAddEstimateServiceEndpoint();

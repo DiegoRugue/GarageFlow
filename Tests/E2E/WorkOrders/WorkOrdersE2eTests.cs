@@ -184,6 +184,27 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Assert.NotNull(serviceLine.StartedAt);
         Assert.NotNull(serviceLine.CompletedAt);
         Assert.True(serviceLine.StartedAt <= serviceLine.CompletedAt);
+
+        // And the focused staff status endpoint exposes only the status projection.
+        using var statusResponse = await staffClient.GetAsync($"/work-orders/{createdWorkOrder.Id}/status");
+        HttpResponseAssertions.AssertStatus(statusResponse, HttpStatusCode.OK);
+        using var statusDocument = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync());
+        Assert.Equal(
+            ["id", "status", "updatedAt"],
+            statusDocument.RootElement.EnumerateObject().Select(property => property.Name).Order());
+        Assert.Equal(createdWorkOrder.Id, statusDocument.RootElement.GetProperty("id").GetGuid());
+        Assert.Equal("Delivered", statusDocument.RootElement.GetProperty("status").GetString());
+
+        // Delivered orders leave the active staff queue but remain in the customer's complete history.
+        using var staffQueueResponse = await staffClient.GetAsync("/work-orders?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(staffQueueResponse, HttpStatusCode.OK);
+        var staffQueue = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(staffQueueResponse);
+        Assert.DoesNotContain(staffQueue.Items, item => item.Id == createdWorkOrder.Id);
+
+        using var customerHistoryResponse = await customerClient.GetAsync("/me/work-orders?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(customerHistoryResponse, HttpStatusCode.OK);
+        var customerHistory = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(customerHistoryResponse);
+        Assert.Contains(customerHistory.Items, item => item.Id == createdWorkOrder.Id && item.Status == "Delivered");
     }
 
     [Fact]
