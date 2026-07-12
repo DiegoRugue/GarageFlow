@@ -17,6 +17,21 @@ TestResults/
 # Local .NET tooling cache
 .dotnet/
 
+# Terraform local and sensitive artifacts
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.auto.tfvars
+infra/**/terraform.tfvars
+infra/bootstrap/state-backend/backend.tf
+
 # Local SQLite artifacts
 *.db
 *.db-shm
