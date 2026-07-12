@@ -50,13 +50,14 @@ jobs:
       TF_VAR_notification_email: ${{ vars.SNS_NOTIFICATION_EMAIL }}
       TF_VAR_bootstrap_admin_email: ${{ vars.BOOTSTRAP_ADMIN_EMAIL }}
       EKS_VERSION: ${{ inputs.kubernetes_version }}
+      DEPLOY_CONFIRMATION: ${{ inputs.confirmation }}
 
     steps:
       - name: Fail closed on confirmation and protected inputs
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ "${{ github.event.inputs.confirmation }}" != 'APPLY' ]]; then
+          if [[ "${DEPLOY_CONFIRMATION}" != 'APPLY' ]]; then
             echo 'Deployment refused: confirmation must be exactly APPLY.' >&2
             exit 1
           fi
@@ -94,7 +95,25 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          aws sts get-caller-identity >/dev/null
+          caller_account="$(aws sts get-caller-identity --query Account --output text)"
+          if [[ "${TF_VAR_eks_cluster_role_arn}" =~ ^arn:[^:]+:iam::([0-9]{12}):role/.+$ ]]; then
+            cluster_role_account="${BASH_REMATCH[1]}"
+          else
+            echo 'EKS cluster role ARN is invalid.' >&2
+            exit 1
+          fi
+          if [[ "${TF_VAR_eks_node_role_arn}" =~ ^arn:[^:]+:iam::([0-9]{12}):role/.+$ ]]; then
+            node_role_account="${BASH_REMATCH[1]}"
+          else
+            echo 'EKS node role ARN is invalid.' >&2
+            exit 1
+          fi
+          if [[ ! "${caller_account}" =~ ^[0-9]{12}$ ]] || \
+            [[ "${caller_account}" != "${cluster_role_account}" ]] || \
+            [[ "${cluster_role_account}" != "${node_role_account}" ]]; then
+            echo 'AWS identity does not match both protected EKS role accounts.' >&2
+            exit 1
+          fi
           [[ "${AWS_REGION}" == 'us-east-1' ]]
 
           support_status="$(aws eks describe-cluster-versions \
@@ -108,16 +127,29 @@ jobs:
             exit 1
           }
 
-          offering_count="$(aws ec2 describe-instance-type-offerings \
-            --region us-east-1 \
-            --location-type availability-zone \
-            --filters Name=instance-type,Values=t3.small \
-            --query 'length(InstanceTypeOfferings)' \
-            --output text)"
-          (( offering_count >= 2 )) || {
-            echo 't3.small is not offered in enough us-east-1 availability zones.' >&2
+          mapfile -t terraform_availability_zones < <(
+            aws ec2 describe-availability-zones \
+              --region us-east-1 \
+              --filters Name=state,Values=available \
+              --query 'sort_by(AvailabilityZones,&ZoneName)[:2].ZoneName' \
+              --output text | tr '\t' '\n' | sed '/^$/d'
+          )
+          (( ${#terraform_availability_zones[@]} == 2 )) || {
+            echo 'Terraform requires two available us-east-1 availability zones.' >&2
             exit 1
           }
+          for availability_zone in "${terraform_availability_zones[@]}"; do
+            offering_count="$(aws ec2 describe-instance-type-offerings \
+              --region us-east-1 \
+              --location-type availability-zone \
+              --filters Name=instance-type,Values=t3.small Name=location,Values="${availability_zone}" \
+              --query 'length(InstanceTypeOfferings)' \
+              --output text)"
+            (( offering_count == 1 )) || {
+              echo 't3.small is unavailable in one of the two availability zones selected by Terraform.' >&2
+              exit 1
+            }
+          done
 
           rds_offering_count="$(aws rds describe-orderable-db-instance-options \
             --region us-east-1 \
@@ -381,11 +413,17 @@ jobs:
           topic_arn="$(terraform -chdir=infra/environments/academy output -raw sns_topic_arn)"
           confirmation_deadline=$((SECONDS + 600))
           while true; do
-            confirmed_count="$(aws sns list-subscriptions-by-topic \
+            subscriptions_json="$(aws sns list-subscriptions-by-topic \
               --region us-east-1 \
               --topic-arn "${topic_arn}" \
-              --query "length(Subscriptions[?SubscriptionArn!='PendingConfirmation' && SubscriptionArn!='Deleted'])" \
-              --output text)"
+              --output json)"
+            confirmed_count="$(jq --arg endpoint "${TF_VAR_notification_email}" \
+              '[.Subscriptions[] | select(
+                .Protocol == "email" and
+                .Endpoint == $endpoint and
+                .SubscriptionArn != "PendingConfirmation" and
+                .SubscriptionArn != "Deleted"
+              )] | length' <<<"${subscriptions_json}")"
             if (( confirmed_count > 0 )); then
               break
             fi
