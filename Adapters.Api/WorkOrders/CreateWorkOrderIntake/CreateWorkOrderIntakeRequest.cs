@@ -4,5 +4,5 @@ public sealed record CreateWorkOrderIntakeRequest(
     Guid RequestId,
     IntakeCustomerRequest? Customer,
     IntakeVehicleRequest? Vehicle,
-    IReadOnlyList<IntakeServiceRequest>? Services,
-    IReadOnlyList<IntakeInventoryItemRequest>? InventoryItems);
+    IReadOnlyList<IntakeServiceRequest?>? Services,
+    IReadOnlyList<IntakeInventoryItemRequest?>? InventoryItems);

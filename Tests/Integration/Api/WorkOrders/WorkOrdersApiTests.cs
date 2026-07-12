@@ -377,6 +377,28 @@ public class WorkOrdersApiTests(GarageFlowApiFixture fixture) : IClassFixture<Ga
     }
 
     [Fact]
+    public async Task WorkOrderIntake_ShouldReturn400_WhenServicesContainNullElement()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest() with { Services = [null!] };
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", request);
+
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldReturn400_WhenInventoryItemsContainNullElement()
+    {
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest() with { InventoryItems = [null!] };
+
+        using var response = await client.PostAsJsonAsync("/work-orders/intake", request);
+
+        await AssertProblemAsync(response, HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task WorkOrderIntake_ShouldReturn409_WhenInventoryStockIsInsufficient()
     {
         using var client = await _fixture.CreateAuthenticatedClientAsync();

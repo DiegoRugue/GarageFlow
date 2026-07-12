@@ -21,4 +21,19 @@ public sealed class EstimateDecisionWebhookOptionsStartupTests
             exception.Message,
             StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void IntegrationTestsEnvironment_ShouldRejectWhitespaceWebhookSecretAtStartup()
+    {
+        using var factory = new GarageFlowWebApplicationFactory(
+            $"garageflow-options-tests-{Guid.NewGuid():N}",
+            estimateDecisionWebhookSecret: new string(' ', 32));
+
+        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
+
+        Assert.Contains(
+            "outside Development and Integration.",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
 }

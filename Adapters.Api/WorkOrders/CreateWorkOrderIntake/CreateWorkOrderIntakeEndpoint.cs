@@ -44,15 +44,19 @@ public static class CreateWorkOrderIntakeEndpoint
                     request.Vehicle.Brand,
                     request.Vehicle.Model,
                     request.Vehicle.Color),
-            request.Services?.Select(service => new IntakeServiceInput(service.Description, service.Price)).ToList(),
-            request.InventoryItems?.Select(item => new IntakeInventoryItemInput(
-                item.Name,
-                item.Description,
-                item.Type,
-                item.Cost,
-                item.Price,
-                item.StockQuantity,
-                item.Quantity)).ToList());
+            request.Services?.Select(service => service is null
+                ? null
+                : new IntakeServiceInput(service.Description, service.Price)).ToList(),
+            request.InventoryItems?.Select(item => item is null
+                ? null
+                : new IntakeInventoryItemInput(
+                    item.Name,
+                    item.Description,
+                    item.Type,
+                    item.Cost,
+                    item.Price,
+                    item.StockQuantity,
+                    item.Quantity)).ToList());
         var result = await mediator.Send(command, cancellationToken);
 
         var response = new CreateWorkOrderIntakeResponse(

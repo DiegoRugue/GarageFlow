@@ -89,13 +89,18 @@ await app.RunAsync();
 
 static bool IsValidWebhookSecret(string? secret, IHostEnvironment environment)
 {
+    if (string.IsNullOrWhiteSpace(secret))
+    {
+        return false;
+    }
+
     if (environment.IsDevelopment()
         || environment.IsEnvironment("Integration"))
     {
         return true;
     }
 
-    return secret is { Length: >= 32 }
+    return secret.Length >= 32
         && !secret.Contains("__", StringComparison.Ordinal)
         && !secret.Contains("SET_ME", StringComparison.OrdinalIgnoreCase)
         && !secret.Contains("PLACEHOLDER", StringComparison.OrdinalIgnoreCase)

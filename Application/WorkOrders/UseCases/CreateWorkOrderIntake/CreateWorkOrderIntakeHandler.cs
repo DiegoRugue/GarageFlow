@@ -194,6 +194,16 @@ public sealed class CreateWorkOrderIntakeHandler(
             throw new ValidationException("Services and inventory item collections cannot be null.");
         }
 
+        if (request.Services.Any(static input => input is null))
+        {
+            throw new ValidationException("Services cannot contain null elements.");
+        }
+
+        if (request.InventoryItems.Any(static input => input is null))
+        {
+            throw new ValidationException("Inventory items cannot contain null elements.");
+        }
+
         var taxDocument = TaxDocument.Create(request.Customer.TaxDocument);
         var fullName = FullName.Create(request.Customer.FullName);
         var email = Email.Create(request.Customer.Email);
@@ -204,11 +214,13 @@ public sealed class CreateWorkOrderIntakeHandler(
         var model = VehicleModelName.Create(request.Vehicle.Model);
         var color = VehicleColorName.Create(request.Vehicle.Color);
         var services = request.Services
+            .OfType<IntakeServiceInput>()
             .Select(input => new ValidatedIntakeService(
                 Description.Create(input.Description),
                 Price.Create(input.Price)))
             .ToList();
         var inventoryItems = request.InventoryItems
+            .OfType<IntakeInventoryItemInput>()
             .Select(input => new ValidatedIntakeInventoryItem(
                 InventoryItemName.Create(input.Name),
                 Description.Create(input.Description),

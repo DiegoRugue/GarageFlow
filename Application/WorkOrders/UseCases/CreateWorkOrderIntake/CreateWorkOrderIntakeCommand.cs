@@ -6,8 +6,8 @@ public sealed record CreateWorkOrderIntakeCommand(
     Guid RequestId,
     IntakeCustomerInput? Customer,
     IntakeVehicleInput? Vehicle,
-    IReadOnlyList<IntakeServiceInput>? Services,
-    IReadOnlyList<IntakeInventoryItemInput>? InventoryItems)
+    IReadOnlyList<IntakeServiceInput?>? Services,
+    IReadOnlyList<IntakeInventoryItemInput?>? InventoryItems)
     : ICommand<CreateWorkOrderIntakeResult>, ICorrelatedCommand
 {
     public string CorrelationId => RequestId.ToString("D");
