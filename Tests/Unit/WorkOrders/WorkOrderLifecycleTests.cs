@@ -149,7 +149,7 @@ public sealed class WorkOrderLifecycleTests
             ? (WorkOrderStatus)1
             : Enum.Parse<WorkOrderStatus>(sourceStatus);
 
-        AssertStatusChange(workOrder, workOrder.Cancel, expectedPrevious, WorkOrderStatus.Cancelled);
+        AssertStatusChange(workOrder, () => _ = workOrder.Cancel(), expectedPrevious, WorkOrderStatus.Cancelled);
     }
 
     [Fact]
@@ -169,11 +169,11 @@ public sealed class WorkOrderLifecycleTests
 
         var completed = new WorkOrderBuilder().BuildCompleted();
         Assert.Throws<BusinessRuleViolationException>(completed.StartDiagnosis);
-        Assert.Throws<BusinessRuleViolationException>(completed.Cancel);
+        Assert.Throws<BusinessRuleViolationException>(() => completed.Cancel());
 
         var delivered = new WorkOrderBuilder().BuildDelivered();
         Assert.Throws<BusinessRuleViolationException>(delivered.StartDiagnosis);
-        Assert.Throws<BusinessRuleViolationException>(delivered.Cancel);
+        Assert.Throws<BusinessRuleViolationException>(() => delivered.Cancel());
     }
 
     private static WorkOrder CreateInStatus(string status)

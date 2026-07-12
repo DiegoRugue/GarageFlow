@@ -635,12 +635,58 @@ public class WorkOrderHandlersTests
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CancelWorkOrderHandler(workOrderRepositoryMock.Object);
+        var handler = new CancelWorkOrderHandler(
+            workOrderRepositoryMock.Object,
+            CreateEstimateDecisionProcessor());
 
         var result = await handler.Handle(new CancelWorkOrderCommand(workOrder.Id.Value), CancellationToken.None);
 
         Assert.Equal(MediatorUnit.Value, result);
         Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+    }
+
+    [Fact]
+    public async Task CancelWorkOrder_ShouldRestoreReservedStockExactlyOnce_UsingMutationLock()
+    {
+        var inventoryItem = new InventoryItemBuilder().WithStockQuantity(8).Build();
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        workOrder.AddInventoryLine(
+            estimate.Id,
+            inventoryItem.Id,
+            Description.Create("Reserved battery"),
+            EstimateItemQuantity.Create(2),
+            Price.Create(100m),
+            Price.Create(150m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        workOrder.SubmitEstimate(estimate.Id);
+        workOrder.ApproveEstimate(estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var inventoryItemRepositoryMock = CreateInventoryItemRepositoryMock([inventoryItem]);
+        var handler = new CancelWorkOrderHandler(
+            workOrderRepositoryMock.Object,
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
+
+        await handler.Handle(new CancelWorkOrderCommand(workOrder.Id.Value), CancellationToken.None);
+        await handler.Handle(new CancelWorkOrderCommand(workOrder.Id.Value), CancellationToken.None);
+
+        Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+        Assert.Equal(10, inventoryItem.StockQuantity.Value);
+        workOrderRepositoryMock.Verify(
+            repository => repository.GetByIdForEstimateMutationAsync(
+                workOrder.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+        workOrderRepositoryMock.Verify(
+            repository => repository.GetByIdAsync(
+                It.IsAny<WorkOrderId>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        inventoryItemRepositoryMock.Verify(
+            repository => repository.GetByIdForStockReservationAsync(
+                inventoryItem.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -692,7 +738,8 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
-            workOrderRepositoryMock.Object);
+            workOrderRepositoryMock.Object,
+            CreateEstimateDecisionProcessor());
 
         var result = await handler.Handle(
             new ApproveMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -741,7 +788,8 @@ public class WorkOrderHandlersTests
 
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
-            workOrderRepositoryMock.Object);
+            workOrderRepositoryMock.Object,
+            CreateEstimateDecisionProcessor());
 
         var result = await handler.Handle(
             new ApproveMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -778,7 +826,8 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
-            workOrderRepositoryMock.Object);
+            workOrderRepositoryMock.Object,
+            CreateEstimateDecisionProcessor());
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
@@ -818,7 +867,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var result = await handler.Handle(
             new RejectMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -893,7 +942,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var result = await handler.Handle(
             new RejectMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -926,7 +975,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
@@ -1110,7 +1159,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
@@ -1487,6 +1536,13 @@ public class WorkOrderHandlersTests
             .ReturnsAsync((InventoryItemId id, CancellationToken _) => inventoryItems.SingleOrDefault(item => item.Id == id));
 
         return repositoryMock;
+    }
+
+    private static EstimateDecisionProcessor CreateEstimateDecisionProcessor(
+        IInventoryItemRepository? inventoryItemRepository = null)
+    {
+        return new EstimateDecisionProcessor(
+            inventoryItemRepository ?? CreateInventoryItemRepositoryMock().Object);
     }
 
     private static Mock<IServiceRepository> CreateServiceRepositoryMock(List<Service>? initialServices = null)

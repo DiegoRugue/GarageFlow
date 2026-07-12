@@ -63,15 +63,70 @@ public class WorkOrderTests
     [Fact]
     public void RejectEstimate_ShouldRejectPendingEstimate_AndMoveWorkOrderToDiagnosing()
     {
-        var workOrder = new WorkOrderBuilder().BuildWithPendingEstimate();
-        var estimateId = workOrder.Estimates.Single().Id;
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        var inventoryItemId = InventoryItemId.New();
+        workOrder.AddInventoryLine(
+            estimate.Id,
+            inventoryItemId,
+            Description.Create("Battery replacement"),
+            EstimateItemQuantity.Create(2),
+            Price.Create(110m),
+            Price.Create(180m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        workOrder.SubmitEstimate(estimate.Id);
 
-        var rejectedEstimate = workOrder.RejectEstimate(estimateId);
+        var releases = workOrder.RejectEstimate(estimate.Id);
 
         Assert.Equal(WorkOrderStatus.Diagnosing, workOrder.Status);
-        Assert.Equal(EstimateStatus.Rejected, rejectedEstimate.Status);
-        Assert.Same(workOrder.Estimates.Single(), rejectedEstimate);
+        Assert.Equal(EstimateStatus.Rejected, estimate.Status);
+        Assert.Collection(releases, release =>
+        {
+            Assert.Equal(inventoryItemId, release.InventoryItemId);
+            Assert.Equal(2, release.Quantity.Value);
+        });
         Assert.Single(workOrder.DomainEvents.OfType<EstimateRejected>());
+    }
+
+    [Fact]
+    public void Cancel_ShouldReleaseEveryStillReservedInventoryLineOnce_WhenInProgress()
+    {
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var firstInventoryItemId = InventoryItemId.From(Guid.Parse("10000000-0000-0000-0000-000000000000"));
+        var secondInventoryItemId = InventoryItemId.From(Guid.Parse("20000000-0000-0000-0000-000000000000"));
+
+        var rejectedEstimate = AddEstimateWithInventory(workOrder, firstInventoryItemId, 7);
+        workOrder.SubmitEstimate(rejectedEstimate.Id);
+        _ = workOrder.RejectEstimate(rejectedEstimate.Id);
+
+        var draftEstimate = AddEstimateWithInventory(workOrder, secondInventoryItemId, 2);
+        AddInventoryLine(workOrder, draftEstimate.Id, firstInventoryItemId, 1);
+
+        var pendingEstimate = AddEstimateWithInventory(workOrder, firstInventoryItemId, 3);
+        workOrder.SubmitEstimate(pendingEstimate.Id);
+
+        var approvedEstimate = AddEstimateWithInventory(workOrder, secondInventoryItemId, 4);
+        workOrder.SubmitEstimate(approvedEstimate.Id);
+        workOrder.ApproveEstimate(approvedEstimate.Id);
+
+        var firstCancellation = workOrder.Cancel();
+        var repeatedCancellation = workOrder.Cancel();
+
+        Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+        Assert.Collection(
+            firstCancellation.OrderBy(release => release.InventoryItemId.Value),
+            release =>
+            {
+                Assert.Equal(firstInventoryItemId, release.InventoryItemId);
+                Assert.Equal(4, release.Quantity.Value);
+            },
+            release =>
+            {
+                Assert.Equal(secondInventoryItemId, release.InventoryItemId);
+                Assert.Equal(6, release.Quantity.Value);
+            });
+        Assert.NotEmpty(firstCancellation);
+        Assert.Empty(repeatedCancellation);
     }
 
     [Fact]
@@ -992,5 +1047,31 @@ public class WorkOrderTests
         Assert.Equal("Estimate service line status transition from 'Completed' to 'Completed' is not allowed.", exception.Message);
         Assert.Equal(EstimateServiceLineStatus.Completed, firstService.Status);
         Assert.Equal(originalCompletedAt, firstService.CompletedAt);
+    }
+
+    private static Estimate AddEstimateWithInventory(
+        WorkOrder workOrder,
+        InventoryItemId inventoryItemId,
+        int quantity)
+    {
+        var estimate = workOrder.CreateEstimate();
+        AddInventoryLine(workOrder, estimate.Id, inventoryItemId, quantity);
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        return estimate;
+    }
+
+    private static void AddInventoryLine(
+        WorkOrder workOrder,
+        EstimateId estimateId,
+        InventoryItemId inventoryItemId,
+        int quantity)
+    {
+        workOrder.AddInventoryLine(
+            estimateId,
+            inventoryItemId,
+            Description.Create("Reserved item"),
+            EstimateItemQuantity.Create(quantity),
+            Price.Create(10m),
+            Price.Create(20m));
     }
 }

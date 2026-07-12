@@ -9,6 +9,7 @@ using GarageFlow.Adapters.Api.WorkOrders;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using GarageFlow.Application.Common.Behaviors;
 using GarageFlow.Application.Common.Events;
+using GarageFlow.Application.WorkOrders.Common;
 using GarageFlow.Host.Middlewares;
 using Scalar.AspNetCore;
 
@@ -20,6 +21,7 @@ builder.Services.AddMediator(options =>
     options.PipelineBehaviors = [typeof(TransactionBehavior<,>)];
 });
 builder.Services.AddScoped<IDomainEventDispatcher, MediatorDomainEventDispatcher>();
+builder.Services.AddScoped<EstimateDecisionProcessor>();
 builder.Services.AddOpenApi();
 builder.AddGarageFlowAuthentication();
 builder.Services.AddGarageFlowInfrastructure(builder.Configuration, builder.Environment);

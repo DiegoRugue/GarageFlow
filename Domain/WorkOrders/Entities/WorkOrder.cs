@@ -181,7 +181,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             ApprovedAt: approvedAt));
     }
 
-    public Estimate RejectEstimate(EstimateId estimateId)
+    public IReadOnlyList<InventoryReservation> RejectEstimate(EstimateId estimateId)
     {
         EnsureNotFinalizedForContentChanges();
 
@@ -206,7 +206,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             Status: estimate.Status,
             RejectedAt: rejectedAt));
 
-        return estimate;
+        return GroupInventoryReservations([estimate]);
     }
 
     public void StartDiagnosis()
@@ -305,9 +305,29 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         TransitionTo(WorkOrderStatus.Delivered);
     }
 
-    public void Cancel()
+    public IReadOnlyList<InventoryReservation> Cancel()
     {
+        if (Status == WorkOrderStatus.Cancelled)
+        {
+            return [];
+        }
+
+        var reservations = GroupInventoryReservations(_estimates.Where(estimate =>
+            estimate.Status is EstimateStatus.Draft or EstimateStatus.Pending or EstimateStatus.Approved));
         TransitionTo(WorkOrderStatus.Cancelled);
+        return reservations;
+    }
+
+    private static List<InventoryReservation> GroupInventoryReservations(IEnumerable<Estimate> estimates)
+    {
+        return estimates
+            .SelectMany(estimate => estimate.InventoryLines)
+            .GroupBy(line => line.InventoryItemId)
+            .Select(group => new InventoryReservation(
+                group.Key,
+                EstimateItemQuantity.Create(group.Sum(line => line.Quantity.Value))))
+            .OrderBy(reservation => reservation.InventoryItemId.Value)
+            .ToList();
     }
 
     private Estimate GetEstimateOrThrow(EstimateId estimateId)
