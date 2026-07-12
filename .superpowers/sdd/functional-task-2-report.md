@@ -86,3 +86,48 @@ Results:
 ## Concerns
 
 None blocking. Stock-reservation restoration on rejection is intentionally deferred to Functional Task 3.
+
+## Post-review correction
+
+### Scope
+
+- Modified only `Tests/Unit/WorkOrders/WorkOrderLifecycleTests.cs` and this report.
+- Production behavior was not changed; controlled mutations described below were immediately reverted.
+- Strengthened every isolated lifecycle transition assertion to prove `WorkOrderStatusChanged.UpdatedAt` is strictly later than the aggregate's previous `UpdatedAt`.
+- Added a `Stopwatch`-bounded UTC clock barrier before transitions so strict timestamp assertions do not depend on clock resolution.
+- Approval now asserts exact equality among `WorkOrder.StartedAt`, `WorkOrder.UpdatedAt`, `WorkOrderStatusChanged.UpdatedAt`, and `EstimateApproved.ApprovedAt`.
+- Added explicit enum-value theory coverage and proof that numeric value `4` is undefined.
+
+### Controlled RED evidence
+
+The new tests passed against the current production baseline, so their regression-detection ability was verified with temporary controlled mutations rather than claiming a fabricated natural RED.
+
+Timestamp mutation: `TransitionTo` temporarily assigned `UpdatedAt = CreatedAt`.
+
+```powershell
+dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj --filter "FullyQualifiedName~WorkOrderLifecycleTests" --no-restore
+```
+
+Result: 10 failed, 11 passed, 21 total. Failures reported that transition timestamps did not advance past the previous `UpdatedAt`, including approval, rejection, diagnosis, completion, delivery, and all cancellation sources.
+
+Enum mutation: `Received` was temporarily assigned numeric value `4`.
+
+```powershell
+dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj --filter "FullyQualifiedName~WorkOrderStatus_Should" --no-restore
+```
+
+Result: 2 failed, 6 passed, 8 total. The numeric contract reported expected `1`, actual `4`, and `Enum.IsDefined(..., 4)` reported `true` instead of `false`.
+
+Both mutations were reverted before GREEN verification; `git diff` confirmed no production-file changes remained.
+
+### Post-review GREEN evidence
+
+```powershell
+dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj --filter "FullyQualifiedName~WorkOrderLifecycleTests" --no-restore
+dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj --no-restore
+```
+
+Results:
+
+- WorkOrder lifecycle: 21 passed, 0 failed.
+- Complete Unit suite: 455 passed, 0 failed.

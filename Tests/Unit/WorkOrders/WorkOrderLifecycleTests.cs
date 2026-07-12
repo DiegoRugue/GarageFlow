@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.ValueObjects;
@@ -10,6 +11,25 @@ namespace GarageFlow.Tests.Unit.WorkOrders;
 
 public sealed class WorkOrderLifecycleTests
 {
+    [Theory]
+    [InlineData(WorkOrderStatus.Received, 1)]
+    [InlineData(WorkOrderStatus.Diagnosing, 2)]
+    [InlineData(WorkOrderStatus.WaitingApproval, 3)]
+    [InlineData(WorkOrderStatus.InProgress, 5)]
+    [InlineData(WorkOrderStatus.Completed, 6)]
+    [InlineData(WorkOrderStatus.Delivered, 7)]
+    [InlineData(WorkOrderStatus.Cancelled, 8)]
+    public void WorkOrderStatus_ShouldPreserveNumericContract(WorkOrderStatus status, int expectedValue)
+    {
+        Assert.Equal(expectedValue, (int)status);
+    }
+
+    [Fact]
+    public void WorkOrderStatus_ShouldLeaveLegacyValueFourUndefined()
+    {
+        Assert.False(Enum.IsDefined(typeof(WorkOrderStatus), 4));
+    }
+
     [Fact]
     public void Create_ShouldStartInReceived()
     {
@@ -67,13 +87,17 @@ public sealed class WorkOrderLifecycleTests
         var estimate = Assert.Single(workOrder.Estimates);
         var beforeApproval = DateTime.UtcNow;
 
-        AssertStatusChange(
+        var statusChanged = AssertStatusChange(
             workOrder,
             () => workOrder.ApproveEstimate(estimate.Id),
             WorkOrderStatus.WaitingApproval,
             WorkOrderStatus.InProgress);
 
+        var approved = Assert.Single(workOrder.DomainEvents.OfType<EstimateApproved>());
         Assert.NotNull(workOrder.StartedAt);
+        Assert.Equal(workOrder.StartedAt.Value, workOrder.UpdatedAt);
+        Assert.Equal(workOrder.StartedAt.Value, statusChanged.UpdatedAt);
+        Assert.Equal(workOrder.StartedAt.Value, approved.ApprovedAt);
         Assert.InRange(workOrder.StartedAt.Value, beforeApproval, DateTime.UtcNow);
     }
 
@@ -172,7 +196,7 @@ public sealed class WorkOrderLifecycleTests
         return workOrder;
     }
 
-    private static void AssertStatusChange(
+    private static WorkOrderStatusChanged AssertStatusChange(
         WorkOrder workOrder,
         Action transition,
         WorkOrderStatus expectedPrevious,
@@ -180,14 +204,29 @@ public sealed class WorkOrderLifecycleTests
     {
         var previousUpdatedAt = workOrder.UpdatedAt;
         workOrder.ClearDomainEvents();
+        WaitUntilUtcClockAdvancesPast(previousUpdatedAt);
 
         transition();
 
         Assert.Equal(expectedNew, workOrder.Status);
-        Assert.True(workOrder.UpdatedAt >= previousUpdatedAt);
         var changed = Assert.Single(workOrder.DomainEvents.OfType<WorkOrderStatusChanged>());
         AssertStatusChanged(changed, expectedPrevious, expectedNew);
-        Assert.InRange(changed.UpdatedAt, previousUpdatedAt, workOrder.UpdatedAt);
+        Assert.True(
+            changed.UpdatedAt > previousUpdatedAt,
+            $"Expected transition timestamp {changed.UpdatedAt:O} to advance past {previousUpdatedAt:O}.");
+        Assert.True(workOrder.UpdatedAt >= changed.UpdatedAt);
+        return changed;
+    }
+
+    private static void WaitUntilUtcClockAdvancesPast(DateTime timestamp)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (DateTime.UtcNow <= timestamp && stopwatch.Elapsed < TimeSpan.FromSeconds(1))
+        {
+            Thread.SpinWait(100);
+        }
+
+        Assert.True(DateTime.UtcNow > timestamp, "UTC clock did not advance within one second.");
     }
 
     private static void AssertStatusChanged(
