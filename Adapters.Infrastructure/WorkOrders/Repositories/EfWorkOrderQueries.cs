@@ -76,13 +76,16 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
+        var orderedQuery = query
             .OrderBy(workOrder => workOrder.Status == WorkOrderStatus.InProgress ? 0
                 : workOrder.Status == WorkOrderStatus.WaitingApproval ? 1
                 : workOrder.Status == WorkOrderStatus.Diagnosing ? 2
                 : 3)
-            .ThenBy(workOrder => workOrder.CreatedAt)
-            .ThenBy(workOrder => workOrder.Id.Value)
+            .ThenBy(workOrder => workOrder.CreatedAt);
+        var stableQuery = _dbContext.Database.IsInMemory()
+            ? orderedQuery.ThenBy(workOrder => workOrder.Id.Value)
+            : orderedQuery.ThenBy(workOrder => workOrder.Id);
+        var items = await stableQuery
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -100,9 +103,11 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
             .Where(workOrder => workOrder.CustomerId == customerId);
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
-            .OrderBy(workOrder => workOrder.CreatedAt)
-            .ThenBy(workOrder => workOrder.Id.Value)
+        var orderedQuery = query.OrderBy(workOrder => workOrder.CreatedAt);
+        var stableQuery = _dbContext.Database.IsInMemory()
+            ? orderedQuery.ThenBy(workOrder => workOrder.Id.Value)
+            : orderedQuery.ThenBy(workOrder => workOrder.Id);
+        var items = await stableQuery
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
