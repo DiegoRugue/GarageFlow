@@ -11,9 +11,12 @@ using GarageFlow.Adapters.Infrastructure.Services.Configurations;
 using GarageFlow.Adapters.Infrastructure.Users.Configurations;
 using GarageFlow.Adapters.Infrastructure.Vehicles.Configurations;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Configurations;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
 using GarageFlow.SharedKernel.Domain.Events;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace GarageFlow.Adapters.Infrastructure.DataAccess;
 
@@ -31,6 +34,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     public DbSet<VehicleModel> VehicleModels => Set<VehicleModel>();
     public DbSet<VehicleColor> VehicleColors => Set<VehicleColor>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
+    public DbSet<IntakeRequestReceipt> WorkOrderIntakeRequests => Set<IntakeRequestReceipt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,6 +50,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
         modelBuilder.ApplyConfiguration(new EstimateEntityConfiguration());
         modelBuilder.ApplyConfiguration(new EstimateInventoryLineEntityConfiguration());
         modelBuilder.ApplyConfiguration(new EstimateServiceLineEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new IntakeRequestReceiptConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 
@@ -99,9 +104,17 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
         }
     }
 
-    public new Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        return base.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw new BusinessRuleViolationException("A resource with the same unique value already exists.");
+        }
     }
 
     public IReadOnlyList<DomainEvent> DequeueDomainEvents()

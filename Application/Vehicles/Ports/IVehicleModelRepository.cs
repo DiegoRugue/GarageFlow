@@ -5,6 +5,11 @@ namespace GarageFlow.Application.Vehicles.Ports;
 
 public interface IVehicleModelRepository
 {
+    Task<VehicleModel?> GetByNameAsync(
+        VehicleBrandId brandId,
+        VehicleModelName name,
+        CancellationToken cancellationToken = default);
+
     Task<VehicleModel?> GetByIdAsync(
         VehicleModelId id,
         CancellationToken cancellationToken = default);

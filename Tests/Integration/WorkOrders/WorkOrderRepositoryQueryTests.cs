@@ -10,12 +10,70 @@ using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
+using GarageFlow.Adapters.Infrastructure.Vehicles.Repositories;
+using GarageFlow.Domain.Vehicles.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace GarageFlow.Tests.Integration.WorkOrders;
 
 public sealed class WorkOrderRepositoryQueryTests
 {
+    [Fact]
+    public async Task IntakeRequestStore_ShouldAcquireThenReturnCompletedClaim_WhenUsingInMemorySequentially()
+    {
+        var databaseName = $"garageflow-intake-request-tests-{Guid.NewGuid():N}";
+        var requestId = Guid.NewGuid();
+        var workOrderId = Guid.NewGuid();
+        var completedAt = new DateTime(2026, 7, 11, 12, 0, 0, DateTimeKind.Utc);
+
+        await using (var firstContext = CreateDbContext(databaseName))
+        {
+            var store = new WorkOrderIntakeRequestStore(firstContext);
+            var claim = await store.ClaimAsync(requestId, new string('a', 64));
+
+            Assert.Equal(IntakeRequestClaimState.Acquired, claim.State);
+
+            await store.CompleteAsync(requestId, workOrderId, "{\"status\":\"Received\"}", completedAt);
+            await firstContext.SaveChangesAsync();
+        }
+
+        await using var secondContext = CreateDbContext(databaseName);
+        var secondStore = new WorkOrderIntakeRequestStore(secondContext);
+
+        var completedClaim = await secondStore.ClaimAsync(requestId, new string('a', 64));
+
+        Assert.Equal(IntakeRequestClaimState.Completed, completedClaim.State);
+        Assert.Equal(new string('a', 64), completedClaim.PayloadHash);
+        Assert.Equal("{\"status\":\"Received\"}", completedClaim.ResponseJson);
+    }
+
+    [Fact]
+    public async Task VehicleReferenceLookups_ShouldBeCaseInsensitiveAndTracked_WhenUsingInMemory()
+    {
+        await using var dbContext = CreateDbContext();
+        var brand = VehicleBrand.Create("Honda");
+        var model = VehicleModel.Create(brand.Id, "Civic");
+        var color = VehicleColor.Create("Black");
+        dbContext.AddRange(brand, model, color);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var foundBrand = await new VehicleBrandRepository(dbContext)
+            .GetByNameAsync(VehicleBrandName.Create(" hONDa "));
+        var foundModel = await new VehicleModelRepository(dbContext)
+            .GetByNameAsync(brand.Id, VehicleModelName.Create(" cIVic "));
+        var foundColor = await new VehicleColorRepository(dbContext)
+            .GetByNameAsync(VehicleColorName.Create(" bLACK "));
+
+        Assert.Equal(brand.Id, foundBrand?.Id);
+        Assert.Equal(model.Id, foundModel?.Id);
+        Assert.Equal(color.Id, foundColor?.Id);
+        Assert.Equal(EntityState.Unchanged, dbContext.Entry(foundBrand!).State);
+        Assert.Equal(EntityState.Unchanged, dbContext.Entry(foundModel!).State);
+        Assert.Equal(EntityState.Unchanged, dbContext.Entry(foundColor!).State);
+    }
+
     [Fact]
     public async Task GetAverageServiceTimeAsync_ShouldReturnZeroCountAndNullAverage_WhenNoServiceLinesMatchWindow()
     {
@@ -209,10 +267,10 @@ public sealed class WorkOrderRepositoryQueryTests
         Assert.Equal(2, detailEstimate.ServiceLines.Count);
     }
 
-    private static GarageFlowDbContext CreateDbContext()
+    private static GarageFlowDbContext CreateDbContext(string? databaseName = null)
     {
         var options = new DbContextOptionsBuilder<GarageFlowDbContext>()
-            .UseInMemoryDatabase($"garageflow-workorders-query-tests-{Guid.NewGuid():N}")
+            .UseInMemoryDatabase(databaseName ?? $"garageflow-workorders-query-tests-{Guid.NewGuid():N}")
             .Options;
 
         return new GarageFlowDbContext(options);

@@ -90,4 +90,19 @@ public sealed class VehicleColorRepository(GarageFlowDbContext dbContext) : IVeh
     {
         _dbContext.VehicleColors.Remove(vehicleColor);
     }
+    public async Task<VehicleColor?> GetByNameAsync(
+        VehicleColorName name,
+        CancellationToken cancellationToken = default)
+    {
+        if (_dbContext.Database.IsNpgsql())
+        {
+            return await _dbContext.VehicleColors
+                .FromSqlInterpolated($"""SELECT * FROM "VehicleColors" WHERE upper("Name") = upper({name.Value})""")
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        var colors = await _dbContext.VehicleColors.ToListAsync(cancellationToken);
+        return colors.SingleOrDefault(color =>
+            string.Equals(color.Name.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+    }
 }

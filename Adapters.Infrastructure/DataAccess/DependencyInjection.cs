@@ -16,6 +16,7 @@ using GarageFlow.Adapters.Infrastructure.Users.Repositories;
 using GarageFlow.Adapters.Infrastructure.Vehicles.Repositories;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Email;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -79,6 +80,7 @@ public static class DependencyInjection
         services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
         services.AddScoped<IWorkOrderQueries, EfWorkOrderQueries>();
         services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
+        services.AddScoped<IWorkOrderIntakeRequestStore, WorkOrderIntakeRequestStore>();
         services.AddScoped<ICustomerApprovalEmailSender, LoggingCustomerApprovalEmailSender>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<ITokenService, JwtTokenService>();

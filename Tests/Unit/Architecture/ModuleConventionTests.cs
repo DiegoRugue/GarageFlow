@@ -247,7 +247,16 @@ public class ModuleConventionTests
         }
 
         if (pathSegments.Contains("UseCases") &&
-            HasAnySuffix(filePath, "Command.cs", "Query.cs", "Handler.cs", "Result.cs", "Dto.cs"))
+            HasAnySuffix(
+                filePath,
+                "Command.cs",
+                "Query.cs",
+                "Handler.cs",
+                "Result.cs",
+                "Dto.cs",
+                "Input.cs",
+                "Response.cs",
+                "Canonicalizer.cs"))
         {
             return true;
         }
