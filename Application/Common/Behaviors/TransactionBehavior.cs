@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.Common.Integrations;
 using GarageFlow.Application.Common.Messaging;
@@ -50,9 +51,17 @@ public sealed class TransactionBehavior<TMessage, TResponse>(
 
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
         }
-        catch
+        catch (Exception exception)
         {
-            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            try
+            {
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+            }
+            catch
+            {
+                ExceptionDispatchInfo.Capture(exception).Throw();
+            }
+
             throw;
         }
 

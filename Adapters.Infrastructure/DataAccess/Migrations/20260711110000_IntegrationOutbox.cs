@@ -8,6 +8,9 @@ namespace GarageFlow.Adapters.Infrastructure.DataAccess.Migrations
     /// <inheritdoc />
     public partial class IntegrationOutbox : Migration
     {
+        private static readonly string[] PendingIndexColumns =
+            ["NextAttemptAt", "OccurredAt", "Id"];
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -36,7 +39,7 @@ namespace GarageFlow.Adapters.Infrastructure.DataAccess.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_IntegrationOutboxMessages_NextAttemptAt_OccurredAt_Id",
                 table: "IntegrationOutboxMessages",
-                columns: new[] { "NextAttemptAt", "OccurredAt", "Id" },
+                columns: PendingIndexColumns,
                 filter: "\"ProcessedAt\" IS NULL");
         }
 

@@ -21,6 +21,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- DomainEventNotification intentionally permits zero handlers; Mediator's object Publish contract drops it until an application handler exists. -->
+    <NoWarn>$(NoWarn);MSG0005</NoWarn>
   </PropertyGroup>
 
 </Project>

@@ -55,6 +55,56 @@ public sealed class TransactionBehaviorTests
         Assert.Equal(ExpectedFailureOperations(failure), fixture.Operations);
     }
 
+    [Theory]
+    [InlineData(FailureBoundary.Handler)]
+    [InlineData(FailureBoundary.Save2)]
+    [InlineData(FailureBoundary.Commit)]
+    public async Task Handle_ShouldCompleteRollbackWithNonCancelledToken_WhenRequestIsCancelledAtPreCommitBoundary(
+        FailureBoundary failure)
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+        var originalException = new OperationCanceledException(
+            $"{failure} cancelled.",
+            cancellationSource.Token);
+        var fixture = new PipelineFixture(
+            hasMappedMessages: true,
+            failure,
+            originalException);
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => fixture.HandleAsync(new TestCommand(), cancellationSource.Token));
+
+        Assert.Same(originalException, exception);
+        Assert.True(fixture.UnitOfWork.RollbackCompleted);
+        Assert.False(fixture.UnitOfWork.RollbackCancellationToken.IsCancellationRequested);
+        Assert.DoesNotContain("Dispatch", fixture.Operations);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldPreserveOriginalCancellation_WhenRollbackFails()
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+        var originalException = new OperationCanceledException(
+            "Handler cancelled.",
+            cancellationSource.Token);
+        var fixture = new PipelineFixture(
+            hasMappedMessages: true,
+            FailureBoundary.Handler,
+            originalException,
+            rollbackFails: true);
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => fixture.HandleAsync(new TestCommand(), cancellationSource.Token));
+
+        Assert.Same(originalException, exception);
+        Assert.Contains(nameof(ThrowIf), exception.StackTrace);
+        Assert.Equal(["Begin", "Handler", "Rollback"], fixture.Operations);
+        Assert.False(fixture.UnitOfWork.RollbackCancellationToken.IsCancellationRequested);
+        Assert.DoesNotContain("Dispatch", fixture.Operations);
+    }
+
     [Fact]
     public async Task Handle_ShouldPropagateDispatchFailureWithoutRollback_WhenCommitSucceeded()
     {
@@ -96,18 +146,28 @@ public sealed class TransactionBehaviorTests
     private sealed class PipelineFixture
     {
         private readonly FailureBoundary? _failure;
+        private readonly Exception? _failureException;
         private readonly TransactionBehavior<GarageFlowCommand, string> _behavior;
 
-        public PipelineFixture(bool hasMappedMessages, FailureBoundary? failure = null)
+        public PipelineFixture(
+            bool hasMappedMessages,
+            FailureBoundary? failure = null,
+            Exception? failureException = null,
+            bool rollbackFails = false)
         {
             _failure = failure;
+            _failureException = failureException;
             Operations = [];
-            var unitOfWork = new RecordingUnitOfWork(Operations, failure);
-            Mapper = new RecordingMapper(Operations, hasMappedMessages, failure);
-            var writer = new RecordingWriter(Operations, failure);
-            var dispatcher = new RecordingDispatcher(Operations, failure);
+            UnitOfWork = new RecordingUnitOfWork(
+                Operations,
+                failure,
+                failureException,
+                rollbackFails);
+            Mapper = new RecordingMapper(Operations, hasMappedMessages, failure, failureException);
+            var writer = new RecordingWriter(Operations, failure, failureException);
+            var dispatcher = new RecordingDispatcher(Operations, failure, failureException);
             _behavior = new TransactionBehavior<GarageFlowCommand, string>(
-                unitOfWork,
+                UnitOfWork,
                 dispatcher,
                 Mapper,
                 writer);
@@ -115,23 +175,33 @@ public sealed class TransactionBehaviorTests
 
         public List<string> Operations { get; }
         public RecordingMapper Mapper { get; }
+        public RecordingUnitOfWork UnitOfWork { get; }
 
-        public async Task<string> HandleAsync(GarageFlowCommand command)
+        public async Task<string> HandleAsync(
+            GarageFlowCommand command,
+            CancellationToken cancellationToken = default)
         {
             MessageHandlerDelegate<GarageFlowCommand, string> next = (_, _) =>
             {
                 Operations.Add("Handler");
-                ThrowIf(FailureBoundary.Handler, _failure);
+                ThrowIf(FailureBoundary.Handler, _failure, _failureException);
                 return new ValueTask<string>("handled");
             };
 
-            return await _behavior.Handle(command, next, CancellationToken.None);
+            return await _behavior.Handle(command, next, cancellationToken);
         }
     }
 
-    private sealed class RecordingUnitOfWork(List<string> operations, FailureBoundary? failure) : IUnitOfWork
+    internal sealed class RecordingUnitOfWork(
+        List<string> operations,
+        FailureBoundary? failure,
+        Exception? failureException,
+        bool rollbackFails) : IUnitOfWork
     {
         private int _saveCount;
+
+        public CancellationToken RollbackCancellationToken { get; private set; }
+        public bool RollbackCompleted { get; private set; }
 
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
@@ -142,13 +212,21 @@ public sealed class TransactionBehaviorTests
         public Task CommitTransactionAsync(CancellationToken cancellationToken = default)
         {
             operations.Add("Commit");
-            ThrowIf(FailureBoundary.Commit, failure);
+            ThrowIf(FailureBoundary.Commit, failure, failureException);
             return Task.CompletedTask;
         }
 
         public Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
         {
             operations.Add("Rollback");
+            RollbackCancellationToken = cancellationToken;
+            if (rollbackFails)
+            {
+                throw new InvalidOperationException("Rollback failed.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            RollbackCompleted = true;
             return Task.CompletedTask;
         }
 
@@ -157,7 +235,7 @@ public sealed class TransactionBehaviorTests
             _saveCount++;
             var boundary = _saveCount == 1 ? FailureBoundary.Save1 : FailureBoundary.Save2;
             operations.Add(boundary.ToString());
-            ThrowIf(boundary, failure);
+            ThrowIf(boundary, failure, failureException);
             return Task.FromResult(1);
         }
 
@@ -171,7 +249,8 @@ public sealed class TransactionBehaviorTests
     internal sealed class RecordingMapper(
         List<string> operations,
         bool hasMappedMessages,
-        FailureBoundary? failure) : IIntegrationOutboxMapper
+        FailureBoundary? failure,
+        Exception? failureException) : IIntegrationOutboxMapper
     {
         public string? CorrelationId { get; private set; }
 
@@ -181,7 +260,7 @@ public sealed class TransactionBehaviorTests
         {
             operations.Add("Map");
             CorrelationId = correlationId;
-            ThrowIf(FailureBoundary.Map, failure);
+            ThrowIf(FailureBoundary.Map, failure, failureException);
 
             return hasMappedMessages
                 ? [new IntegrationOutboxMessage(Guid.NewGuid(), "test.v1", Guid.NewGuid(), "{}", DateTime.UtcNow, correlationId)]
@@ -189,34 +268,48 @@ public sealed class TransactionBehaviorTests
         }
     }
 
-    private sealed class RecordingWriter(List<string> operations, FailureBoundary? failure) : IOutboxWriter
+    private sealed class RecordingWriter(
+        List<string> operations,
+        FailureBoundary? failure,
+        Exception? failureException) : IOutboxWriter
     {
         public Task WriteAsync(
             IReadOnlyCollection<IntegrationOutboxMessage> messages,
             CancellationToken cancellationToken)
         {
             operations.Add("Write");
-            ThrowIf(FailureBoundary.Write, failure);
+            ThrowIf(FailureBoundary.Write, failure, failureException);
             return Task.CompletedTask;
         }
     }
 
-    private sealed class RecordingDispatcher(List<string> operations, FailureBoundary? failure) : IDomainEventDispatcher
+    private sealed class RecordingDispatcher(
+        List<string> operations,
+        FailureBoundary? failure,
+        Exception? failureException) : IDomainEventDispatcher
     {
         public ValueTask DispatchAsync(
             IReadOnlyCollection<DomainEvent> domainEvents,
             CancellationToken cancellationToken)
         {
             operations.Add("Dispatch");
-            ThrowIf(FailureBoundary.Dispatch, failure);
+            ThrowIf(FailureBoundary.Dispatch, failure, failureException);
             return ValueTask.CompletedTask;
         }
     }
 
-    private static void ThrowIf(FailureBoundary expected, FailureBoundary? actual)
+    private static void ThrowIf(
+        FailureBoundary expected,
+        FailureBoundary? actual,
+        Exception? failureException = null)
     {
         if (expected == actual)
         {
+            if (failureException is not null)
+            {
+                throw failureException;
+            }
+
             throw new InvalidOperationException($"{expected} failed.");
         }
     }

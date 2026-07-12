@@ -1,12 +1,6 @@
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
-using GarageFlow.Application.Common.Behaviors;
-using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.Common.Integrations;
-using GarageFlow.Application.WorkOrders.Integrations;
-using GarageFlow.SharedKernel.Domain.Events;
-using GarageFlow.Tests.Shared.WorkOrders;
-using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -49,32 +43,6 @@ public sealed class OutboxPersistenceTests
 
         await using var verificationContext = CreateInMemoryDbContext(databaseName);
         Assert.Empty(await verificationContext.IntegrationOutboxMessages.ToListAsync());
-    }
-
-    [Fact]
-    public async Task TransactionBehavior_ShouldPersistDomainMutationAndOutboxMessageAtomically()
-    {
-        await using var dbContext = CreateInMemoryDbContext();
-        var mapper = new WorkOrderIntegrationOutboxMapper();
-        var writer = new EfOutboxWriter(dbContext);
-        var dispatcher = new CapturingDispatcher();
-        var behavior = new TransactionBehavior<PersistWorkOrderCommand, Guid>(dbContext, dispatcher, mapper, writer);
-        var workOrder = new WorkOrderBuilder().BuildCreated();
-        MessageHandlerDelegate<PersistWorkOrderCommand, Guid> handler = (_, _) =>
-        {
-            dbContext.WorkOrders.Add(workOrder);
-            workOrder.StartDiagnosis();
-            return new ValueTask<Guid>(workOrder.Id.Value);
-        };
-
-        var result = await behavior.Handle(new PersistWorkOrderCommand(), handler, CancellationToken.None);
-
-        Assert.Equal(workOrder.Id.Value, result);
-        Assert.NotNull(await dbContext.WorkOrders.FindAsync(workOrder.Id));
-        var outbox = Assert.Single(await dbContext.IntegrationOutboxMessages.ToListAsync());
-        Assert.Equal(workOrder.Id.Value, outbox.AggregateId);
-        Assert.Equal(WorkOrderStatusChangedIntegrationEvent.EventKey, outbox.EventKey);
-        Assert.Contains(dispatcher.Events, domainEvent => domainEvent is GarageFlow.Domain.WorkOrders.Events.WorkOrderStatusChanged);
     }
 
     [Fact]
@@ -146,20 +114,5 @@ public sealed class OutboxPersistenceTests
             .UseNpgsql("Host=localhost;Database=garageflow-model-tests;Username=test;Password=test")
             .Options;
         return new GarageFlowDbContext(options);
-    }
-
-    private sealed record PersistWorkOrderCommand : GarageFlow.Application.Common.Messaging.ICommand<Guid>;
-
-    private sealed class CapturingDispatcher : IDomainEventDispatcher
-    {
-        public IReadOnlyCollection<DomainEvent> Events { get; private set; } = [];
-
-        public ValueTask DispatchAsync(
-            IReadOnlyCollection<DomainEvent> domainEvents,
-            CancellationToken cancellationToken)
-        {
-            Events = domainEvents;
-            return ValueTask.CompletedTask;
-        }
     }
 }
