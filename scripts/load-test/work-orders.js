@@ -21,7 +21,8 @@ const activeStatuses = new Set([
   'InProgress',
 ]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const originPattern = /^(https?):\/\/(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(?::([0-9]{1,5}))?\/?$/i;
+const originPattern = /^(https?):\/\/(\[[^\[\]]+\]|[^:/?#]+)(?::([0-9]+))?\/?$/i;
+const hostnameLabelPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 function requireEnvironment(name) {
   const value = __ENV[name];
@@ -32,6 +33,59 @@ function requireEnvironment(name) {
   return value;
 }
 
+function isValidIpv4(value) {
+  const octets = value.split('.');
+  return octets.length === 4 && octets.every((octet) => (
+    /^(0|[1-9][0-9]{0,2})$/.test(octet) && Number(octet) <= 255
+  ));
+}
+
+function isValidIpv6(value) {
+  if (value.length === 0 || value.includes(':::')) {
+    return false;
+  }
+
+  let normalized = value;
+  if (normalized.includes('.')) {
+    const lastColon = normalized.lastIndexOf(':');
+    if (lastColon < 0 || !isValidIpv4(normalized.slice(lastColon + 1))) {
+      return false;
+    }
+    normalized = `${normalized.slice(0, lastColon)}:0:0`;
+  }
+
+  const halves = normalized.split('::');
+  if (halves.length > 2) {
+    return false;
+  }
+
+  const groups = [];
+  for (const half of halves) {
+    if (half.length === 0) {
+      continue;
+    }
+    const halfGroups = half.split(':');
+    if (halfGroups.some((group) => !/^[0-9a-f]{1,4}$/i.test(group))) {
+      return false;
+    }
+    groups.push(...halfGroups);
+  }
+
+  return halves.length === 2 ? groups.length < 8 : groups.length === 8;
+}
+
+function isValidHostname(value) {
+  if (value.length === 0 || value.length > 253) {
+    return false;
+  }
+
+  if (/^[0-9.]+$/.test(value)) {
+    return isValidIpv4(value);
+  }
+
+  return value.split('.').every((label) => hostnameLabelPattern.test(label));
+}
+
 function validateBaseUrl(value) {
   const candidate = value.trim();
   const match = originPattern.exec(candidate);
@@ -39,8 +93,19 @@ function validateBaseUrl(value) {
     throw new Error('BASE_URL must be an HTTP(S) origin without credentials, path, query, or fragment.');
   }
 
-  if (match[3] && Number(match[3]) > 65535) {
-    throw new Error('BASE_URL contains an invalid TCP port.');
+  const host = match[2];
+  const hostIsValid = host.startsWith('[')
+    ? isValidIpv6(host.slice(1, -1))
+    : isValidHostname(host);
+  if (!hostIsValid) {
+    throw new Error('BASE_URL contains an invalid hostname or IP address.');
+  }
+
+  if (match[3]) {
+    const port = Number(match[3]);
+    if (port < 1 || port > 65535) {
+      throw new Error('BASE_URL contains an invalid TCP port.');
+    }
   }
 
   return candidate.endsWith('/') ? candidate.slice(0, -1) : candidate;
