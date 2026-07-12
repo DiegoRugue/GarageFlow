@@ -81,6 +81,10 @@ jobs:
           expires_on = os.environ["TF_VAR_expires_on"]
           kubernetes_version = os.environ["TF_VAR_kubernetes_version"]
           email_pattern = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+          role_pattern = re.compile(
+              r"^arn:[a-z0-9-]+:iam::[0-9]{12}:role/"
+              r"[A-Za-z0-9+=,.@_/-]*[A-Za-z0-9+=,.@_-]$"
+          )
 
           if not owner.strip():
               errors.append("TF_VAR_owner must not be blank")
@@ -96,6 +100,9 @@ jobs:
           for name in ("TF_VAR_notification_email", "TF_VAR_bootstrap_admin_email"):
               if email_pattern.fullmatch(os.environ[name].strip()) is None:
                   errors.append(f"{name} must be a valid email-shaped value without whitespace")
+          for name in ("TF_VAR_eks_cluster_role_arn", "TF_VAR_eks_node_role_arn"):
+              if role_pattern.fullmatch(os.environ[name]) is None:
+                  errors.append(f"{name} must exactly match the Terraform IAM role ARN contract")
           if errors:
               print("Destruction refused: " + "; ".join(errors), file=sys.stderr)
               raise SystemExit(1)
@@ -119,13 +126,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           caller_account="$(aws sts get-caller-identity --query Account --output text)"
-          if [[ "${TF_VAR_eks_cluster_role_arn}" =~ ^arn:[^:]+:iam::([0-9]{12}):role/.+$ ]]; then
+          if [[ "${TF_VAR_eks_cluster_role_arn}" =~ ^arn:[a-z0-9-]+:iam::([0-9]{12}):role/[A-Za-z0-9+=,.@_/-]*[A-Za-z0-9+=,.@_-]$ ]]; then
             cluster_role_account="${BASH_REMATCH[1]}"
           else
             echo 'EKS cluster role ARN is invalid.' >&2
             exit 1
           fi
-          if [[ "${TF_VAR_eks_node_role_arn}" =~ ^arn:[^:]+:iam::([0-9]{12}):role/.+$ ]]; then
+          if [[ "${TF_VAR_eks_node_role_arn}" =~ ^arn:[a-z0-9-]+:iam::([0-9]{12}):role/[A-Za-z0-9+=,.@_/-]*[A-Za-z0-9+=,.@_-]$ ]]; then
             node_role_account="${BASH_REMATCH[1]}"
           else
             echo 'EKS node role ARN is invalid.' >&2
