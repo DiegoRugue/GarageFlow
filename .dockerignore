@@ -15,6 +15,13 @@
 .appdata
 docs/
 Tests/
+.github/
+infra/
+k8s/
+scripts/load-test/
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
 
 docker-compose*.yml
 .env*
