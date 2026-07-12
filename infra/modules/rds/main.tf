@@ -24,6 +24,7 @@ resource "aws_vpc_security_group_ingress_rule" "postgres_from_eks" {
   to_port                      = 5432
   ip_protocol                  = "tcp"
   referenced_security_group_id = var.eks_security_group_id
+  tags                         = var.tags
 }
 
 resource "aws_db_instance" "this" {

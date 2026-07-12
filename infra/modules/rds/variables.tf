@@ -38,8 +38,15 @@ variable "database_password" {
   sensitive   = true
 
   validation {
-    condition     = length(var.database_password) >= 8
-    error_message = "database_password must contain at least 8 characters."
+    condition = (
+      length(var.database_password) >= 8 &&
+      length(var.database_password) <= 128 &&
+      can(regex("^[!-~]+$", var.database_password)) &&
+      !strcontains(var.database_password, "/") &&
+      !strcontains(var.database_password, "\"") &&
+      !strcontains(var.database_password, "@")
+    )
+    error_message = "database_password must contain 8 to 128 printable ASCII characters and must not contain /, \", @, or spaces."
   }
 }
 

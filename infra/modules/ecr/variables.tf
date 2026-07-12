@@ -4,8 +4,12 @@ variable "repository_name" {
   default     = "garageflow"
 
   validation {
-    condition     = can(regex("^[a-z0-9]+(?:[._/-][a-z0-9]+)*$", var.repository_name))
-    error_message = "repository_name must be a syntactically valid ECR repository name."
+    condition = (
+      length(var.repository_name) >= 2 &&
+      length(var.repository_name) <= 256 &&
+      can(regex("^[a-z0-9]+(?:[._/-][a-z0-9]+)*$", var.repository_name))
+    )
+    error_message = "repository_name must contain 2 to 256 characters and be a syntactically valid ECR repository name."
   }
 }
 
