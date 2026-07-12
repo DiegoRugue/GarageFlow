@@ -70,6 +70,36 @@ jobs:
             echo 'Destruction refused: AWS region must be us-east-1.' >&2
             exit 1
           }
+          python3 - <<'PY'
+          import datetime
+          import os
+          import re
+          import sys
+
+          errors = []
+          owner = os.environ["TF_VAR_owner"]
+          expires_on = os.environ["TF_VAR_expires_on"]
+          kubernetes_version = os.environ["TF_VAR_kubernetes_version"]
+          email_pattern = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+          if not owner.strip():
+              errors.append("TF_VAR_owner must not be blank")
+          if re.fullmatch(r"[0-9]+\.[0-9]+", kubernetes_version) is None:
+              errors.append("TF_VAR_kubernetes_version must use major.minor notation")
+          if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", expires_on) is None:
+              errors.append("TF_VAR_expires_on must use YYYY-MM-DD")
+          else:
+              try:
+                  datetime.date.fromisoformat(expires_on)
+              except ValueError:
+                  errors.append("TF_VAR_expires_on must be a real calendar date")
+          for name in ("TF_VAR_notification_email", "TF_VAR_bootstrap_admin_email"):
+              if email_pattern.fullmatch(os.environ[name].strip()) is None:
+                  errors.append(f"{name} must be a valid email-shaped value without whitespace")
+          if errors:
+              print("Destruction refused: " + "; ".join(errors), file=sys.stderr)
+              raise SystemExit(1)
+          PY
 
       - name: Checkout
         uses: actions/checkout@v5
@@ -130,11 +160,17 @@ jobs:
             --region us-east-1 \
             --name "${cluster_name}" >/dev/null 2>"${error_file}"; then
             cluster_exists=true
-          elif grep -q 'ResourceNotFoundException' "${error_file}"; then
-            cluster_exists=false
           else
-            echo 'Unable to determine whether the GarageFlow EKS cluster exists.' >&2
-            exit 1
+            first_error_line=''
+            IFS= read -r first_error_line <"${error_file}" || true
+            aws_error_pattern='^An error occurred \(([A-Za-z0-9]+)\) when calling the [^:]+ operation:'
+            if [[ "${first_error_line}" =~ ${aws_error_pattern} ]] && \
+              [[ "${BASH_REMATCH[1]}" == 'ResourceNotFoundException' ]]; then
+              cluster_exists=false
+            else
+              echo 'Unable to determine whether the GarageFlow EKS cluster exists.' >&2
+              exit 1
+            fi
           fi
           rm -f -- "${error_file}"
 
@@ -164,9 +200,20 @@ jobs:
           fi
 
           count_elbv2_service_load_balancers() {
-            local load_balancers_json arn dns tags_json count=0
+            local load_balancers_json load_balancer_rows arn dns tags_json count=0 jq_status
             if ! load_balancers_json="$(aws elbv2 describe-load-balancers --region us-east-1 --output json)"; then
               echo 'Unable to list ELBv2 load balancers during cleanup.' >&2
+              return 1
+            fi
+            if ! jq -e 'type == "object" and (.LoadBalancers | type == "array") and all(.LoadBalancers[]; (.LoadBalancerArn | type == "string") and (.DNSName | type == "string"))' \
+              >/dev/null <<<"${load_balancers_json}"; then
+              echo 'ELBv2 returned malformed load-balancer JSON during cleanup.' >&2
+              return 1
+            fi
+            if ! load_balancer_rows="$(jq -r \
+              '.LoadBalancers[] | [.LoadBalancerArn, .DNSName] | @tsv' \
+              <<<"${load_balancers_json}")"; then
+              echo 'Unable to enumerate ELBv2 load-balancer rows during cleanup.' >&2
               return 1
             fi
             while IFS=$'\t' read -r arn dns; do
@@ -176,19 +223,45 @@ jobs:
                 echo 'Unable to read ELBv2 tags during cleanup.' >&2
                 return 1
               fi
-              if [[ -n "${service_ingress}" && "${dns}" == "${service_ingress}" ]] || \
-                jq -e '.TagDescriptions[].Tags[]? | select(.Key == "kubernetes.io/service-name" and .Value == "garageflow/garageflow-api")' \
-                  >/dev/null <<<"${tags_json}"; then
-                (( count += 1 ))
+              if ! jq -e 'type == "object" and (.TagDescriptions | type == "array") and all(.TagDescriptions[]; (.Tags | type == "array"))' \
+                >/dev/null <<<"${tags_json}"; then
+                echo 'ELBv2 returned malformed tag JSON during cleanup.' >&2
+                return 1
               fi
-            done < <(jq -r '.LoadBalancers[]? | [.LoadBalancerArn, .DNSName] | @tsv' <<<"${load_balancers_json}")
+              if [[ -n "${service_ingress}" && "${dns}" == "${service_ingress}" ]]; then
+                (( count += 1 ))
+                continue
+              fi
+              set +e
+              jq -e 'any(.TagDescriptions[].Tags[]?; .Key == "kubernetes.io/service-name" and .Value == "garageflow/garageflow-api")' \
+                >/dev/null <<<"${tags_json}"
+              jq_status=$?
+              set -e
+              if (( jq_status == 0 )); then
+                (( count += 1 ))
+              elif (( jq_status > 1 )); then
+                echo 'Unable to parse ELBv2 tags during cleanup.' >&2
+                return 1
+              fi
+            done <<<"${load_balancer_rows}"
             printf '%s\n' "${count}"
           }
 
           count_classic_service_load_balancers() {
-            local load_balancers_json name dns tags_json count=0
+            local load_balancers_json load_balancer_rows name dns tags_json count=0 jq_status
             if ! load_balancers_json="$(aws elb describe-load-balancers --region us-east-1 --output json)"; then
               echo 'Unable to list Classic ELB load balancers during cleanup.' >&2
+              return 1
+            fi
+            if ! jq -e 'type == "object" and (.LoadBalancerDescriptions | type == "array") and all(.LoadBalancerDescriptions[]; (.LoadBalancerName | type == "string") and (.DNSName | type == "string"))' \
+              >/dev/null <<<"${load_balancers_json}"; then
+              echo 'Classic ELB returned malformed load-balancer JSON during cleanup.' >&2
+              return 1
+            fi
+            if ! load_balancer_rows="$(jq -r \
+              '.LoadBalancerDescriptions[] | [.LoadBalancerName, .DNSName] | @tsv' \
+              <<<"${load_balancers_json}")"; then
+              echo 'Unable to enumerate Classic ELB rows during cleanup.' >&2
               return 1
             fi
             while IFS=$'\t' read -r name dns; do
@@ -198,12 +271,27 @@ jobs:
                 echo 'Unable to read Classic ELB tags during cleanup.' >&2
                 return 1
               fi
-              if [[ -n "${service_ingress}" && "${dns}" == "${service_ingress}" ]] || \
-                jq -e '.TagDescriptions[].Tags[]? | select(.Key == "kubernetes.io/service-name" and .Value == "garageflow/garageflow-api")' \
-                  >/dev/null <<<"${tags_json}"; then
-                (( count += 1 ))
+              if ! jq -e 'type == "object" and (.TagDescriptions | type == "array") and all(.TagDescriptions[]; (.Tags | type == "array"))' \
+                >/dev/null <<<"${tags_json}"; then
+                echo 'Classic ELB returned malformed tag JSON during cleanup.' >&2
+                return 1
               fi
-            done < <(jq -r '.LoadBalancerDescriptions[]? | [.LoadBalancerName, .DNSName] | @tsv' <<<"${load_balancers_json}")
+              if [[ -n "${service_ingress}" && "${dns}" == "${service_ingress}" ]]; then
+                (( count += 1 ))
+                continue
+              fi
+              set +e
+              jq -e 'any(.TagDescriptions[].Tags[]?; .Key == "kubernetes.io/service-name" and .Value == "garageflow/garageflow-api")' \
+                >/dev/null <<<"${tags_json}"
+              jq_status=$?
+              set -e
+              if (( jq_status == 0 )); then
+                (( count += 1 ))
+              elif (( jq_status > 1 )); then
+                echo 'Unable to parse Classic ELB tags during cleanup.' >&2
+                return 1
+              fi
+            done <<<"${load_balancer_rows}"
             printf '%s\n' "${count}"
           }
 

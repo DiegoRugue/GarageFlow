@@ -47,18 +47,25 @@ require_resource_absent() {
   local not_found_code="$2"
   shift 2
   local error_file="${temp_dir}/not-found-${RANDOM}.err"
-  local status
+  local status first_error_line='' aws_error_code=''
+  local aws_error_pattern='^An error occurred \(([A-Za-z0-9]+)\) when calling the [^:]+ operation:'
   set +e
   "$@" >/dev/null 2>"${error_file}"
   status=$?
   set -e
   if (( status == 0 )); then
     findings+=("${label}")
-  elif grep -q -- "${not_found_code}" "${error_file}"; then
-    : # A genuine service-specific not-found response is the expected state.
   else
-    echo "Verification failed closed: ${label} lookup returned an API or permission error." >&2
-    return 1
+    IFS= read -r first_error_line <"${error_file}" || true
+    if [[ "${first_error_line}" =~ ${aws_error_pattern} ]]; then
+      aws_error_code="${BASH_REMATCH[1]}"
+    fi
+    if [[ "${aws_error_code}" == "${not_found_code}" ]]; then
+      : # Only the exact AWS CLI error-code field may establish absence.
+    else
+      echo "Verification failed closed: ${label} lookup returned an API or permission error." >&2
+      return 1
+    fi
   fi
 }
 
@@ -71,8 +78,7 @@ require_resource_absent 'EKS node group garageflow-academy-workers' 'ResourceNot
 ec2_json="$(require_api_json 'EC2 workers' aws ec2 describe-instances \
   --region "${AWS_REGION}" \
   --filters \
-    'Name=tag:Project,Values=GarageFlow' \
-    'Name=tag:Environment,Values=academy' \
+    'Name=tag:aws:eks:cluster-name,Values=garageflow-academy' \
     'Name=instance-state-name,Values=pending,running' \
   --output json)"
 ec2_count="$(jq '[.Reservations[].Instances[]] | length' <<<"${ec2_json}")"
@@ -102,29 +108,71 @@ done
 
 elbv2_json="$(require_api_json 'ELBv2 load balancers' aws elbv2 describe-load-balancers \
   --region "${AWS_REGION}" --output json)"
+if ! jq -e 'type == "object" and (.LoadBalancers | type == "array") and all(.LoadBalancers[]; (.LoadBalancerArn | type == "string"))' \
+  >/dev/null <<<"${elbv2_json}"; then
+  echo 'Verification failed closed: ELBv2 returned malformed load-balancer JSON.' >&2
+  exit 1
+fi
+if ! elbv2_arns="$(jq -r '.LoadBalancers[] | .LoadBalancerArn' <<<"${elbv2_json}")"; then
+  echo 'Verification failed closed: ELBv2 load-balancer enumeration failed.' >&2
+  exit 1
+fi
 while IFS= read -r load_balancer_arn; do
   [[ -n "${load_balancer_arn}" ]] || continue
   tags_json="$(require_api_json 'ELBv2 tags' aws elbv2 describe-tags \
     --region "${AWS_REGION}" --resource-arns "${load_balancer_arn}" --output json)"
-  if jq -e --arg service "${service_tag}" \
-    '.TagDescriptions[].Tags[]? | select(.Key == "kubernetes.io/service-name" and .Value == $service)' \
+  if ! jq -e 'type == "object" and (.TagDescriptions | type == "array") and all(.TagDescriptions[]; (.Tags | type == "array"))' \
     >/dev/null <<<"${tags_json}"; then
-    findings+=('ELBv2 LoadBalancer for garageflow/garageflow-api')
+    echo 'Verification failed closed: ELBv2 returned malformed tag JSON.' >&2
+    exit 1
   fi
-done < <(jq -r '.LoadBalancers[]?.LoadBalancerArn' <<<"${elbv2_json}")
+  set +e
+  jq -e --arg service "${service_tag}" \
+    'any(.TagDescriptions[].Tags[]?; .Key == "kubernetes.io/service-name" and .Value == $service)' \
+    >/dev/null <<<"${tags_json}"
+  jq_status=$?
+  set -e
+  if (( jq_status == 0 )); then
+    findings+=('ELBv2 LoadBalancer for garageflow/garageflow-api')
+  elif (( jq_status > 1 )); then
+    echo 'Verification failed closed: ELBv2 tag parsing failed.' >&2
+    exit 1
+  fi
+done <<<"${elbv2_arns}"
 
 classic_json="$(require_api_json 'Classic ELB load balancers' aws elb describe-load-balancers \
   --region "${AWS_REGION}" --output json)"
+if ! jq -e 'type == "object" and (.LoadBalancerDescriptions | type == "array") and all(.LoadBalancerDescriptions[]; (.LoadBalancerName | type == "string"))' \
+  >/dev/null <<<"${classic_json}"; then
+  echo 'Verification failed closed: Classic ELB returned malformed load-balancer JSON.' >&2
+  exit 1
+fi
+if ! classic_names="$(jq -r '.LoadBalancerDescriptions[] | .LoadBalancerName' <<<"${classic_json}")"; then
+  echo 'Verification failed closed: Classic ELB enumeration failed.' >&2
+  exit 1
+fi
 while IFS= read -r load_balancer_name; do
   [[ -n "${load_balancer_name}" ]] || continue
   tags_json="$(require_api_json 'Classic ELB tags' aws elb describe-tags \
     --region "${AWS_REGION}" --load-balancer-names "${load_balancer_name}" --output json)"
-  if jq -e --arg service "${service_tag}" \
-    '.TagDescriptions[].Tags[]? | select(.Key == "kubernetes.io/service-name" and .Value == $service)' \
+  if ! jq -e 'type == "object" and (.TagDescriptions | type == "array") and all(.TagDescriptions[]; (.Tags | type == "array"))' \
     >/dev/null <<<"${tags_json}"; then
-    findings+=('Classic LoadBalancer for garageflow/garageflow-api')
+    echo 'Verification failed closed: Classic ELB returned malformed tag JSON.' >&2
+    exit 1
   fi
-done < <(jq -r '.LoadBalancerDescriptions[]?.LoadBalancerName' <<<"${classic_json}")
+  set +e
+  jq -e --arg service "${service_tag}" \
+    'any(.TagDescriptions[].Tags[]?; .Key == "kubernetes.io/service-name" and .Value == $service)' \
+    >/dev/null <<<"${tags_json}"
+  jq_status=$?
+  set -e
+  if (( jq_status == 0 )); then
+    findings+=('Classic LoadBalancer for garageflow/garageflow-api')
+  elif (( jq_status > 1 )); then
+    echo 'Verification failed closed: Classic ELB tag parsing failed.' >&2
+    exit 1
+  fi
+done <<<"${classic_names}"
 
 vpc_json="$(require_api_json 'GarageFlow VPC' aws ec2 describe-vpcs \
   --region "${AWS_REGION}" \
