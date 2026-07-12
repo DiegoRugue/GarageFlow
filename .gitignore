@@ -28,8 +28,8 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-*.auto.tfvars
-infra/**/terraform.tfvars
+infra/**/*.tfvars
+infra/**/*.tfvars.json
 infra/bootstrap/state-backend/backend.tf
 
 # Local SQLite artifacts
