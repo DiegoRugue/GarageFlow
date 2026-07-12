@@ -10,11 +10,15 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace GarageFlow.Tests.Integration.Support.Factories;
 
-public sealed class GarageFlowWebApplicationFactory(string databaseName, bool disableAutoMigrate = false)
+public sealed class GarageFlowWebApplicationFactory(
+    string databaseName,
+    bool disableAutoMigrate = false,
+    string estimateDecisionWebhookSecret = IntegrationTestAuthSettings.EstimateDecisionWebhookSecret)
     : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = databaseName;
     private readonly bool _disableAutoMigrate = disableAutoMigrate;
+    private readonly string _estimateDecisionWebhookSecret = estimateDecisionWebhookSecret;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -33,7 +37,7 @@ public sealed class GarageFlowWebApplicationFactory(string databaseName, bool di
                 ["Auth:BootstrapAdmin:Email"] = IntegrationTestAuthSettings.BootstrapAdminEmail,
                 ["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate,
                 ["Auth:BootstrapAdmin:Password"] = IntegrationTestAuthSettings.BootstrapAdminInitialPassword,
-                ["Webhooks:EstimateDecisions:HmacSecret"] = IntegrationTestAuthSettings.EstimateDecisionWebhookSecret
+                ["Webhooks:EstimateDecisions:HmacSecret"] = _estimateDecisionWebhookSecret
             };
 
             if (_disableAutoMigrate)

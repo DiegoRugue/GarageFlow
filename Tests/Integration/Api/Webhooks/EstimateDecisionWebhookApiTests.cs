@@ -5,6 +5,7 @@ using GarageFlow.Tests.Integration.Support.Fixtures;
 using GarageFlow.Tests.Integration.Support.Helpers;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using GarageFlow.Tests.Shared.WorkOrders;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GarageFlow.Tests.Integration.Api.Webhooks;
@@ -23,6 +24,10 @@ public sealed class EstimateDecisionWebhookApiTests(GarageFlowApiFixture fixture
             new ByteArrayContent(Encoding.UTF8.GetBytes("{}")));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var problem = await HttpResponseAssertions.ReadRequiredJsonAsync<ProblemDetails>(response);
+        Assert.Equal((int)HttpStatusCode.Unauthorized, problem.Status);
+        Assert.Equal("Unauthorized", problem.Title);
+        Assert.Equal("Webhook signature is invalid or expired.", problem.Detail);
     }
 
     [Fact]
@@ -34,6 +39,10 @@ public sealed class EstimateDecisionWebhookApiTests(GarageFlowApiFixture fixture
         using var response = await SendSignedAsync(client, body);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await HttpResponseAssertions.ReadRequiredJsonAsync<ProblemDetails>(response);
+        Assert.Equal((int)HttpStatusCode.BadRequest, problem.Status);
+        Assert.Equal("Validation error", problem.Title);
+        Assert.Equal("Webhook payload is malformed.", problem.Detail);
     }
 
     [Fact]

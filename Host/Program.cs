@@ -30,7 +30,7 @@ builder.Services.AddOptions<EstimateDecisionWebhookOptions>()
     .Bind(builder.Configuration.GetSection(EstimateDecisionWebhookOptions.SectionName))
     .Validate(
         options => IsValidWebhookSecret(options.HmacSecret, builder.Environment),
-        "Estimate decision webhook HMAC secret must be a non-placeholder value of at least 32 characters outside Development and IntegrationTests.")
+        "Estimate decision webhook HMAC secret must be a non-placeholder value of at least 32 characters outside Development and Integration.")
     .ValidateOnStart();
 builder.Services.AddOpenApi();
 builder.AddGarageFlowAuthentication();
@@ -66,8 +66,7 @@ await app.RunAsync();
 static bool IsValidWebhookSecret(string? secret, IHostEnvironment environment)
 {
     if (environment.IsDevelopment()
-        || environment.IsEnvironment("Integration")
-        || environment.IsEnvironment("IntegrationTests"))
+        || environment.IsEnvironment("Integration"))
     {
         return true;
     }
