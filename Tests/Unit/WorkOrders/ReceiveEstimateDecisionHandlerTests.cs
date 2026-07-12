@@ -1,3 +1,5 @@
+using GarageFlow.Application.Common.Behaviors;
+using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.Common.Messaging;
 using GarageFlow.Application.InventoryItems.Ports;
 using GarageFlow.Application.WorkOrders.Common;
@@ -9,8 +11,11 @@ using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.Enums;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
 using GarageFlow.SharedKernel.Domain.Exceptions;
+using GarageFlow.SharedKernel.Domain.Events;
+using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Tests.Shared.InventoryItems;
 using GarageFlow.Tests.Shared.WorkOrders;
+using Mediator;
 using Moq;
 
 namespace GarageFlow.Tests.Unit.WorkOrders;
@@ -213,19 +218,74 @@ public sealed class ReceiveEstimateDecisionHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenProcessingFails_PropagatesAfterRegistrationSoTransactionCanRollBackInbox()
+    public async Task TransactionBehavior_WhenProcessingFailsAfterRegistration_RollsBackWithoutCommitOrDispatch()
     {
         var inventoryItem = new InventoryItemBuilder().Build();
-        var fixture = new Fixture(inventoryItem, inventoryItemExists: false);
+        var fixture = new Fixture(inventoryItem, configureDefaultSetups: false);
+        var unitOfWork = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        var dispatcher = new Mock<IDomainEventDispatcher>(MockBehavior.Strict);
+        var sequence = new MockSequence();
+        var command = fixture.ValidCommand(decision: "Rejected");
 
-        await Assert.ThrowsAsync<NotFoundException>(
-            () => fixture.HandleAsync(fixture.ValidCommand(decision: "Rejected")));
+        unitOfWork
+            .InSequence(sequence)
+            .Setup(current => current.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        fixture.Inbox
+            .InSequence(sequence)
+            .Setup(inbox => inbox.RegisterAsync(
+                command.EventId,
+                command.PayloadHash,
+                command.OccurredAt,
+                fixture.ReceivedAt,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EstimateDecisionInboxRegistration(IsNew: true, ValidPayloadHash));
+        fixture.WorkOrderRepository
+            .InSequence(sequence)
+            .Setup(repository => repository.GetByIdForEstimateMutationAsync(
+                fixture.WorkOrder.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(fixture.WorkOrder);
+        fixture.InventoryItemRepository
+            .InSequence(sequence)
+            .Setup(repository => repository.GetByIdForStockReservationAsync(
+                inventoryItem.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((InventoryItem?)null);
+        unitOfWork
+            .InSequence(sequence)
+            .Setup(current => current.RollbackTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
+        var behavior = new TransactionBehavior<ReceiveEstimateDecisionCommand, ReceiveEstimateDecisionResult>(
+            unitOfWork.Object,
+            dispatcher.Object);
+        MessageHandlerDelegate<ReceiveEstimateDecisionCommand, ReceiveEstimateDecisionResult> next =
+            (message, cancellationToken) => fixture.Handler.Handle(message, cancellationToken);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await behavior.Handle(command, next, CancellationToken.None));
+
+        Assert.Equal($"Inventory item with ID '{inventoryItem.Id.Value}' was not found.", exception.Message);
+        unitOfWork.Verify(current => current.BeginTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
         fixture.Inbox.Verify(inbox => inbox.RegisterAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(),
+            command.EventId,
+            command.PayloadHash,
+            command.OccurredAt,
+            fixture.ReceivedAt,
             It.IsAny<CancellationToken>()), Times.Once);
         fixture.WorkOrderRepository.Verify(repository => repository.GetByIdForEstimateMutationAsync(
-            It.IsAny<WorkOrderId>(), It.IsAny<CancellationToken>()), Times.Once);
+            fixture.WorkOrder.Id,
+            It.IsAny<CancellationToken>()), Times.Once);
+        fixture.InventoryItemRepository.Verify(repository => repository.GetByIdForStockReservationAsync(
+            inventoryItem.Id,
+            It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWork.Verify(current => current.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
+        unitOfWork.Verify(current => current.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        unitOfWork.Verify(current => current.DequeueDomainEvents(), Times.Never);
+        dispatcher.Verify(current => current.DispatchAsync(
+            It.IsAny<IReadOnlyCollection<DomainEvent>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private sealed class Fixture
@@ -237,8 +297,7 @@ public sealed class ReceiveEstimateDecisionHandlerTests
         public Mock<IEstimateDecisionInbox> Inbox { get; } = new(MockBehavior.Strict);
         public Mock<IWorkOrderRepository> WorkOrderRepository { get; } = new(MockBehavior.Strict);
         public Mock<IInventoryItemRepository> InventoryItemRepository { get; } = new(MockBehavior.Strict);
-
-        private readonly ReceiveEstimateDecisionHandler _handler;
+        public ReceiveEstimateDecisionHandler Handler { get; }
 
         public Fixture(
             InventoryItem? inventoryItem = null,
@@ -246,31 +305,35 @@ public sealed class ReceiveEstimateDecisionHandlerTests
             string storedPayloadHash = ValidPayloadHash,
             bool workOrderExists = true,
             bool inventoryItemExists = true,
+            bool configureDefaultSetups = true,
             CancellationToken expectedCancellationToken = default)
         {
             WorkOrder = BuildPendingWorkOrder(inventoryItem);
-            Inbox.Setup(inbox => inbox.RegisterAsync(
-                    It.IsAny<Guid>(),
-                    It.IsAny<string>(),
-                    It.IsAny<DateTime>(),
-                    It.IsAny<DateTime>(),
-                    expectedCancellationToken))
-                .ReturnsAsync(new EstimateDecisionInboxRegistration(isNew, storedPayloadHash));
-            WorkOrderRepository.Setup(repository => repository.GetByIdForEstimateMutationAsync(
-                    WorkOrder.Id,
-                    expectedCancellationToken))
-                .ReturnsAsync(workOrderExists ? WorkOrder : null);
-
-            if (inventoryItem is not null)
+            if (configureDefaultSetups)
             {
-                InventoryItemRepository.Setup(repository => repository.GetByIdForStockReservationAsync(
-                        inventoryItem.Id,
+                Inbox.Setup(inbox => inbox.RegisterAsync(
+                        It.IsAny<Guid>(),
+                        It.IsAny<string>(),
+                        It.IsAny<DateTime>(),
+                        It.IsAny<DateTime>(),
                         expectedCancellationToken))
-                    .ReturnsAsync(inventoryItemExists ? inventoryItem : null);
+                    .ReturnsAsync(new EstimateDecisionInboxRegistration(isNew, storedPayloadHash));
+                WorkOrderRepository.Setup(repository => repository.GetByIdForEstimateMutationAsync(
+                        WorkOrder.Id,
+                        expectedCancellationToken))
+                    .ReturnsAsync(workOrderExists ? WorkOrder : null);
+
+                if (inventoryItem is not null)
+                {
+                    InventoryItemRepository.Setup(repository => repository.GetByIdForStockReservationAsync(
+                            inventoryItem.Id,
+                            expectedCancellationToken))
+                        .ReturnsAsync(inventoryItemExists ? inventoryItem : null);
+                }
             }
 
             var processor = new EstimateDecisionProcessor(InventoryItemRepository.Object);
-            _handler = new ReceiveEstimateDecisionHandler(
+            Handler = new ReceiveEstimateDecisionHandler(
                 Inbox.Object,
                 WorkOrderRepository.Object,
                 processor,
@@ -291,7 +354,7 @@ public sealed class ReceiveEstimateDecisionHandlerTests
         public async Task<ReceiveEstimateDecisionResult> HandleAsync(
             ReceiveEstimateDecisionCommand command,
             CancellationToken cancellationToken = default) =>
-            await _handler.Handle(command, cancellationToken);
+            await Handler.Handle(command, cancellationToken);
 
         public void VerifyInboxWasNotCalled() => Inbox.Verify(inbox => inbox.RegisterAsync(
             It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(),
