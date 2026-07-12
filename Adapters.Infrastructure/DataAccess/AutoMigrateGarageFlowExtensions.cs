@@ -18,11 +18,12 @@ public static partial class AutoMigrateGarageFlowExtensions
 {
     private const string DefaultSeedScriptPath = "scripts/seed-local.sql";
 
-    public static IServiceProvider AutoMigrateGarageFlow(
+    public static async Task<IServiceProvider> AutoMigrateGarageFlowAsync(
         this IServiceProvider serviceProvider,
         IConfiguration configuration,
         IHostEnvironment environment,
-        string contentRootPath)
+        string contentRootPath,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -35,7 +36,26 @@ public static partial class AutoMigrateGarageFlowExtensions
             return serviceProvider;
         }
 
-        using var scope = serviceProvider.CreateScope();
+        return await serviceProvider.MigrateGarageFlowAsync(
+            configuration,
+            environment,
+            contentRootPath,
+            cancellationToken);
+    }
+
+    public static async Task<IServiceProvider> MigrateGarageFlowAsync(
+        this IServiceProvider serviceProvider,
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        string contentRootPath,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentRootPath);
+
+        await using var scope = serviceProvider.CreateAsyncScope();
         var logger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger(typeof(AutoMigrateGarageFlowExtensions));
@@ -43,25 +63,26 @@ public static partial class AutoMigrateGarageFlowExtensions
 
         if (dbContext.Database.IsRelational())
         {
-            dbContext.Database.Migrate();
+            await dbContext.Database.MigrateAsync(cancellationToken);
         }
         else
         {
-            dbContext.Database.EnsureCreated();
+            await dbContext.Database.EnsureCreatedAsync(cancellationToken);
         }
 
-        EnsureBootstrapAdmin(scope.ServiceProvider, configuration);
-        ApplyLocalSeed(configuration, environment, dbContext, logger, contentRootPath);
+        await EnsureBootstrapAdminAsync(scope.ServiceProvider, configuration, cancellationToken);
+        await ApplyLocalSeedAsync(configuration, environment, dbContext, logger, contentRootPath, cancellationToken);
 
         return serviceProvider;
     }
 
-    private static void ApplyLocalSeed(
+    private static async Task ApplyLocalSeedAsync(
         IConfiguration configuration,
         IHostEnvironment environment,
         GarageFlowDbContext dbContext,
         ILogger logger,
-        string contentRootPath)
+        string contentRootPath,
+        CancellationToken cancellationToken)
     {
         var shouldAutoSeed = configuration.GetValue<bool?>("Database:AutoSeed") ?? false;
         if (!shouldAutoSeed)
@@ -90,7 +111,8 @@ public static partial class AutoMigrateGarageFlowExtensions
                 $"Configured path: '{seedScriptPath}'. Content root: '{contentRootPath}'.");
         }
 
-        dbContext.Database.ExecuteSqlRaw(File.ReadAllText(resolvedSeedScriptPath));
+        var seedScript = await File.ReadAllTextAsync(resolvedSeedScriptPath, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(seedScript, cancellationToken);
         LogLocalSeedApplied(logger, resolvedSeedScriptPath);
     }
 
@@ -120,11 +142,14 @@ public static partial class AutoMigrateGarageFlowExtensions
         return false;
     }
 
-    private static void EnsureBootstrapAdmin(IServiceProvider serviceProvider, IConfiguration configuration)
+    private static async Task EnsureBootstrapAdminAsync(
+        IServiceProvider serviceProvider,
+        IConfiguration configuration,
+        CancellationToken cancellationToken)
     {
         var dbContext = serviceProvider.GetRequiredService<GarageFlowDbContext>();
 
-        if (dbContext.Users.AsNoTracking().Any())
+        if (await dbContext.Users.AsNoTracking().AnyAsync(cancellationToken))
         {
             return;
         }
@@ -160,13 +185,14 @@ public static partial class AutoMigrateGarageFlowExtensions
         try
         {
             dbContext.Users.Add(admin);
-            dbContext.SaveChanges();
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException exception)
         {
             dbContext.ChangeTracker.Clear();
 
-            if (IsUniqueConstraintViolation(exception) || dbContext.Users.AsNoTracking().Any())
+            if (IsUniqueConstraintViolation(exception)
+                || await dbContext.Users.AsNoTracking().AnyAsync(cancellationToken))
             {
                 LogBootstrapAdminCreationSkipped(logger);
                 return;

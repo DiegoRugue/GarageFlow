@@ -20,7 +20,9 @@ public sealed class GarageFlowWebApplicationFactory(
     bool outboxEnabled = false,
     string? snsRegion = null,
     string? snsTopicArn = null,
-    IAmazonSimpleNotificationService? snsClient = null)
+    IAmazonSimpleNotificationService? snsClient = null,
+    string databaseProvider = "InMemory",
+    string? connectionString = null)
     : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = databaseName;
@@ -31,17 +33,37 @@ public sealed class GarageFlowWebApplicationFactory(
     private readonly string? _snsRegion = snsRegion;
     private readonly string? _snsTopicArn = snsTopicArn;
     private readonly IAmazonSimpleNotificationService? _snsClient = snsClient;
+    private readonly string _databaseProvider = databaseProvider;
+    private readonly string? _connectionString = connectionString;
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
         builder.ConfigureHostConfiguration(configurationBuilder =>
         {
-            configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+            var hostSettings = new Dictionary<string, string?>
             {
                 ["Integrations:Outbox:Enabled"] = _outboxEnabled.ToString(CultureInfo.InvariantCulture),
                 ["Integrations:Sns:Region"] = _snsRegion,
                 ["Integrations:Sns:TopicArn"] = _snsTopicArn
-            });
+            };
+
+            if (string.Equals(_environmentName, "Integration", StringComparison.Ordinal))
+            {
+                hostSettings["Database:Provider"] = _databaseProvider;
+                hostSettings["Database:DatabaseName"] = _databaseName;
+                hostSettings["ConnectionStrings:GarageFlow"] = _connectionString;
+                hostSettings["Auth:Jwt:Issuer"] = IntegrationTestAuthSettings.JwtIssuer;
+                hostSettings["Auth:Jwt:Audience"] = IntegrationTestAuthSettings.JwtAudience;
+                hostSettings["Auth:Jwt:Key"] = IntegrationTestAuthSettings.JwtKey;
+                hostSettings["Auth:Jwt:ExpiresMinutes"] = IntegrationTestAuthSettings.JwtExpiresMinutes.ToString(CultureInfo.InvariantCulture);
+                hostSettings["Auth:BootstrapAdmin:FullName"] = IntegrationTestAuthSettings.BootstrapAdminFullName;
+                hostSettings["Auth:BootstrapAdmin:Email"] = IntegrationTestAuthSettings.BootstrapAdminEmail;
+                hostSettings["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate;
+                hostSettings["Auth:BootstrapAdmin:Password"] = IntegrationTestAuthSettings.BootstrapAdminInitialPassword;
+                hostSettings["Webhooks:EstimateDecisions:HmacSecret"] = _estimateDecisionWebhookSecret;
+            }
+
+            configurationBuilder.AddInMemoryCollection(hostSettings);
         });
 
         return base.CreateHost(builder);
@@ -76,8 +98,9 @@ public sealed class GarageFlowWebApplicationFactory(
     {
         var settings = new Dictionary<string, string?>
         {
-            ["Database:Provider"] = "InMemory",
+            ["Database:Provider"] = _databaseProvider,
             ["Database:DatabaseName"] = _databaseName,
+            ["ConnectionStrings:GarageFlow"] = _connectionString,
             ["Auth:Jwt:Issuer"] = IntegrationTestAuthSettings.JwtIssuer,
             ["Auth:Jwt:Audience"] = IntegrationTestAuthSettings.JwtAudience,
             ["Auth:Jwt:Key"] = IntegrationTestAuthSettings.JwtKey,
