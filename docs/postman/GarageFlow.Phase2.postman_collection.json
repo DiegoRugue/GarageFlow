@@ -119,6 +119,8 @@
                   "    serviceId: '',",
                   "    existingWorkOrderId: '',",
                   "    workOrderId: '',",
+                  "    intakeCustomerId: '',",
+                  "    intakeVehicleId: '',",
                   "    estimateId: '',",
                   "    intakeServiceId: '',",
                   "    intakeInventoryItemId: '',",
@@ -922,6 +924,8 @@
                   "    pm.expect(pm.response.headers.get('Location')).to.eql('/work-orders/' + payload.workOrderId);",
                   "});",
                   "pm.collectionVariables.set('workOrderId', payload.workOrderId);",
+                  "pm.collectionVariables.set('intakeCustomerId', payload.customerId);",
+                  "pm.collectionVariables.set('intakeVehicleId', payload.vehicleId);",
                   "pm.collectionVariables.set('estimateId', payload.estimateId);",
                   "pm.collectionVariables.set('intakeServiceId', payload.serviceIds[0]);",
                   "pm.collectionVariables.set('intakeInventoryItemId', payload.inventoryItemIds[0]);"
@@ -989,6 +993,8 @@
                   "const payload = pm.response.json();",
                   "pm.test('Replay returns the exact previously captured IDs', function () {",
                   "    pm.expect(payload.workOrderId).to.eql(pm.collectionVariables.get('workOrderId'));",
+                  "    pm.expect(payload.customerId).to.eql(pm.collectionVariables.get('intakeCustomerId'));",
+                  "    pm.expect(payload.vehicleId).to.eql(pm.collectionVariables.get('intakeVehicleId'));",
                   "    pm.expect(payload.estimateId).to.eql(pm.collectionVariables.get('estimateId'));",
                   "    pm.expect(payload.serviceIds[0]).to.eql(pm.collectionVariables.get('intakeServiceId'));",
                   "    pm.expect(payload.inventoryItemIds[0]).to.eql(pm.collectionVariables.get('intakeInventoryItemId'));",
@@ -1996,6 +2002,16 @@
     },
     {
       "key": "workOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "intakeCustomerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "intakeVehicleId",
       "value": "",
       "type": "string"
     },
