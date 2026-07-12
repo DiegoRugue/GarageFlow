@@ -37,7 +37,7 @@ variable "cluster_role_arn" {
   type        = string
 
   validation {
-    condition     = can(regex("^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/.+$", var.cluster_role_arn))
+    condition     = can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]*[A-Za-z0-9+=,.@_-]$", var.cluster_role_arn))
     error_message = "cluster_role_arn must be a syntactically valid IAM role ARN."
   }
 }
@@ -47,7 +47,7 @@ variable "node_role_arn" {
   type        = string
 
   validation {
-    condition     = can(regex("^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/.+$", var.node_role_arn))
+    condition     = can(regex("^arn:[a-z0-9-]+:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]*[A-Za-z0-9+=,.@_-]$", var.node_role_arn))
     error_message = "node_role_arn must be a syntactically valid IAM role ARN."
   }
 }

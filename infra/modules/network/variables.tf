@@ -5,10 +5,14 @@ variable "availability_zones" {
   validation {
     condition = (
       length(var.availability_zones) == 2 &&
-      length(distinct(var.availability_zones)) == 2 &&
-      alltrue([for az in var.availability_zones : trimspace(az) != ""])
+      length(distinct([for az in var.availability_zones : trimspace(az)])) == 2 &&
+      alltrue([
+        for az in var.availability_zones :
+        can(regex("^([a-z]{2}(-[a-z0-9]+)+-[0-9]+)[a-z]$", trimspace(az)))
+      ]) &&
+      replace(trimspace(var.availability_zones[0]), "/[a-z]$/", "") == replace(trimspace(var.availability_zones[1]), "/[a-z]$/", "")
     )
-    error_message = "availability_zones must contain exactly two distinct, nonblank availability zone names."
+    error_message = "availability_zones must contain exactly two distinct standard availability zones from the same region."
   }
 }
 

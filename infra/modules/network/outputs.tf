@@ -9,6 +9,12 @@ output "public_subnet_ids" {
     aws_subnet.public_a.id,
     aws_subnet.public_b.id
   ]
+
+  depends_on = [
+    aws_route.public_default,
+    aws_route_table_association.public_a,
+    aws_route_table_association.public_b
+  ]
 }
 
 output "db_subnet_ids" {
