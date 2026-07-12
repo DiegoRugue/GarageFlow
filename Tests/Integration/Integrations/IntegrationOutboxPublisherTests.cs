@@ -7,6 +7,8 @@ namespace GarageFlow.Tests.Integration.Integrations;
 
 public sealed class IntegrationOutboxPublisherTests
 {
+    private static readonly TimeSpan PollObservationTimeout = TimeSpan.FromSeconds(10);
+
     [Fact]
     public void Options_ShouldExposeExactDefaultsAndRejectInvalidValues()
     {
@@ -54,7 +56,7 @@ public sealed class IntegrationOutboxPublisherTests
         });
 
         await publisher.StartAsync(CancellationToken.None);
-        await WaitUntilAsync(() => recorder.ProcessCalls >= 2, TimeSpan.FromSeconds(3));
+        await recorder.SecondPollObserved.Task.WaitAsync(PollObservationTimeout);
         await publisher.StopAsync(CancellationToken.None);
         var callsAfterStop = recorder.ProcessCalls;
         await Task.Delay(200);
@@ -84,25 +86,15 @@ public sealed class IntegrationOutboxPublisherTests
             Options.Create(options),
             NullLogger<IntegrationOutboxPublisher>.Instance);
 
-    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
-    {
-        var deadline = TimeProvider.System.GetUtcNow().Add(timeout);
-        while (!condition())
-        {
-            if (TimeProvider.System.GetUtcNow() >= deadline)
-            {
-                throw new TimeoutException("The hosted publisher did not poll within the bounded window.");
-            }
-
-            await Task.Delay(20);
-        }
-    }
-
     private sealed class RecordingProcessor(PollRecorder recorder) : IIntegrationOutboxProcessor
     {
         public Task<IntegrationOutboxProcessingResult> ProcessBatchAsync(CancellationToken cancellationToken = default)
         {
-            Interlocked.Increment(ref recorder.ProcessCalls);
+            if (Interlocked.Increment(ref recorder.ProcessCalls) >= 2)
+            {
+                recorder.SecondPollObserved.TrySetResult();
+            }
+
             return Task.FromResult(new IntegrationOutboxProcessingResult(0, 0, 0, 0));
         }
     }
@@ -111,5 +103,7 @@ public sealed class IntegrationOutboxPublisherTests
     {
         public int CreatedScopes;
         public int ProcessCalls;
+        public TaskCompletionSource SecondPollObserved { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }
