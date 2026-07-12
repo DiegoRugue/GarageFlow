@@ -86,8 +86,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$CanonicalDeliveryRoot = [System.IO.Path]::GetFullPath($PSScriptRoot)
 $MaximumProjectionCharacters = 1MB
-$ForbiddenPropertyPattern = '(?i)(credential|password|passwd|pwd|token|secret|connectionstring|apikey|accesskey|privatekey|sessiontoken|hmackey|jwtkey|raw(?:log|state|plan)|terraform(?:state|plan))'
+$ForbiddenPropertyPattern = '(?i)(credential|password|passwd|pwd|token|secret|connectionstring|apikey|accesskey|privatekey|sessiontoken|hmackey|jwtkey|rawlog|state|plan|terraformstate|terraformplan)'
 $ForbiddenValuePatterns = @(
     '(?i)-----BEGIN [A-Z ]*PRIVATE KEY-----',
     '\b(?:AKIA|ASIA)[A-Z0-9]{16}\b',
@@ -106,6 +107,61 @@ $ForbiddenValuePatterns = @(
 function Assert-Condition {
     param([bool]$Condition, [string]$Message)
     if (-not $Condition) { throw $Message }
+}
+
+function Assert-NoReparsePointChain {
+    param([string]$Path)
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $pathRoot = [System.IO.Path]::GetPathRoot($fullPath)
+    $relative = $fullPath.Substring($pathRoot.Length)
+    $current = $pathRoot
+    foreach ($segment in $relative -split '[\\/]') {
+        if ([string]::IsNullOrWhiteSpace($segment)) { continue }
+        $current = Join-Path $current $segment
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force
+            Assert-Condition (-not ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) `
+                "Canonical evidence path must not traverse a symlink or reparse point."
+        }
+    }
+}
+
+function Assert-CanonicalDeliveryPath {
+    param(
+        [AllowEmptyString()][string]$Candidate,
+        [string]$ExpectedFileName,
+        [switch]$MustExist
+    )
+
+    Assert-Condition ($ExpectedFileName -in @(
+        "phase-2-evidence.schema.json",
+        "phase-2-live-evidence.json",
+        "phase-2-evidence.json")) "Unexpected canonical evidence filename."
+    $expectedPath = [System.IO.Path]::GetFullPath((Join-Path $CanonicalDeliveryRoot $ExpectedFileName))
+    $candidatePath = if ([string]::IsNullOrWhiteSpace($Candidate)) {
+        $expectedPath
+    }
+    else {
+        [System.IO.Path]::GetFullPath($Candidate)
+    }
+    $comparison = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+    Assert-Condition ($candidatePath.Equals($expectedPath, $comparison)) `
+        "Evidence paths are restricted to the canonical docs/delivery filename for this mode."
+    Assert-NoReparsePointChain -Path $CanonicalDeliveryRoot
+    Assert-NoReparsePointChain -Path $candidatePath
+    if ($MustExist) {
+        Assert-Condition (Test-Path -LiteralPath $candidatePath -PathType Leaf) "Canonical evidence input does not exist."
+    }
+    return $expectedPath
+}
+
+function Assert-JsonBooleanTrue {
+    param([object]$Value, [string]$Location)
+
+    Assert-Condition ($Value -is [bool]) "$Location must be a JSON boolean."
+    Assert-Condition ($Value -eq $true) "$Location must be true."
+    return $true
 }
 
 function ConvertTo-UtcText {
@@ -273,7 +329,7 @@ function Assert-EvidenceSemantics {
     $destroyStarted = ConvertFrom-StrictUtcText ([string]$Evidence.destroy.run.startedAtUtc) "final evidence.destroy.run.startedAtUtc"
     $destroyCompleted = ConvertFrom-StrictUtcText ([string]$Evidence.destroy.run.completedAtUtc) "final evidence.destroy.run.completedAtUtc"
     $destroyVerified = ConvertFrom-StrictUtcText ([string]$Evidence.destroy.verifiedAtUtc) "final evidence.destroy.verifiedAtUtc"
-    $bucketVerified = ConvertFrom-StrictUtcText ([string]$Evidence.retainedStateBucket.verifiedAtUtc) "final evidence.retainedStateBucket.verifiedAtUtc"
+    $bucketVerified = ConvertFrom-StrictUtcText ([string]$Evidence.retainedBackendBucket.verifiedAtUtc) "final evidence.retainedBackendBucket.verifiedAtUtc"
     $videoVerified = ConvertFrom-StrictUtcText ([string]$Evidence.video.verifiedAtUtc) "final evidence.video.verifiedAtUtc"
     $finalized = ConvertFrom-StrictUtcText ([string]$Evidence.finalizedAtUtc) "final evidence.finalizedAtUtc"
     Assert-Condition ($captured -lt $destroyStarted -and $destroyStarted -lt $destroyCompleted) `
@@ -658,24 +714,129 @@ function New-LiveEvidence {
     }
 }
 
-function Test-AnonymousVideoReachability {
-    param([string]$Url)
+function Assert-PublicIPAddress {
+    param([System.Net.IPAddress]$Address, [string]$Location)
 
-    $null = Assert-RealUrl -Value $Url -RequireHttps $true -Location "video URL"
+    Assert-Condition ($null -ne $Address) "$Location resolved to an invalid address."
+    if ($Address.IsIPv4MappedToIPv6) {
+        Assert-PublicIPAddress -Address $Address.MapToIPv4() -Location $Location
+        return
+    }
+    Assert-Condition (-not [System.Net.IPAddress]::IsLoopback($Address)) "$Location resolved to loopback."
+    $bytes = $Address.GetAddressBytes()
+    if ($Address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+        $reserved = $bytes[0] -in @(0, 10, 127) -or $bytes[0] -ge 224 -or
+            ($bytes[0] -eq 100 -and $bytes[1] -ge 64 -and $bytes[1] -le 127) -or
+            ($bytes[0] -eq 169 -and $bytes[1] -eq 254) -or
+            ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) -or
+            ($bytes[0] -eq 192 -and $bytes[1] -eq 168) -or
+            ($bytes[0] -eq 192 -and $bytes[1] -eq 0 -and $bytes[2] -in @(0, 2)) -or
+            ($bytes[0] -eq 198 -and $bytes[1] -in @(18, 19)) -or
+            ($bytes[0] -eq 198 -and $bytes[1] -eq 51 -and $bytes[2] -eq 100) -or
+            ($bytes[0] -eq 203 -and $bytes[1] -eq 0 -and $bytes[2] -eq 113)
+        Assert-Condition (-not $reserved) "$Location resolved to a private, link-local, documentation, or reserved address."
+        return
+    }
+    $reservedV6 = $Address.Equals([System.Net.IPAddress]::IPv6Any) -or
+        $Address.Equals([System.Net.IPAddress]::IPv6None) -or
+        $Address.IsIPv6LinkLocal -or $Address.IsIPv6SiteLocal -or
+        $bytes[0] -eq 0xFF -or (($bytes[0] -band 0xFE) -eq 0xFC) -or
+        ($bytes[0] -eq 0x20 -and $bytes[1] -eq 0x01 -and $bytes[2] -eq 0x0D -and $bytes[3] -eq 0xB8)
+    Assert-Condition (-not $reservedV6) "$Location resolved to a private, link-local, documentation, or reserved IPv6 address."
+}
+
+function Resolve-PublicHostAddresses {
+    param([Uri]$Uri, [scriptblock]$Resolver)
+
+    $resolved = @(
+        if ($null -eq $Resolver) {
+            [System.Net.Dns]::GetHostAddresses($Uri.DnsSafeHost)
+        }
+        else {
+            & $Resolver $Uri.DnsSafeHost
+        }
+    )
+    Assert-Condition ($resolved.Count -gt 0 -and $resolved.Count -le 16) "Video host DNS resolution returned an invalid address count."
+    foreach ($entry in $resolved) {
+        $address = if ($entry -is [System.Net.IPAddress]) {
+            $entry
+        }
+        else {
+            $parsed = $null
+            Assert-Condition ([System.Net.IPAddress]::TryParse([string]$entry, [ref]$parsed)) `
+                "Video host resolver returned a non-IP value."
+            $parsed
+        }
+        Assert-PublicIPAddress -Address $address -Location "video host '$($Uri.DnsSafeHost)'"
+    }
+}
+
+function Invoke-AnonymousHeadersRequest {
+    param([Uri]$Uri, [ValidateSet("HEAD", "GET")][string]$Method, [scriptblock]$Invoker)
+
+    if ($null -ne $Invoker) {
+        $mockResult = & $Invoker $Uri $Method
+        Assert-Condition ($null -ne $mockResult -and $mockResult.StatusCode -is [int]) `
+            "Mock anonymous HTTP result must contain an integer StatusCode."
+        return [pscustomobject]@{
+            StatusCode = [int]$mockResult.StatusCode
+            Location = [string]$mockResult.Location
+        }
+    }
+
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $handler.AllowAutoRedirect = $false
+    $handler.UseCookies = $false
+    $handler.MaxResponseHeadersLength = 32
+    $client = [System.Net.Http.HttpClient]::new($handler, $true)
+    $client.Timeout = [TimeSpan]::FromSeconds(15)
+    $httpMethod = if ($Method -ceq "HEAD") { [System.Net.Http.HttpMethod]::Head } else { [System.Net.Http.HttpMethod]::Get }
+    $request = [System.Net.Http.HttpRequestMessage]::new($httpMethod, $Uri)
+    if ($Method -ceq "GET") {
+        $request.Headers.Range = [System.Net.Http.Headers.RangeHeaderValue]::new(0, 0)
+    }
+    $response = $null
     try {
-        $response = Invoke-WebRequest `
-            -Uri $Url `
-            -Method Head `
-            -MaximumRedirection 5 `
-            -TimeoutSec 15 `
-            -Headers @{ "User-Agent" = "GarageFlow-Evidence-Anonymous-Check" } `
-            -ErrorAction Stop
+        $response = $client.SendAsync(
+            $request,
+            [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        return [pscustomobject]@{
+            StatusCode = [int]$response.StatusCode
+            Location = if ($null -eq $response.Headers.Location) { "" } else { $response.Headers.Location.OriginalString }
+        }
     }
     catch {
-        throw "Anonymous video reachability check failed."
+        throw "Anonymous video reachability request failed."
     }
-    Assert-Condition ([int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -lt 400) `
-        "Anonymous video URL did not return a successful/redirection status."
+    finally {
+        if ($null -ne $response) { $response.Dispose() }
+        $request.Dispose()
+        $client.Dispose()
+    }
+}
+
+function Test-AnonymousVideoReachability {
+    param([string]$Url, [scriptblock]$Resolver, [scriptblock]$RequestInvoker)
+
+    $currentUri = Assert-RealUrl -Value $Url -RequireHttps $true -Location "video URL"
+    for ($redirectCount = 0; $redirectCount -le 5; $redirectCount++) {
+        $currentUri = Assert-RealUrl -Value $currentUri.AbsoluteUri -RequireHttps $true -Location "video URL/redirect"
+        Resolve-PublicHostAddresses -Uri $currentUri -Resolver $Resolver
+        $result = Invoke-AnonymousHeadersRequest -Uri $currentUri -Method "HEAD" -Invoker $RequestInvoker
+        if ($result.StatusCode -in @(405, 501)) {
+            $result = Invoke-AnonymousHeadersRequest -Uri $currentUri -Method "GET" -Invoker $RequestInvoker
+        }
+        if ($result.StatusCode -in @(301, 302, 303, 307, 308)) {
+            Assert-Condition ($redirectCount -lt 5) "Anonymous video URL exceeded five redirects."
+            Assert-Condition (-not [string]::IsNullOrWhiteSpace($result.Location)) "Anonymous video redirect omitted Location."
+            $currentUri = [Uri]::new($currentUri, $result.Location)
+            continue
+        }
+        Assert-Condition ($result.StatusCode -ge 200 -and $result.StatusCode -lt 400) `
+            "Anonymous video URL did not return a successful status."
+        return
+    }
+    throw "Anonymous video URL redirect validation did not terminate."
 }
 
 function New-FinalEvidence {
@@ -695,9 +856,20 @@ function New-FinalEvidence {
         }
     }
     $normalizedGroup = $GroupIdentifier.Trim()
-    Assert-Condition (-not [string]::IsNullOrWhiteSpace($normalizedGroup)) "Group identifier is required."
+    Assert-Condition ($normalizedGroup -match '^[A-Za-z0-9._-]{2,80}$') "Group identifier is invalid."
+    foreach ($participant in $normalizedParticipants) {
+        Assert-Condition ($participant.name -match '^\S(?:[^\r\n]{0,198}\S)?$') "Participant name is invalid."
+        Assert-Condition ($participant.identifier -match '^[A-Za-z0-9._-]{2,80}$') "Participant identifier is invalid."
+    }
+    $participantIds = @($normalizedParticipants | ForEach-Object { $_.identifier })
+    Assert-Condition (@($participantIds | Sort-Object -Unique).Count -eq $participantIds.Count) `
+        "Participant identifiers must be unique."
+    Assert-NoSensitiveEvidence -Value ([ordered]@{
+        group = $normalizedGroup
+        participants = $normalizedParticipants
+        videoUrl = $VideoUrl
+    }) -Location "Finalize local inputs"
     $null = Assert-RealUrl -Value $VideoUrl -RequireHttps $true -Location "video URL"
-    Test-AnonymousVideoReachability -Url $VideoUrl
 
     $allowedPaths = @(
         (Get-RelativeRepositoryPath $LiveEvidencePath),
@@ -738,12 +910,21 @@ function New-FinalEvidence {
         -Text (Invoke-AllowlistedProjection "AwsBucketEncryption" $bucketContext) `
         -ExpectedProperties @("algorithm") `
         -Location "retained bucket encryption"
-    $allPublicBlocks = [bool]$publicAccess.blockPublicAcls -and [bool]$publicAccess.ignorePublicAcls -and
-        [bool]$publicAccess.blockPublicPolicy -and [bool]$publicAccess.restrictPublicBuckets
+    $allPublicBlocks = (Assert-JsonBooleanTrue $publicAccess.blockPublicAcls "retained bucket blockPublicAcls") -and
+        (Assert-JsonBooleanTrue $publicAccess.ignorePublicAcls "retained bucket ignorePublicAcls") -and
+        (Assert-JsonBooleanTrue $publicAccess.blockPublicPolicy "retained bucket blockPublicPolicy") -and
+        (Assert-JsonBooleanTrue $publicAccess.restrictPublicBuckets "retained bucket restrictPublicBuckets")
     Assert-Condition ([string]$versioning.status -ceq "Enabled" -and $allPublicBlocks) `
         "Retained bucket must remain private and versioned."
     Assert-Condition ([string]$encryption.algorithm -in @("AES256", "aws:kms")) `
         "Retained bucket encryption is not approved."
+
+    $destroyCompletedAt = ConvertFrom-StrictUtcText ([string]$destroyRun.completedAtUtc) "destroy workflow completedAtUtc"
+    $videoVerifiedAt = $VideoVerifiedAtUtc.ToUniversalTime()
+    Assert-Condition ($destroyCompletedAt -le $videoVerifiedAt -and $videoVerifiedAt -le [DateTimeOffset]::UtcNow) `
+        "Anonymous video verification timestamp must follow destroy completion and cannot be in the future."
+
+    Test-AnonymousVideoReachability -Url $VideoUrl
 
     $verifiedNow = ConvertTo-UtcText ([DateTimeOffset]::UtcNow)
     return [ordered]@{
@@ -777,7 +958,7 @@ function New-FinalEvidence {
                 vpcAbsent = $true
             }
         }
-        retainedStateBucket = [ordered]@{
+        retainedBackendBucket = [ordered]@{
             status = "retained-private-versioned"
             accessible = $true
             versioningStatus = [string]$versioning.status
@@ -788,7 +969,10 @@ function New-FinalEvidence {
     }
 }
 
-$resolvedSchemaPath = (Resolve-Path -LiteralPath $SchemaPath -ErrorAction Stop).Path
+$resolvedSchemaPath = Assert-CanonicalDeliveryPath `
+    -Candidate $SchemaPath `
+    -ExpectedFileName "phase-2-evidence.schema.json" `
+    -MustExist
 $schemaItem = Get-Item -LiteralPath $resolvedSchemaPath
 Assert-Condition ($schemaItem.Length -gt 0 -and $schemaItem.Length -le 1MB) "Evidence schema size is invalid."
 $null = Get-Content -LiteralPath $resolvedSchemaPath -Raw | ConvertFrom-Json -Depth 100
@@ -799,15 +983,15 @@ if ($ValidateOnly) {
     return
 }
 
-$effectiveOutputPath = if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
-    [System.IO.Path]::GetFullPath($OutputPath)
+$expectedOutputFileName = if ($CaptureLive) { "phase-2-live-evidence.json" } else { "phase-2-evidence.json" }
+$effectiveOutputPath = Assert-CanonicalDeliveryPath -Candidate $OutputPath -ExpectedFileName $expectedOutputFileName
+$resolvedLiveEvidencePath = if ($Finalize) {
+    Assert-CanonicalDeliveryPath `
+        -Candidate $LiveEvidencePath `
+        -ExpectedFileName "phase-2-live-evidence.json" `
+        -MustExist
 }
-elseif ($CaptureLive) {
-    Join-Path $PSScriptRoot "phase-2-live-evidence.json"
-}
-else {
-    Join-Path $PSScriptRoot "phase-2-evidence.json"
-}
+else { "" }
 
 $action = if ($CaptureLive) { "Capture validated live Phase 2 evidence" } else { "Finalize validated Phase 2 evidence" }
 if (-not $PSCmdlet.ShouldProcess($effectiveOutputPath, $action)) { return }
@@ -817,7 +1001,7 @@ if ($CaptureLive) {
     $evidence = New-LiveEvidence -EffectiveOutputPath $effectiveOutputPath
 }
 else {
-    $live = Read-Evidence -Path $LiveEvidencePath -EffectiveSchemaPath $resolvedSchemaPath -ExpectedType "live"
+    $live = Read-Evidence -Path $resolvedLiveEvidencePath -EffectiveSchemaPath $resolvedSchemaPath -ExpectedType "live"
     $evidence = New-FinalEvidence -LiveEvidence $live -EffectiveOutputPath $effectiveOutputPath
 }
 

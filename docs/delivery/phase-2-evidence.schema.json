@@ -14,7 +14,7 @@
     "safePropertyName": {
       "type": "string",
       "not": {
-        "pattern": "([Cc]redential|[Pp]assword|[Pp]asswd|[Pp]wd|[Tt]oken|[Ss]ecret|[Cc]onnection[Ss]tring|[Aa]pi[Kk]ey|[Aa]ccess[Kk]ey|[Pp]rivate[Kk]ey|[Ss]ession[Tt]oken|[Hh]mac[Kk]ey|[Jj]wt[Kk]ey|[Rr]aw(?:[Ll]og|[Ss]tate|[Pp]lan)|[Tt]erraform(?:[Ss]tate|[Pp]lan))"
+        "pattern": "([Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Pp][Ww][Dd]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][Ss][Tt][Rr][Ii][Nn][Gg]|[Aa][Pp][Ii][Kk][Ee][Yy]|[Aa][Cc][Cc][Ee][Ss][Ss][Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][Tt][Oo][Kk][Ee][Nn]|[Hh][Mm][Aa][Cc][Kk][Ee][Yy]|[Jj][Ww][Tt][Kk][Ee][Yy]|[Rr][Aa][Ww][Ll][Oo][Gg]|[Ss][Tt][Aa][Tt][Ee]|[Pp][Ll][Aa][Nn]|[Tt][Ee][Rr][Rr][Aa][Ff][Oo][Rr][Mm](?:[Ss][Tt][Aa][Tt][Ee]|[Pp][Ll][Aa][Nn]))"
       }
     },
     "boundedText": {
@@ -718,7 +718,7 @@
         }
       }
     },
-    "retainedStateBucket": {
+    "retainedBackendBucket": {
       "type": "object",
       "additionalProperties": false,
       "propertyNames": {
@@ -772,7 +772,7 @@
         "liveEvidence",
         "qualityGateRun",
         "destroy",
-        "retainedStateBucket"
+        "retainedBackendBucket"
       ],
       "properties": {
         "schemaVersion": {
@@ -821,8 +821,8 @@
         "destroy": {
           "$ref": "#/$defs/destroy"
         },
-        "retainedStateBucket": {
-          "$ref": "#/$defs/retainedStateBucket"
+        "retainedBackendBucket": {
+          "$ref": "#/$defs/retainedBackendBucket"
         }
       }
     }
