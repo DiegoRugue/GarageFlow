@@ -53,6 +53,11 @@ public sealed class EstimateDecisionWebhookE2eTests(E2eApiFixture fixture)
         Assert.Equal(1, snapshot.InboxCount);
         var outbox = Assert.Single(snapshot.Outbox);
         Assert.Equal(WorkOrderStatusChangedIntegrationEvent.EventKey, outbox.EventKey);
+        Assert.Equal(0, outbox.AttemptCount);
+        Assert.Null(outbox.ProcessedAt);
+        Assert.Null(outbox.LeaseId);
+        Assert.Null(outbox.LeaseExpiresAt);
+        Assert.Null(outbox.LastError);
         var notification = IntegrationEventJson.Deserialize<WorkOrderStatusChangedIntegrationEvent>(outbox.Payload);
         Assert.NotNull(notification);
         Assert.Equal(setup.WorkOrderId, notification.WorkOrderId);
@@ -76,16 +81,23 @@ public sealed class EstimateDecisionWebhookE2eTests(E2eApiFixture fixture)
         var body = CreateBody(eventId, setup.WorkOrderId, setup.EstimateId, "Rejected");
         using var client = _fixture.CreateClient();
 
-        using var first = await SendSignedAsync(client, body);
-        using var duplicate = await SendSignedAsync(client, body);
+        Assert.Equal(InitialStock - ReservedQuantity, await ReadStockAsync(setup.InventoryItemId!.Value));
 
+        using var first = await SendSignedAsync(client, body);
         Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        var afterFirst = await ReadSnapshotAsync(setup.WorkOrderId, eventId);
+        Assert.Equal(WorkOrderStatus.Diagnosing, afterFirst.Status);
+        Assert.Equal(1, afterFirst.InboxCount);
+        Assert.Single(afterFirst.Outbox);
+        Assert.Equal(InitialStock, await ReadStockAsync(setup.InventoryItemId.Value));
+
+        using var duplicate = await SendSignedAsync(client, body);
         Assert.Equal(HttpStatusCode.NoContent, duplicate.StatusCode);
-        var snapshot = await ReadSnapshotAsync(setup.WorkOrderId, eventId);
-        Assert.Equal(WorkOrderStatus.Diagnosing, snapshot.Status);
-        Assert.Equal(1, snapshot.InboxCount);
-        Assert.Single(snapshot.Outbox);
-        Assert.Equal(InitialStock, await ReadStockAsync(setup.InventoryItemId!.Value));
+        var afterDuplicate = await ReadSnapshotAsync(setup.WorkOrderId, eventId);
+        Assert.Equal(WorkOrderStatus.Diagnosing, afterDuplicate.Status);
+        Assert.Equal(1, afterDuplicate.InboxCount);
+        Assert.Single(afterDuplicate.Outbox);
+        Assert.Equal(InitialStock, await ReadStockAsync(setup.InventoryItemId.Value));
     }
 
     [Fact]
