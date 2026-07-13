@@ -41,7 +41,7 @@ resource "aws_db_instance" "this" {
   performance_insights_enabled = false
   deletion_protection          = false
   skip_final_snapshot          = true
-  backup_retention_period      = 0
+  backup_retention_period      = 7
   apply_immediately            = true
 
   db_name  = "garageflow"
