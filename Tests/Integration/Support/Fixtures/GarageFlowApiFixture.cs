@@ -8,12 +8,11 @@ namespace GarageFlow.Tests.Integration.Support.Fixtures;
 public sealed class GarageFlowApiFixture : IAsyncLifetime
 {
     private readonly ConcurrentBag<GarageFlowWebApplicationFactory> _factories = [];
-    private int _databaseSequence;
+    private readonly string _databaseName = $"garageflow-tests-{Guid.NewGuid():N}";
 
     public HttpClient CreateClient(bool disableAutoMigrate = false)
     {
-        var databaseName = $"garageflow-tests-{Interlocked.Increment(ref _databaseSequence):D4}-{Guid.NewGuid():N}";
-        var factory = new GarageFlowWebApplicationFactory(databaseName, disableAutoMigrate);
+        var factory = new GarageFlowWebApplicationFactory(_databaseName, disableAutoMigrate);
 
         _factories.Add(factory);
         return factory.CreateClient();
@@ -21,8 +20,7 @@ public sealed class GarageFlowApiFixture : IAsyncLifetime
 
     public HttpClient CreateClientWithScope(out IServiceScope scope)
     {
-        var databaseName = $"garageflow-tests-{Interlocked.Increment(ref _databaseSequence):D4}-{Guid.NewGuid():N}";
-        var factory = new GarageFlowWebApplicationFactory(databaseName);
+        var factory = new GarageFlowWebApplicationFactory(_databaseName);
         _factories.Add(factory);
         var client = factory.CreateClient();
         scope = factory.Services.CreateScope();

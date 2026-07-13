@@ -40,30 +40,7 @@ public sealed class GarageFlowWebApplicationFactory(
     {
         builder.ConfigureHostConfiguration(configurationBuilder =>
         {
-            var hostSettings = new Dictionary<string, string?>
-            {
-                ["Integrations:Outbox:Enabled"] = _outboxEnabled.ToString(CultureInfo.InvariantCulture),
-                ["Integrations:Sns:Region"] = _snsRegion,
-                ["Integrations:Sns:TopicArn"] = _snsTopicArn
-            };
-
-            if (string.Equals(_environmentName, "Integration", StringComparison.Ordinal))
-            {
-                hostSettings["Database:Provider"] = _databaseProvider;
-                hostSettings["Database:DatabaseName"] = _databaseName;
-                hostSettings["ConnectionStrings:GarageFlow"] = _connectionString;
-                hostSettings["Auth:Jwt:Issuer"] = IntegrationTestAuthSettings.JwtIssuer;
-                hostSettings["Auth:Jwt:Audience"] = IntegrationTestAuthSettings.JwtAudience;
-                hostSettings["Auth:Jwt:Key"] = IntegrationTestAuthSettings.JwtKey;
-                hostSettings["Auth:Jwt:ExpiresMinutes"] = IntegrationTestAuthSettings.JwtExpiresMinutes.ToString(CultureInfo.InvariantCulture);
-                hostSettings["Auth:BootstrapAdmin:FullName"] = IntegrationTestAuthSettings.BootstrapAdminFullName;
-                hostSettings["Auth:BootstrapAdmin:Email"] = IntegrationTestAuthSettings.BootstrapAdminEmail;
-                hostSettings["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate;
-                hostSettings["Auth:BootstrapAdmin:Password"] = IntegrationTestAuthSettings.BootstrapAdminInitialPassword;
-                hostSettings["Webhooks:EstimateDecisions:HmacSecret"] = _estimateDecisionWebhookSecret;
-            }
-
-            configurationBuilder.AddInMemoryCollection(hostSettings);
+            configurationBuilder.AddInMemoryCollection(BuildSettings());
         });
 
         return base.CreateHost(builder);
