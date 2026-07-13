@@ -1,5 +1,6 @@
 .worktrees/
 .superpowers/
+/docs/entrega-final/
 
 # .NET build outputs
 **/bin/

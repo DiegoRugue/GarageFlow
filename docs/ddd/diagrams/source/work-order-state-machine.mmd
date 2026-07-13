@@ -1,27 +1,24 @@
----
-title: Ciclo de vida da ordem de serviço
----
 stateDiagram-v2
-    [*] --> Received: Abrir ordem de serviço
-    Received: Recebida / Received
-    Diagnosing: Diagnóstico / Diagnosing
+    [*] --> Created: Criar OS
+    Created: Recebida / Created
+    Diagnosing: Em diagnóstico / Diagnosing
     WaitingApproval: Aguardando aprovação / WaitingApproval
-    InProgress: Execução / InProgress
+    Approved: Orçamento aprovado / Approved
+    InProgress: Em execução / InProgress
     Completed: Finalizada / Completed
     Delivered: Entregue / Delivered
     Cancelled: Cancelada / Cancelled
 
-    Received --> Diagnosing: Iniciar diagnóstico
-    Received --> Diagnosing: Submeter orçamento diretamente
+    Created --> Diagnosing: Iniciar diagnóstico
+    Created --> Diagnosing: Submeter orçamento sem diagnóstico prévio
     Diagnosing --> WaitingApproval: Submeter orçamento
-    WaitingApproval --> InProgress: Cliente aprova o orçamento
-    WaitingApproval --> Diagnosing: Cliente rejeita (Estimate = Rejected)
-    InProgress --> Completed: Concluir todos os serviços aprovados
-    Completed --> Delivered: Entregar veículo
-
-    Received --> Cancelled: Cancelar
+    Created --> Cancelled: Cancelar
     Diagnosing --> Cancelled: Cancelar
+    WaitingApproval --> Approved: Cliente aprova orçamento
     WaitingApproval --> Cancelled: Cancelar
-    InProgress --> Cancelled: Cancelar
+    Approved --> InProgress: Iniciar execução ou iniciar serviço
+    Approved --> Cancelled: Cancelar
+    InProgress --> Completed: Todos os serviços aprovados concluídos
+    Completed --> Delivered: Entregar veículo
     Cancelled --> [*]
     Delivered --> [*]
