@@ -12,6 +12,7 @@ using GarageFlow.Adapters.Infrastructure.DataAccess;
 using GarageFlow.Application.Common.Behaviors;
 using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.WorkOrders.Common;
+using GarageFlow.Application.WorkOrders.UseCases.CreateWorkOrderIntake;
 using GarageFlow.Host.Middlewares;
 using GarageFlow.Host.Health;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -26,6 +27,7 @@ builder.Services.AddMediator(options =>
 });
 builder.Services.AddScoped<IDomainEventDispatcher, MediatorDomainEventDispatcher>();
 builder.Services.AddScoped<EstimateDecisionProcessor>();
+builder.Services.AddScoped<ResolveVehicleReferencesHandler>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<EstimateDecisionWebhookSignatureValidator>();
 builder.Services.AddOptions<EstimateDecisionWebhookOptions>()
@@ -45,7 +47,6 @@ if (args.Contains("--migrate-only", StringComparer.Ordinal))
 {
     await app.Services.MigrateGarageFlowAsync(
         app.Configuration,
-        app.Environment,
         app.Environment.ContentRootPath);
     return;
 }
@@ -108,4 +109,9 @@ static bool IsValidWebhookSecret(string? secret, IHostEnvironment environment)
         && !secret.Contains("CHANGEME", StringComparison.OrdinalIgnoreCase);
 }
 
-public partial class Program;
+public partial class Program
+{
+    protected Program()
+    {
+    }
+}

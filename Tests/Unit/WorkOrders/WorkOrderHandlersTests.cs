@@ -657,8 +657,7 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
-            workOrderRepositoryMock.Object,
-            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
+            workOrderRepositoryMock.Object);
 
         var result = await handler.Handle(
             new ApproveMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -712,8 +711,7 @@ public class WorkOrderHandlersTests
 
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
-            workOrderRepositoryMock.Object,
-            CreateEstimateDecisionProcessor());
+            workOrderRepositoryMock.Object);
 
         var result = await handler.Handle(
             new ApproveMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -750,8 +748,7 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
-            workOrderRepositoryMock.Object,
-            CreateEstimateDecisionProcessor());
+            workOrderRepositoryMock.Object);
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(

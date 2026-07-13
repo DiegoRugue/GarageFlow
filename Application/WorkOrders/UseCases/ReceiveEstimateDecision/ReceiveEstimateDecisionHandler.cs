@@ -58,7 +58,7 @@ public sealed class ReceiveEstimateDecisionHandler(
 
         if (input.Decision == ApprovedDecision)
         {
-            _processor.Approve(workOrder, input.EstimateId);
+            workOrder.ApproveEstimate(input.EstimateId);
         }
         else
         {

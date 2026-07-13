@@ -38,7 +38,6 @@ public static partial class AutoMigrateGarageFlowExtensions
 
         return await serviceProvider.MigrateGarageFlowAsync(
             configuration,
-            environment,
             contentRootPath,
             cancellationToken);
     }
@@ -46,13 +45,11 @@ public static partial class AutoMigrateGarageFlowExtensions
     public static async Task<IServiceProvider> MigrateGarageFlowAsync(
         this IServiceProvider serviceProvider,
         IConfiguration configuration,
-        IHostEnvironment environment,
         string contentRootPath,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
         ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentNullException.ThrowIfNull(environment);
         ArgumentException.ThrowIfNullOrWhiteSpace(contentRootPath);
 
         await using var scope = serviceProvider.CreateAsyncScope();
@@ -71,14 +68,13 @@ public static partial class AutoMigrateGarageFlowExtensions
         }
 
         await EnsureBootstrapAdminAsync(scope.ServiceProvider, configuration, cancellationToken);
-        await ApplyLocalSeedAsync(configuration, environment, dbContext, logger, contentRootPath, cancellationToken);
+        await ApplyLocalSeedAsync(configuration, dbContext, logger, contentRootPath, cancellationToken);
 
         return serviceProvider;
     }
 
     private static async Task ApplyLocalSeedAsync(
         IConfiguration configuration,
-        IHostEnvironment environment,
         GarageFlowDbContext dbContext,
         ILogger logger,
         string contentRootPath,

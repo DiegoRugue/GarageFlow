@@ -23,9 +23,7 @@ public sealed class CreateWorkOrderIntakeHandler(
     IWorkOrderIntakeRequestStore requestStore,
     ICustomerRepository customerRepository,
     IVehicleRepository vehicleRepository,
-    IVehicleBrandRepository brandRepository,
-    IVehicleModelRepository modelRepository,
-    IVehicleColorRepository colorRepository,
+    ResolveVehicleReferencesHandler vehicleReferenceResolver,
     IServiceRepository serviceRepository,
     IInventoryItemRepository inventoryItemRepository,
     IWorkOrderRepository workOrderRepository)
@@ -35,9 +33,8 @@ public sealed class CreateWorkOrderIntakeHandler(
     private readonly IWorkOrderIntakeRequestStore _requestStore = requestStore ?? throw new ArgumentNullException(nameof(requestStore));
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
     private readonly IVehicleRepository _vehicleRepository = vehicleRepository ?? throw new ArgumentNullException(nameof(vehicleRepository));
-    private readonly IVehicleBrandRepository _brandRepository = brandRepository ?? throw new ArgumentNullException(nameof(brandRepository));
-    private readonly IVehicleModelRepository _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
-    private readonly IVehicleColorRepository _colorRepository = colorRepository ?? throw new ArgumentNullException(nameof(colorRepository));
+    private readonly ResolveVehicleReferencesHandler _vehicleReferenceResolver = vehicleReferenceResolver
+        ?? throw new ArgumentNullException(nameof(vehicleReferenceResolver));
     private readonly IServiceRepository _serviceRepository = serviceRepository ?? throw new ArgumentNullException(nameof(serviceRepository));
     private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
@@ -77,26 +74,11 @@ public sealed class CreateWorkOrderIntakeHandler(
             throw new BusinessRuleViolationException("A vehicle with the same license plate already exists.");
         }
 
-        var brand = await _brandRepository.GetByNameAsync(payload.Brand, cancellationToken);
-        if (brand is null)
-        {
-            brand = VehicleBrand.Create(payload.Brand.Value);
-            await _brandRepository.AddAsync(brand, cancellationToken);
-        }
-
-        var model = await _modelRepository.GetByNameAsync(brand.Id, payload.Model, cancellationToken);
-        if (model is null)
-        {
-            model = VehicleModel.Create(brand.Id, payload.Model.Value);
-            await _modelRepository.AddAsync(model, cancellationToken);
-        }
-
-        var color = await _colorRepository.GetByNameAsync(payload.Color, cancellationToken);
-        if (color is null)
-        {
-            color = VehicleColor.Create(payload.Color.Value);
-            await _colorRepository.AddAsync(color, cancellationToken);
-        }
+        var references = await _vehicleReferenceResolver.ResolveAsync(
+            payload.Brand,
+            payload.Model,
+            payload.Color,
+            cancellationToken);
 
         var customer = Customer.Create(payload.TaxDocument, payload.FullName, payload.Email, payload.PhoneNumber);
         await _customerRepository.AddAsync(customer, cancellationToken);
@@ -104,9 +86,9 @@ public sealed class CreateWorkOrderIntakeHandler(
         var vehicle = Vehicle.Create(
             customer.Id,
             payload.Year,
-            brand.Id,
-            model.Id,
-            color.Id,
+            references.Brand.Id,
+            references.Model.Id,
+            references.Color.Id,
             payload.Plate);
         await _vehicleRepository.AddAsync(vehicle, cancellationToken);
 

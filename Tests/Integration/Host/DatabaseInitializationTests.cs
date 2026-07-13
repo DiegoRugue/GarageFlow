@@ -36,7 +36,6 @@ public sealed class DatabaseInitializationTests
 
         var returnedServices = await services.MigrateGarageFlowAsync(
             configuration,
-            CreateEnvironment(),
             Directory.GetCurrentDirectory());
 
         Assert.Same(services, returnedServices);
@@ -53,8 +52,8 @@ public sealed class DatabaseInitializationTests
         await using var services = CreateServiceProvider(root);
         var configuration = CreateConfiguration(autoMigrate: false);
 
-        await services.MigrateGarageFlowAsync(configuration, CreateEnvironment(), Directory.GetCurrentDirectory());
-        await services.MigrateGarageFlowAsync(configuration, CreateEnvironment(), Directory.GetCurrentDirectory());
+        await services.MigrateGarageFlowAsync(configuration, Directory.GetCurrentDirectory());
+        await services.MigrateGarageFlowAsync(configuration, Directory.GetCurrentDirectory());
 
         await using var scope = services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<GarageFlowDbContext>();
@@ -71,7 +70,9 @@ public sealed class DatabaseInitializationTests
             autoSeed: false,
             seedScriptPath: "this-file-must-not-exist.sql");
 
-        await services.MigrateGarageFlowAsync(configuration, CreateEnvironment(), Directory.GetCurrentDirectory());
+        var returnedServices = await services.MigrateGarageFlowAsync(configuration, Directory.GetCurrentDirectory());
+
+        Assert.Same(services, returnedServices);
     }
 
     [Fact]
@@ -84,7 +85,6 @@ public sealed class DatabaseInitializationTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => services.MigrateGarageFlowAsync(
             CreateConfiguration(autoMigrate: false),
-            CreateEnvironment(),
             Directory.GetCurrentDirectory(),
             cancellation.Token));
     }

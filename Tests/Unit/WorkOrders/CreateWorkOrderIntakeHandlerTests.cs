@@ -325,9 +325,10 @@ public sealed class CreateWorkOrderIntakeHandlerTests
                 RequestStore.Object,
                 CustomerRepository.Object,
                 VehicleRepository.Object,
-                BrandRepository.Object,
-                ModelRepository.Object,
-                ColorRepository.Object,
+                new ResolveVehicleReferencesHandler(
+                    BrandRepository.Object,
+                    ModelRepository.Object,
+                    ColorRepository.Object),
                 ServiceRepository.Object,
                 InventoryRepository.Object,
                 WorkOrderRepository.Object);

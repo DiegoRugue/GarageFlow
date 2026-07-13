@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using GarageFlow.Application.InventoryItems.Ports;
 using GarageFlow.Domain.WorkOrders.Entities;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
@@ -10,13 +9,6 @@ public sealed class EstimateDecisionProcessor(IInventoryItemRepository inventory
 {
     private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository
         ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
-
-    [SuppressMessage(
-        "Performance",
-        "CA1822:Mark members as static",
-        Justification = "Approval and rejection intentionally share the injected decision processor contract.")]
-    public void Approve(WorkOrder workOrder, EstimateId estimateId) =>
-        workOrder.ApproveEstimate(estimateId);
 
     public Task RejectAsync(
         WorkOrder workOrder,

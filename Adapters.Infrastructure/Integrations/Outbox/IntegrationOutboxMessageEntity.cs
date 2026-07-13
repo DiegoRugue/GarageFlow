@@ -31,8 +31,8 @@ public sealed class IntegrationOutboxMessageEntity
     public string? CorrelationId { get; private set; }
     public int AttemptCount { get; private set; }
     public DateTime NextAttemptAt { get; private set; }
-    public DateTime? ProcessedAt { get; private set; }
-    public string? LastError { get; private set; }
+    public DateTime? ProcessedAt { get; internal set; }
+    public string? LastError { get; internal set; }
     public Guid? LeaseId { get; private set; }
     public DateTime? LeaseExpiresAt { get; private set; }
 
