@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using GarageFlow.Domain.InventoryItems.Enums;
@@ -36,15 +37,15 @@ internal static class IntakePayloadCanonicalizer
             services = payload.Services.Select(service => new
             {
                 description = service.Description.Value,
-                price = service.Price.Value
+                price = NormalizeDecimal(service.Price.Value)
             }),
             inventoryItems = payload.InventoryItems.Select(item => new
             {
                 name = item.Name.Value,
                 description = item.Description.Value,
                 type = item.Type.ToString(),
-                cost = item.Cost.Value,
-                price = item.Price.Value,
+                cost = NormalizeDecimal(item.Cost.Value),
+                price = NormalizeDecimal(item.Price.Value),
                 stockQuantity = item.StockQuantity.Value,
                 quantity = item.Quantity.Value
             })
@@ -53,6 +54,9 @@ internal static class IntakePayloadCanonicalizer
         var json = JsonSerializer.SerializeToUtf8Bytes(canonicalPayload, JsonOptions);
         return Convert.ToHexString(SHA256.HashData(json)).ToLowerInvariant();
     }
+
+    private static decimal NormalizeDecimal(decimal value) =>
+        decimal.Parse(value.ToString("G29", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
 }
 
 internal sealed record ValidatedIntakePayload(

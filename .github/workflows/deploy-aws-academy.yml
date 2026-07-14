@@ -151,14 +151,13 @@ jobs:
             }
           done
 
-          rds_offering_count="$(aws rds describe-orderable-db-instance-options \
+          rds_pg17_versions="$(aws rds describe-orderable-db-instance-options \
             --region us-east-1 \
             --engine postgres \
-            --engine-version 17 \
             --db-instance-class db.t3.micro \
-            --query 'length(OrderableDBInstanceOptions)' \
+            --query "OrderableDBInstanceOptions[?starts_with(EngineVersion, '17.')].EngineVersion" \
             --output text)"
-          (( rds_offering_count > 0 )) || {
+          [[ -n "${rds_pg17_versions}" ]] || {
             echo 'db.t3.micro with PostgreSQL 17 is unavailable in us-east-1.' >&2
             exit 1
           }
