@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -97,7 +98,7 @@ public sealed class EstimateDecisionInboxPostgresE2eTests(E2eApiFixture fixture)
 
     private static async Task<HttpResponseMessage> SendSignedAsync(HttpClient client, byte[] body)
     {
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
         var prefix = Encoding.ASCII.GetBytes(timestamp + ".");
         var signed = new byte[prefix.Length + body.Length];
         prefix.CopyTo(signed, 0);

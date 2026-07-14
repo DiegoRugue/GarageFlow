@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -126,7 +127,9 @@ public sealed class EstimateDecisionWebhookApiTests(GarageFlowApiFixture fixture
         {
             Content = new ByteArrayContent(Encoding.UTF8.GetBytes("{}"))
         };
-        request.Headers.Add("X-GarageFlow-Timestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
+        request.Headers.Add(
+            "X-GarageFlow-Timestamp",
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture));
         request.Headers.Add("X-GarageFlow-Signature", new string('A', 64));
 
         using var response = await client.SendAsync(request);
@@ -151,7 +154,8 @@ public sealed class EstimateDecisionWebhookApiTests(GarageFlowApiFixture fixture
         byte[] body,
         long? unixTimestamp = null)
     {
-        var timestamp = (unixTimestamp ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds()).ToString();
+        var timestamp = (unixTimestamp ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            .ToString(CultureInfo.InvariantCulture);
         var prefix = Encoding.ASCII.GetBytes(timestamp + ".");
         var signed = new byte[prefix.Length + body.Length];
         prefix.CopyTo(signed, 0);
