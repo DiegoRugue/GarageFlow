@@ -28,6 +28,30 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Ensure complete Git history for SonarQube
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -Eeuo pipefail
+          target_branch="${BASE_REF:-${DEFAULT_BRANCH:-main}}"
+          git check-ref-format --branch "${target_branch}" >/dev/null
+
+          if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+            git fetch --no-tags --prune --unshallow origin
+          fi
+
+          git fetch --no-tags --prune origin \
+            "+refs/heads/${target_branch}:refs/remotes/origin/${target_branch}"
+          git rev-parse --verify --quiet \
+            "refs/remotes/origin/${target_branch}^{commit}" >/dev/null
+
+          if [[ "$(git rev-parse --is-shallow-repository)" != "false" ]]; then
+            echo 'Git repository remains shallow after history preparation.' >&2
+            exit 1
+          fi
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
@@ -95,6 +119,7 @@ jobs:
           /d:sonar.host.url="${SONAR_HOST_URL}"
           /d:sonar.token="${SONAR_TOKEN}"
           /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
+          /d:sonar.python.version="3.12"
           /d:sonar.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql"
           /d:sonar.coverage.exclusions="**/Tests/E2E/**,**/Adapters.Infrastructure/DataAccess/Migrations/**,**/Adapters.Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Adapters.Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs"
           /d:sonar.cpd.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql,**/Adapters.Infrastructure/DataAccess/Migrations/**"
