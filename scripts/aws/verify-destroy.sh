@@ -108,8 +108,7 @@ done
 
 elbv2_json="$(require_api_json 'ELBv2 load balancers' aws elbv2 describe-load-balancers \
   --region "${AWS_REGION}" --output json)"
-if ! jq -e 'type == "object" and (.LoadBalancers | type == "array") and all(.LoadBalancers[]; (.LoadBalancerArn | type == "string"))' \
-  >/dev/null <<<"${elbv2_json}"; then
+if ! jq -e 'type == "object" and (.LoadBalancers | type == "array") and all(.LoadBalancers[]; (.LoadBalancerArn | type == "string"))' >/dev/null <<<"${elbv2_json}"; then
   echo 'Verification failed closed: ELBv2 returned malformed load-balancer JSON.' >&2
   exit 1
 fi

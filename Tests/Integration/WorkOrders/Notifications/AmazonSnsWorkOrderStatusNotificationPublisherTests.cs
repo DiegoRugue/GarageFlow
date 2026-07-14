@@ -90,7 +90,7 @@ public sealed class AmazonSnsWorkOrderStatusNotificationPublisherTests
     [Theory]
     [MemberData(nameof(InvalidNotifications))]
     public async Task PublishAsync_ShouldRejectInvalidNotificationBeforeCallingClient(
-        Guid workOrderId,
+        string workOrderId,
         string? previousStatus,
         string? currentStatus,
         DateTime occurredAt)
@@ -98,7 +98,7 @@ public sealed class AmazonSnsWorkOrderStatusNotificationPublisherTests
         var client = new Mock<IAmazonSimpleNotificationService>(MockBehavior.Strict);
         var publisher = CreatePublisher(client.Object);
         var notification = new WorkOrderStatusChangedIntegrationEvent(
-            workOrderId,
+            Guid.Parse(workOrderId),
             previousStatus!,
             currentStatus!,
             occurredAt);
@@ -130,14 +130,14 @@ public sealed class AmazonSnsWorkOrderStatusNotificationPublisherTests
         client.VerifyAll();
     }
 
-    public static TheoryData<Guid, string?, string?, DateTime> InvalidNotifications()
+    public static TheoryData<string, string?, string?, DateTime> InvalidNotifications()
     {
-        var validWorkOrderId = Guid.Parse("db5e8a33-0d8a-4d75-b177-e570fc748c1d");
+        const string validWorkOrderId = "db5e8a33-0d8a-4d75-b177-e570fc748c1d";
         var validOccurredAt = new DateTime(2026, 7, 12, 14, 25, 36, DateTimeKind.Utc);
 
-        return new TheoryData<Guid, string?, string?, DateTime>
+        return new TheoryData<string, string?, string?, DateTime>
         {
-            { Guid.Empty, "Created", "Approved", validOccurredAt },
+            { "00000000-0000-0000-0000-000000000000", "Created", "Approved", validOccurredAt },
             { validWorkOrderId, null, "Approved", validOccurredAt },
             { validWorkOrderId, "", "Approved", validOccurredAt },
             { validWorkOrderId, "   ", "Approved", validOccurredAt },

@@ -25,14 +25,17 @@ public sealed class ReceiveEstimateDecisionHandlerTests
 {
     private const string ValidPayloadHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1825:Avoid zero-length array allocations",
+        Justification = "The xUnit TheoryData collection expression contains test cases and does not create an empty array.")]
     public static TheoryData<string> InvalidPayloadHashes =>
-    new()
-    {
+    [
         ValidPayloadHash.ToUpperInvariant(),
         $"{ValidPayloadHash[..63]}g",
         ValidPayloadHash[..63],
         $"{ValidPayloadHash}0"
-    };
+    ];
 
     [Fact]
     public void Command_UsesEventIdAsDFormatCorrelationId()
