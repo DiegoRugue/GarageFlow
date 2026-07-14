@@ -26,12 +26,13 @@ public sealed class ReceiveEstimateDecisionHandlerTests
     private const string ValidPayloadHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     public static TheoryData<string> InvalidPayloadHashes =>
-    [
+    new()
+    {
         ValidPayloadHash.ToUpperInvariant(),
         $"{ValidPayloadHash[..63]}g",
         ValidPayloadHash[..63],
         $"{ValidPayloadHash}0"
-    ];
+    };
 
     [Fact]
     public void Command_UsesEventIdAsDFormatCorrelationId()
