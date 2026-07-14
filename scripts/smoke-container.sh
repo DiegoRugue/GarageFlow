@@ -156,7 +156,8 @@ on_error() {
 trap 'on_error "$?"' ERR
 
 fail() {
-  echo "$1" >&2
+  local message="$1"
+  echo "${message}" >&2
   return 1
 }
 

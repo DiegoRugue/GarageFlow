@@ -3,7 +3,8 @@ set -Eeuo pipefail
 umask 077
 
 fail() {
-  echo "AWS smoke failed: $1" >&2
+  local message="$1"
+  echo "AWS smoke failed: ${message}" >&2
   exit 1
 }
 
