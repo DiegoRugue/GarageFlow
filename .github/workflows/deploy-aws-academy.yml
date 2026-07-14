@@ -119,7 +119,6 @@ jobs:
           support_status="$(aws eks describe-cluster-versions \
             --region us-east-1 \
             --cluster-versions "${EKS_VERSION}" \
-            --version-status STANDARD_SUPPORT \
             --query 'clusterVersions[0].versionStatus' \
             --output text)"
           [[ "${support_status}" == 'STANDARD_SUPPORT' ]] || {
@@ -173,12 +172,7 @@ jobs:
             exit 1
           }
 
-          standard_vcpu_quota="$(aws service-quotas get-service-quota \
-            --region us-east-1 \
-            --service-code ec2 \
-            --quota-code L-1216C47A \
-            --query 'Quota.Value' \
-            --output text)"
+          academy_standard_vcpu_limit=32
           used_standard_vcpus="$(aws ec2 describe-instances \
             --region us-east-1 \
             --filters Name=instance-state-name,Values=pending,running \
@@ -188,9 +182,9 @@ jobs:
                 --instance-types "${instance_type}" \
                 --query 'InstanceTypes[0].VCpuInfo.DefaultVCpus' --output text
             done | awk '{ total += $1 } END { print total + 0 }')"
-          awk -v used="${used_standard_vcpus}" -v quota="${standard_vcpu_quota}" \
+          awk -v used="${used_standard_vcpus}" -v quota="${academy_standard_vcpu_limit}" \
             'BEGIN { exit !((used + 4) <= quota) }' || {
-            echo "Academy EC2 vCPU quota exceeded: ${used_standard_vcpus} used plus 4 for two t3.small nodes exceeds ${standard_vcpu_quota}." >&2
+            echo "Academy EC2 vCPU quota exceeded: ${used_standard_vcpus} used plus 4 for two t3.small nodes exceeds ${academy_standard_vcpu_limit}." >&2
             exit 1
           }
 
