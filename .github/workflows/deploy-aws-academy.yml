@@ -119,7 +119,6 @@ jobs:
           support_status="$(aws eks describe-cluster-versions \
             --region us-east-1 \
             --cluster-versions "${EKS_VERSION}" \
-            --version-status STANDARD_SUPPORT \
             --query 'clusterVersions[0].versionStatus' \
             --output text)"
           [[ "${support_status}" == 'STANDARD_SUPPORT' ]] || {
