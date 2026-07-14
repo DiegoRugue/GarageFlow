@@ -30,7 +30,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
     {
         CustomerId = EnsureValidCustomerId(customerId);
         VehicleId = EnsureValidVehicleId(vehicleId);
-        Status = WorkOrderStatus.Created;
+        Status = WorkOrderStatus.Received;
     }
 
     public static WorkOrder Create(CustomerId customerId, VehicleId vehicleId)
@@ -162,59 +162,61 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("A work order cannot have more than one approved estimate.");
         }
 
-        estimate.Approve();
-        if (Status == WorkOrderStatus.WaitingApproval)
+        if (Status != WorkOrderStatus.WaitingApproval)
         {
-            TransitionTo(WorkOrderStatus.Approved);
+            throw new BusinessRuleViolationException("Only work orders waiting for approval can have an estimate approved.");
         }
 
-        UpdatedAt = DateTime.UtcNow;
+        var approvedAt = DateTime.UtcNow;
+        estimate.Approve();
+        TransitionTo(WorkOrderStatus.InProgress, approvedAt);
+        StartedAt = approvedAt;
+
+        UpdatedAt = approvedAt;
 
         RaiseDomainEvent(new EstimateApproved(
             WorkOrderId: Id,
             EstimateId: estimate.Id,
             Status: estimate.Status,
-            ApprovedAt: DateTime.UtcNow));
+            ApprovedAt: approvedAt));
     }
 
-    public Estimate RejectEstimate(EstimateId estimateId)
+    public IReadOnlyList<InventoryReservation> RejectEstimate(EstimateId estimateId)
     {
         EnsureNotFinalizedForContentChanges();
 
         var estimate = GetEstimateOrThrow(estimateId);
-        estimate.Reject();
+        if (estimate.Status != EstimateStatus.Pending)
+        {
+            throw new BusinessRuleViolationException("Only pending estimates can be rejected.");
+        }
 
-        UpdatedAt = DateTime.UtcNow;
+        if (Status != WorkOrderStatus.WaitingApproval)
+        {
+            throw new BusinessRuleViolationException("Only work orders waiting for approval can have an estimate rejected.");
+        }
+
+        estimate.Reject();
+        var rejectedAt = DateTime.UtcNow;
+        TransitionTo(WorkOrderStatus.Diagnosing, rejectedAt);
 
         RaiseDomainEvent(new EstimateRejected(
             WorkOrderId: Id,
             EstimateId: estimate.Id,
             Status: estimate.Status,
-            RejectedAt: DateTime.UtcNow));
+            RejectedAt: rejectedAt));
 
-        return estimate;
+        return GroupInventoryReservations([estimate]);
     }
 
     public void StartDiagnosis()
     {
+        if (Status != WorkOrderStatus.Received)
+        {
+            throw new BusinessRuleViolationException("Only received work orders can start diagnosis.");
+        }
+
         TransitionTo(WorkOrderStatus.Diagnosing);
-    }
-
-    public void StartWork()
-    {
-        if (Status == WorkOrderStatus.WaitingApproval)
-        {
-            throw new BusinessRuleViolationException("Work order cannot start while waiting for customer approval.");
-        }
-
-        if (Status == WorkOrderStatus.InProgress)
-        {
-            return;
-        }
-
-        var startedAt = DateTime.UtcNow;
-        TransitionTo(WorkOrderStatus.InProgress, startedAt);
-        StartedAt = startedAt;
     }
 
     public void StartEstimateService(EstimateId estimateId, EstimateServiceLineId lineId)
@@ -223,23 +225,12 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
         var estimate = GetApprovedEstimateOrThrow(estimateId);
         var serviceLine = GetEstimateServiceLineOrThrow(estimate, lineId);
-        var startedAtBeforeLineStart = StartedAt;
-
-        if (Status == WorkOrderStatus.Approved)
-        {
-            StartWork();
-        }
-        else if (Status != WorkOrderStatus.InProgress)
+        if (Status != WorkOrderStatus.InProgress)
         {
             throw new BusinessRuleViolationException("Work order must be approved before starting services.");
         }
 
         serviceLine.Start();
-
-        if (startedAtBeforeLineStart is null)
-        {
-            StartedAt = serviceLine.StartedAt;
-        }
 
         RaiseDomainEvent(new EstimateServiceLineStarted(
             WorkOrderId: Id,
@@ -314,9 +305,29 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         TransitionTo(WorkOrderStatus.Delivered);
     }
 
-    public void Cancel()
+    public IReadOnlyList<InventoryReservation> Cancel()
     {
+        if (Status == WorkOrderStatus.Cancelled)
+        {
+            return [];
+        }
+
+        var reservations = GroupInventoryReservations(_estimates.Where(estimate =>
+            estimate.Status is EstimateStatus.Draft or EstimateStatus.Pending or EstimateStatus.Approved));
         TransitionTo(WorkOrderStatus.Cancelled);
+        return reservations;
+    }
+
+    private static List<InventoryReservation> GroupInventoryReservations(IEnumerable<Estimate> estimates)
+    {
+        return estimates
+            .SelectMany(estimate => estimate.InventoryLines)
+            .GroupBy(line => line.InventoryItemId)
+            .Select(group => new InventoryReservation(
+                group.Key,
+                EstimateItemQuantity.Create(group.Sum(line => line.Quantity.Value))))
+            .OrderBy(reservation => reservation.InventoryItemId.Value)
+            .ToList();
     }
 
     private Estimate GetEstimateOrThrow(EstimateId estimateId)
@@ -383,9 +394,9 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Finalized work orders cannot be changed.");
         }
 
-        if (Status is WorkOrderStatus.Approved or WorkOrderStatus.InProgress)
+        if (Status == WorkOrderStatus.InProgress)
         {
-            throw new BusinessRuleViolationException("Approved or in-progress work orders cannot be changed.");
+            throw new BusinessRuleViolationException("In-progress work orders cannot be changed.");
         }
     }
 
@@ -404,7 +415,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Finalized work orders cannot be changed.");
         }
 
-        if (Status is WorkOrderStatus.Created or WorkOrderStatus.Diagnosing or WorkOrderStatus.WaitingApproval)
+        if (Status is WorkOrderStatus.Received or WorkOrderStatus.Diagnosing or WorkOrderStatus.WaitingApproval)
         {
             return;
         }
@@ -427,7 +438,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     private void AdvanceStatusForEstimateSubmission()
     {
-        if (Status == WorkOrderStatus.Created)
+        if (Status == WorkOrderStatus.Received)
         {
             TransitionTo(WorkOrderStatus.Diagnosing);
             TransitionTo(WorkOrderStatus.WaitingApproval);
@@ -449,16 +460,16 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
         var isAllowed = (Status, newStatus) switch
         {
-            (WorkOrderStatus.Created, WorkOrderStatus.Diagnosing) => true,
+            (WorkOrderStatus.Received, WorkOrderStatus.Diagnosing) => true,
             (WorkOrderStatus.Diagnosing, WorkOrderStatus.WaitingApproval) => true,
-            (WorkOrderStatus.WaitingApproval, WorkOrderStatus.Approved) => true,
-            (WorkOrderStatus.Approved, WorkOrderStatus.InProgress) => true,
+            (WorkOrderStatus.WaitingApproval, WorkOrderStatus.InProgress) => true,
+            (WorkOrderStatus.WaitingApproval, WorkOrderStatus.Diagnosing) => true,
             (WorkOrderStatus.InProgress, WorkOrderStatus.Completed) => true,
             (WorkOrderStatus.Completed, WorkOrderStatus.Delivered) => true,
-            (WorkOrderStatus.Created, WorkOrderStatus.Cancelled) => true,
+            (WorkOrderStatus.Received, WorkOrderStatus.Cancelled) => true,
             (WorkOrderStatus.Diagnosing, WorkOrderStatus.Cancelled) => true,
             (WorkOrderStatus.WaitingApproval, WorkOrderStatus.Cancelled) => true,
-            (WorkOrderStatus.Approved, WorkOrderStatus.Cancelled) => true,
+            (WorkOrderStatus.InProgress, WorkOrderStatus.Cancelled) => true,
             _ => false
         };
 

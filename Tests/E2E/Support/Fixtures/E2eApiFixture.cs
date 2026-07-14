@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using GarageFlow.Tests.E2E.Support.Factories;
 using GarageFlow.Tests.E2E.Support.Helpers;
 using Testcontainers.PostgreSql;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GarageFlow.Tests.E2E.Support.Fixtures;
 
@@ -19,6 +20,8 @@ public sealed class E2eApiFixture : IAsyncLifetime
 
     private E2eWebApplicationFactory? _factory;
 
+    public string DatabaseConnectionString => _postgres.GetConnectionString();
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -29,6 +32,8 @@ public sealed class E2eApiFixture : IAsyncLifetime
     {
         return RequiredFactory().CreateClient();
     }
+
+    public IServiceScope CreateScope() => RequiredFactory().Services.CreateScope();
 
     public async Task<HttpClient> CreateAuthenticatedClientAsync()
     {

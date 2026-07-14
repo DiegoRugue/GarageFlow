@@ -1,4 +1,6 @@
 .worktrees/
+.superpowers/
+/docs/entrega-final/
 
 # .NET build outputs
 **/bin/
@@ -15,6 +17,21 @@ TestResults/
 
 # Local .NET tooling cache
 .dotnet/
+
+# Terraform local and sensitive artifacts
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/**/*.tfvars
+infra/**/*.tfvars.json
+infra/bootstrap/state-backend/backend.tf
 
 # Local SQLite artifacts
 *.db

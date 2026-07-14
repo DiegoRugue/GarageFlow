@@ -2,6 +2,7 @@ namespace GarageFlow.Tests.E2E.Support.Helpers;
 
 public static class E2eAuthSettings
 {
+    public const string EstimateDecisionWebhookSecret = "e2e-webhook-secret-value-32-characters-minimum";
     public const string JwtIssuer = "GarageFlow.E2ETests";
     public const string JwtAudience = "GarageFlow.E2ETests.Api";
     public const string JwtKey = "garageflow.e2etests.jwt.key.2026";

@@ -31,6 +31,11 @@ public sealed record PhoneNumber
             throw new ValidationException("Phone number must contain only digits after removing formatting characters.");
         }
 
+        if (digits.Length is 12 or 13 && digits.StartsWith("55", StringComparison.Ordinal))
+        {
+            digits = digits[2..];
+        }
+
         if (digits.Length != 10 && digits.Length != 11)
         {
             throw new ValidationException("Phone number must have 10 digits (landline) or 11 digits (mobile) after removing formatting.");

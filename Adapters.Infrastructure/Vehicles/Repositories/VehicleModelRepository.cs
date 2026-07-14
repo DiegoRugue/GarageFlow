@@ -125,4 +125,21 @@ public sealed class VehicleModelRepository(GarageFlowDbContext dbContext) : IVeh
     {
         _dbContext.VehicleModels.Remove(vehicleModel);
     }
+    public async Task<VehicleModel?> GetByNameAsync(
+        VehicleBrandId brandId,
+        VehicleModelName name,
+        CancellationToken cancellationToken = default)
+    {
+        if (_dbContext.Database.IsNpgsql())
+        {
+            return await _dbContext.VehicleModels
+                .FromSqlInterpolated($"""SELECT * FROM "VehicleModels" WHERE "VehicleBrandId" = {brandId.Value} AND upper("Name") = upper({name.Value})""")
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        var models = await _dbContext.VehicleModels.ToListAsync(cancellationToken);
+        return models.SingleOrDefault(model =>
+            model.VehicleBrandId == brandId
+            && string.Equals(model.Name.Value, name.Value, StringComparison.OrdinalIgnoreCase));
+    }
 }

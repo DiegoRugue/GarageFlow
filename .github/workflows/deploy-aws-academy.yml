@@ -1,0 +1,441 @@
+name: Deploy AWS Academy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type APPLY to provision billable lab resources
+        required: true
+        type: string
+      kubernetes_version:
+        description: EKS version currently in STANDARD_SUPPORT in us-east-1
+        required: true
+        default: "1.36"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aws-academy-lifecycle
+  cancel-in-progress: false
+
+# Configure the protected `aws-academy` Environment before dispatching.
+# Environment secrets (exactly these six):
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN,
+#   TF_STATE_BUCKET, EKS_CLUSTER_ROLE_ARN, EKS_NODE_ROLE_ARN
+# Environment variables (exactly these four):
+#   TF_OWNER, TF_EXPIRES_ON, SNS_NOTIFICATION_EMAIL, BOOTSTRAP_ADMIN_EMAIL
+jobs:
+  deploy:
+    name: Provision, deploy, and smoke
+    runs-on: ubuntu-latest
+    environment: aws-academy
+    timeout-minutes: 90
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+      TF_VAR_aws_region: us-east-1
+      TF_VAR_kubernetes_version: ${{ inputs.kubernetes_version }}
+      TF_VAR_eks_cluster_role_arn: ${{ secrets.EKS_CLUSTER_ROLE_ARN }}
+      TF_VAR_eks_node_role_arn: ${{ secrets.EKS_NODE_ROLE_ARN }}
+      TF_VAR_owner: ${{ vars.TF_OWNER }}
+      TF_VAR_expires_on: ${{ vars.TF_EXPIRES_ON }}
+      TF_VAR_notification_email: ${{ vars.SNS_NOTIFICATION_EMAIL }}
+      TF_VAR_bootstrap_admin_email: ${{ vars.BOOTSTRAP_ADMIN_EMAIL }}
+      EKS_VERSION: ${{ inputs.kubernetes_version }}
+      DEPLOY_CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Fail closed on confirmation and protected inputs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${DEPLOY_CONFIRMATION}" != 'APPLY' ]]; then
+            echo 'Deployment refused: confirmation must be exactly APPLY.' >&2
+            exit 1
+          fi
+
+          missing=()
+          for name in \
+            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN TF_STATE_BUCKET \
+            TF_VAR_eks_cluster_role_arn TF_VAR_eks_node_role_arn TF_VAR_owner \
+            TF_VAR_expires_on TF_VAR_notification_email TF_VAR_bootstrap_admin_email; do
+            [[ -n "${!name:-}" ]] || missing+=("${name}")
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "Deployment refused: missing protected Environment inputs: ${missing[*]}" >&2
+            exit 1
+          fi
+          [[ "${AWS_REGION}" == 'us-east-1' ]] || {
+            echo 'Deployment refused: AWS region must be us-east-1.' >&2
+            exit 1
+          }
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.15.7
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: v${{ inputs.kubernetes_version }}.0
+
+      - name: Preflight identity, support, offerings, and Academy capacity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          caller_account="$(aws sts get-caller-identity --query Account --output text)"
+          if [[ "${TF_VAR_eks_cluster_role_arn}" =~ ^arn:[^:]+:iam::([0-9]{12}):role/.+$ ]]; then
+            cluster_role_account="${BASH_REMATCH[1]}"
+          else
+            echo 'EKS cluster role ARN is invalid.' >&2
+            exit 1
+          fi
+          if [[ "${TF_VAR_eks_node_role_arn}" =~ ^arn:[^:]+:iam::([0-9]{12}):role/.+$ ]]; then
+            node_role_account="${BASH_REMATCH[1]}"
+          else
+            echo 'EKS node role ARN is invalid.' >&2
+            exit 1
+          fi
+          if [[ ! "${caller_account}" =~ ^[0-9]{12}$ ]] || \
+            [[ "${caller_account}" != "${cluster_role_account}" ]] || \
+            [[ "${cluster_role_account}" != "${node_role_account}" ]]; then
+            echo 'AWS identity does not match both protected EKS role accounts.' >&2
+            exit 1
+          fi
+          [[ "${AWS_REGION}" == 'us-east-1' ]]
+
+          support_status="$(aws eks describe-cluster-versions \
+            --region us-east-1 \
+            --cluster-versions "${EKS_VERSION}" \
+            --version-status STANDARD_SUPPORT \
+            --query 'clusterVersions[0].versionStatus' \
+            --output text)"
+          [[ "${support_status}" == 'STANDARD_SUPPORT' ]] || {
+            echo "EKS ${EKS_VERSION} is not in STANDARD_SUPPORT in us-east-1." >&2
+            exit 1
+          }
+
+          mapfile -t terraform_availability_zones < <(
+            aws ec2 describe-availability-zones \
+              --region us-east-1 \
+              --filters Name=state,Values=available \
+              --query 'sort_by(AvailabilityZones,&ZoneName)[:2].ZoneName' \
+              --output text | tr '\t' '\n' | sed '/^$/d'
+          )
+          (( ${#terraform_availability_zones[@]} == 2 )) || {
+            echo 'Terraform requires two available us-east-1 availability zones.' >&2
+            exit 1
+          }
+          for availability_zone in "${terraform_availability_zones[@]}"; do
+            offering_count="$(aws ec2 describe-instance-type-offerings \
+              --region us-east-1 \
+              --location-type availability-zone \
+              --filters Name=instance-type,Values=t3.small Name=location,Values="${availability_zone}" \
+              --query 'length(InstanceTypeOfferings)' \
+              --output text)"
+            (( offering_count == 1 )) || {
+              echo 't3.small is unavailable in one of the two availability zones selected by Terraform.' >&2
+              exit 1
+            }
+          done
+
+          rds_pg17_versions="$(aws rds describe-orderable-db-instance-options \
+            --region us-east-1 \
+            --engine postgres \
+            --db-instance-class db.t3.micro \
+            --query "OrderableDBInstanceOptions[?starts_with(EngineVersion, '17.')].EngineVersion" \
+            --output text)"
+          [[ -n "${rds_pg17_versions}" ]] || {
+            echo 'db.t3.micro with PostgreSQL 17 is unavailable in us-east-1.' >&2
+            exit 1
+          }
+
+          running_ec2="$(aws ec2 describe-instances \
+            --region us-east-1 \
+            --filters Name=instance-state-name,Values=pending,running \
+            --query 'length(Reservations[].Instances[])' \
+            --output text)"
+          academy_ec2_limit=9
+          (( running_ec2 + 2 <= academy_ec2_limit )) || {
+            echo "Academy EC2 capacity exceeded: ${running_ec2} active instances plus 2 EKS nodes exceeds ${academy_ec2_limit}. Stop unused lab resources first." >&2
+            exit 1
+          }
+
+          standard_vcpu_quota="$(aws service-quotas get-service-quota \
+            --region us-east-1 \
+            --service-code ec2 \
+            --quota-code L-1216C47A \
+            --query 'Quota.Value' \
+            --output text)"
+          used_standard_vcpus="$(aws ec2 describe-instances \
+            --region us-east-1 \
+            --filters Name=instance-state-name,Values=pending,running \
+            --query 'Reservations[].Instances[].InstanceType' \
+            --output text | tr '\t' '\n' | sed '/^$/d' | while read -r instance_type; do
+              aws ec2 describe-instance-types --region us-east-1 \
+                --instance-types "${instance_type}" \
+                --query 'InstanceTypes[0].VCpuInfo.DefaultVCpus' --output text
+            done | awk '{ total += $1 } END { print total + 0 }')"
+          awk -v used="${used_standard_vcpus}" -v quota="${standard_vcpu_quota}" \
+            'BEGIN { exit !((used + 4) <= quota) }' || {
+            echo "Academy EC2 vCPU quota exceeded: ${used_standard_vcpus} used plus 4 for two t3.small nodes exceeds ${standard_vcpu_quota}." >&2
+            exit 1
+          }
+
+          running_rds="$(aws rds describe-db-instances \
+            --region us-east-1 \
+            --query 'length(DBInstances)' \
+            --output text)"
+          rds_limit="$(aws rds describe-account-attributes \
+            --region us-east-1 \
+            --query "AccountQuotas[?AccountQuotaName=='DBInstances'].Max | [0]" \
+            --output text)"
+          [[ "${rds_limit}" =~ ^[0-9]+$ ]] || {
+            echo 'Unable to determine the Academy RDS instance quota.' >&2
+            exit 1
+          }
+          (( running_rds + 1 <= rds_limit )) || {
+            echo "Academy RDS capacity exceeded: ${running_rds} DB instances plus GarageFlow exceeds quota ${rds_limit}." >&2
+            exit 1
+          }
+          echo 'AWS identity, regional support, offerings, and Academy capacity preflight passed.'
+
+      - name: Plan and apply Academy infrastructure
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          plan_path="${RUNNER_TEMP}/garageflow-academy-${GITHUB_SHA}.tfplan"
+          terraform -chdir=infra/environments/academy init \
+            -reconfigure \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config='key=academy/terraform.tfstate' \
+            -backend-config='region=us-east-1' \
+            -backend-config='encrypt=true' \
+            -backend-config='use_lockfile=true'
+          terraform -chdir=infra/environments/academy validate
+          terraform -chdir=infra/environments/academy plan \
+            -out="${plan_path}"
+          terraform -chdir=infra/environments/academy apply \
+            "${plan_path}"
+          rm -f -- "${plan_path}"
+
+      - name: Build or reuse immutable SHA image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          repository="$(terraform -chdir=infra/environments/academy output -raw ecr_repository_url)"
+          registry="${repository%%/*}"
+          aws ecr get-login-password --region us-east-1 | \
+            docker login --username AWS --password-stdin "${registry}"
+          if aws ecr describe-images \
+            --region us-east-1 \
+            --repository-name "${repository##*/}" \
+            --image-ids "imageTag=${GITHUB_SHA}" >/dev/null 2>&1; then
+            echo "Reusing immutable image for commit ${GITHUB_SHA}."
+          else
+            docker build --tag "${repository}:${GITHUB_SHA}" .
+            docker push "${repository}:${GITHUB_SHA}"
+          fi
+
+      - name: Configure EKS and verified Metrics Server
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cluster_name="$(terraform -chdir=infra/environments/academy output -raw cluster_name)"
+          aws eks update-kubeconfig \
+            --region us-east-1 \
+            --name "${cluster_name}"
+
+          metrics_asset="${RUNNER_TEMP}/metrics-server-v0.8.1.yaml"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' \
+            --connect-timeout 10 --max-time 60 \
+            'https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.8.1/components.yaml' \
+            --output "${metrics_asset}"
+          echo '4a672c4891902573a3ff753cece5de1bf1f55dd053403dfec39df9d1636b7ff1  '"${metrics_asset}" | sha256sum --check --strict
+          kubectl apply -f "${metrics_asset}"
+          kubectl -n kube-system rollout status deployment/metrics-server --timeout=5m
+
+          metrics_deadline=$((SECONDS + 180))
+          until kubectl top nodes >/dev/null 2>&1; do
+            (( SECONDS < metrics_deadline )) || {
+              echo 'Metrics API did not serve node metrics within 180 seconds.' >&2
+              exit 1
+            }
+            sleep 10
+          done
+          kubectl top nodes
+
+      - name: Apply runtime configuration without rendered secret files
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+
+          sns_topic_arn="$(terraform -chdir=infra/environments/academy output -raw sns_topic_arn)"
+          sns_patch="$(jq -cn --arg topic "${sns_topic_arn}" '{data:{"Integrations__Sns__TopicArn":$topic}}')"
+          kubectl -n garageflow patch configmap garageflow-config \
+            --type merge --patch "${sns_patch}"
+
+          database_secret_arn="$(terraform -chdir=infra/environments/academy output -raw database_secret_arn)"
+          jwt_secret_arn="$(terraform -chdir=infra/environments/academy output -raw jwt_secret_arn)"
+          bootstrap_secret_arn="$(terraform -chdir=infra/environments/academy output -raw bootstrap_secret_arn)"
+          webhook_secret_arn="$(terraform -chdir=infra/environments/academy output -raw webhook_secret_arn)"
+
+          database_secret="$(aws secretsmanager get-secret-value --secret-id "${database_secret_arn}" --query SecretString --output text)"
+          jwt_key="$(aws secretsmanager get-secret-value --secret-id "${jwt_secret_arn}" --query SecretString --output text)"
+          bootstrap_secret="$(aws secretsmanager get-secret-value --secret-id "${bootstrap_secret_arn}" --query SecretString --output text)"
+          webhook_secret="$(aws secretsmanager get-secret-value --secret-id "${webhook_secret_arn}" --query SecretString --output text)"
+
+          database_user="$(jq -er '.username' <<<"${database_secret}")"
+          database_name="$(jq -er '.database' <<<"${database_secret}")"
+          database_password="$(jq -er '.password' <<<"${database_secret}")"
+          bootstrap_email="$(jq -er '.email' <<<"${bootstrap_secret}")"
+          bootstrap_initial_password="$(jq -er '.initialPassword' <<<"${bootstrap_secret}")"
+          bootstrap_active_password="$(jq -er '.activePassword' <<<"${bootstrap_secret}")"
+          rds_endpoint="$(terraform -chdir=infra/environments/academy output -raw rds_endpoint)"
+          rds_port="$(terraform -chdir=infra/environments/academy output -raw rds_port)"
+          connection_string="Host=${rds_endpoint};Port=${rds_port};Database=${database_name};Username=${database_user};Password=${database_password}"
+
+          for sensitive in \
+            "${AWS_ACCESS_KEY_ID}" "${AWS_SECRET_ACCESS_KEY}" "${AWS_SESSION_TOKEN}" \
+            "${database_secret}" "${database_user}" "${database_name}" "${database_password}" \
+            "${jwt_key}" "${bootstrap_secret}" "${bootstrap_email}" \
+            "${bootstrap_initial_password}" "${bootstrap_active_password}" \
+            "${webhook_secret}" "${connection_string}"; do
+            [[ -n "${sensitive}" ]] || {
+              echo 'A required runtime secret resolved to an empty value.' >&2
+              exit 1
+            }
+            echo "::add-mask::${sensitive}"
+          done
+
+          set +x
+          kubectl -n garageflow create secret generic garageflow-secrets \
+            --from-literal="ConnectionStrings__GarageFlow=${connection_string}" \
+            --from-literal="Auth__Jwt__Key=${jwt_key}" \
+            --from-literal="Auth__BootstrapAdmin__Email=${bootstrap_email}" \
+            --from-literal="Auth__BootstrapAdmin__Password=${bootstrap_initial_password}" \
+            --from-literal="Webhooks__EstimateDecisions__HmacSecret=${webhook_secret}" \
+            --from-literal="AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
+            --from-literal="AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
+            --from-literal="AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          set +x
+
+          {
+            echo "BOOTSTRAP_EMAIL=${bootstrap_email}"
+            echo "BOOTSTRAP_INITIAL_PASSWORD=${bootstrap_initial_password}"
+            echo "BOOTSTRAP_ACTIVE_PASSWORD=${bootstrap_active_password}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Run database migration before rollout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          repository="$(terraform -chdir=infra/environments/academy output -raw ecr_repository_url)"
+          image="${repository}:${GITHUB_SHA}"
+          kubectl -n garageflow delete job garageflow-migration \
+            --ignore-not-found --wait=true
+          kubectl set image --local -f k8s/migration-job.yaml \
+            migration="${image}" -o yaml | kubectl apply -f -
+          if ! kubectl -n garageflow wait \
+            --for=condition=complete job/garageflow-migration \
+            --timeout=10m; then
+            echo 'Database migration failed; migration logs follow.' >&2
+            kubectl -n garageflow logs job/garageflow-migration \
+              --all-containers=true --prefix=true >&2 || true
+            exit 1
+          fi
+          echo 'Database migration completed.'
+
+      - name: Roll out two replicas, Service, and HPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          repository="$(terraform -chdir=infra/environments/academy output -raw ecr_repository_url)"
+          image="${repository}:${GITHUB_SHA}"
+          kubectl set image --local -f k8s/deployment.yaml \
+            api="${image}" -o yaml | kubectl apply -f -
+          kubectl apply -f k8s/service.yaml
+          kubectl apply -f k8s/hpa.yaml
+          kubectl -n garageflow rollout restart deployment/garageflow-api
+          kubectl -n garageflow rollout status deployment/garageflow-api --timeout=10m
+
+          replicas_deadline=$((SECONDS + 600))
+          while true; do
+            ready_replicas="$(kubectl -n garageflow get deployment garageflow-api -o jsonpath='{.status.readyReplicas}')"
+            if [[ "${ready_replicas:-0}" =~ ^[0-9]+$ ]] && (( ready_replicas >= 2 )); then
+              break
+            fi
+            (( SECONDS < replicas_deadline )) || {
+              echo 'GarageFlow did not reach at least two ready replicas within 10 minutes.' >&2
+              exit 1
+            }
+            sleep 10
+          done
+
+          ingress_deadline=$((SECONDS + 600))
+          load_balancer=''
+          until [[ -n "${load_balancer}" ]]; do
+            (( SECONDS < ingress_deadline )) || {
+              echo 'The GarageFlow LoadBalancer did not publish an ingress within 10 minutes.' >&2
+              exit 1
+            }
+            load_balancer="$(kubectl -n garageflow get service garageflow-api \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)"
+            if [[ -z "${load_balancer}" ]]; then
+              load_balancer="$(kubectl -n garageflow get service garageflow-api \
+                -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+            fi
+            [[ -n "${load_balancer}" ]] || sleep 10
+          done
+          echo "BASE_URL=http://${load_balancer}" >> "${GITHUB_ENV}"
+          echo 'GarageFlow has two ready replicas and a LoadBalancer ingress.'
+
+      - name: Require confirmed SNS subscription
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          topic_arn="$(terraform -chdir=infra/environments/academy output -raw sns_topic_arn)"
+          confirmation_deadline=$((SECONDS + 600))
+          while true; do
+            subscriptions_json="$(aws sns list-subscriptions-by-topic \
+              --region us-east-1 \
+              --topic-arn "${topic_arn}" \
+              --output json)"
+            confirmed_count="$(jq --arg endpoint "${TF_VAR_notification_email}" \
+              '[.Subscriptions[] | select(
+                .Protocol == "email" and
+                .Endpoint == $endpoint and
+                .SubscriptionArn != "PendingConfirmation" and
+                .SubscriptionArn != "Deleted"
+              )] | length' <<<"${subscriptions_json}")"
+            if (( confirmed_count > 0 )); then
+              break
+            fi
+            (( SECONDS < confirmation_deadline )) || {
+              echo 'SNS subscription remains PendingConfirmation. Open the AWS Notifications email, confirm the subscription, then rerun this workflow.' >&2
+              exit 1
+            }
+            echo 'Waiting for the recipient to confirm the SNS email subscription.'
+            sleep 15
+          done
+          echo 'SNS email subscription confirmed.'
+
+      - name: Smoke deployed API
+        shell: bash
+        run: bash scripts/smoke-aws.sh

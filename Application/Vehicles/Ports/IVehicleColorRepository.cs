@@ -5,6 +5,10 @@ namespace GarageFlow.Application.Vehicles.Ports;
 
 public interface IVehicleColorRepository
 {
+    Task<VehicleColor?> GetByNameAsync(
+        VehicleColorName name,
+        CancellationToken cancellationToken = default);
+
     Task<VehicleColor?> GetByIdAsync(
         VehicleColorId id,
         CancellationToken cancellationToken = default);

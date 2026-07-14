@@ -1,0 +1,12 @@
+# Fake placeholders only. Copy to terraform.tfvars locally and replace them with
+# freshly issued AWS Academy values; terraform.tfvars is intentionally ignored.
+aws_region             = "us-east-1"
+cluster_name           = "garageflow-academy"
+kubernetes_version     = "1.36"
+eks_cluster_role_arn   = "arn:aws:iam::000000000000:role/LabRole"
+eks_node_role_arn      = "arn:aws:iam::000000000000:role/LabRole"
+owner                  = "academy-student"
+expires_on             = "2099-12-31"
+notification_email     = "notifications@example.invalid"
+bootstrap_admin_email  = "admin@example.invalid"
+public_access_cidrs    = ["0.0.0.0/0"] # Lab only; narrow to the runner/student IPv4 CIDR when possible.

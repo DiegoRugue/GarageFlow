@@ -1,6 +1,4 @@
 using GarageFlow.Application.WorkOrders.Common;
-using GarageFlow.SharedKernel.Domain.Exceptions;
-using GarageFlow.Application.InventoryItems.Ports;
 using GarageFlow.Application.Users.Ports;
 using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
@@ -11,11 +9,11 @@ namespace GarageFlow.Application.WorkOrders.UseCases.RejectMyEstimate;
 public sealed class RejectMyEstimateHandler(
     IUserRepository userRepository,
     IWorkOrderRepository workOrderRepository,
-    IInventoryItemRepository inventoryItemRepository) : IRequestHandler<RejectMyEstimateCommand, Unit>
+    EstimateDecisionProcessor processor) : IRequestHandler<RejectMyEstimateCommand, Unit>
 {
     private readonly IUserRepository _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
-    private readonly IInventoryItemRepository _inventoryItemRepository = inventoryItemRepository ?? throw new ArgumentNullException(nameof(inventoryItemRepository));
+    private readonly EstimateDecisionProcessor _processor = processor ?? throw new ArgumentNullException(nameof(processor));
 
     public async ValueTask<Unit> Handle(RejectMyEstimateCommand request, CancellationToken cancellationToken)
     {
@@ -27,17 +25,7 @@ public sealed class RejectMyEstimateHandler(
             customerId,
             request.WorkOrderId,
             cancellationToken);
-        var rejectedEstimate = workOrder.RejectEstimate(EstimateId.From(request.EstimateId));
-        foreach (var line in rejectedEstimate.InventoryLines)
-        {
-            var inventoryItem = await _inventoryItemRepository.GetByIdForStockReservationAsync(line.InventoryItemId, cancellationToken);
-            if (inventoryItem is null)
-            {
-                throw new NotFoundException($"Inventory item with ID '{line.InventoryItemId.Value}' was not found.");
-            }
-
-            inventoryItem.IncreaseStock(line.Quantity.Value);
-        }
+        await _processor.RejectAsync(workOrder, EstimateId.From(request.EstimateId), cancellationToken);
         return Unit.Value;
     }
 }

@@ -24,6 +24,26 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
         return workOrder is null ? null : MapToReadModel(workOrder);
     }
 
+    public async Task<WorkOrderStatusReadModel?> GetStatusByIdAsync(
+        WorkOrderId id,
+        CancellationToken cancellationToken = default)
+    {
+        var status = await _dbContext.WorkOrders
+            .AsNoTracking()
+            .Where(workOrder => workOrder.Id == id)
+            .Select(workOrder => new
+            {
+                Id = workOrder.Id.Value,
+                workOrder.Status,
+                workOrder.UpdatedAt
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return status is null
+            ? null
+            : new WorkOrderStatusReadModel(status.Id, status.Status.ToString(), status.UpdatedAt);
+    }
+
     public async Task<WorkOrderDetailsReadModel?> GetCustomerDetailsByIdAsync(
         WorkOrderId id,
         CustomerId customerId,
@@ -37,13 +57,18 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
         return workOrder is null ? null : MapToReadModel(workOrder);
     }
 
-    public async Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)> ListDetailsAsync(
+    public async Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)> ListActiveDetailsAsync(
         int page,
         int pageSize,
         CustomerId? customerId = null,
         CancellationToken cancellationToken = default)
     {
-        var query = CreateWorkOrderDetailsQuery();
+        var query = CreateWorkOrderDetailsQuery()
+            .Where(workOrder =>
+                workOrder.Status == WorkOrderStatus.InProgress ||
+                workOrder.Status == WorkOrderStatus.WaitingApproval ||
+                workOrder.Status == WorkOrderStatus.Diagnosing ||
+                workOrder.Status == WorkOrderStatus.Received);
 
         if (customerId is not null)
         {
@@ -51,9 +76,16 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
-        var items = await query
-            .OrderBy(workOrder => workOrder.CreatedAt)
-            .ThenBy(workOrder => workOrder.Id)
+        var orderedQuery = query
+            .OrderBy(workOrder => workOrder.Status == WorkOrderStatus.InProgress ? 0
+                : workOrder.Status == WorkOrderStatus.WaitingApproval ? 1
+                : workOrder.Status == WorkOrderStatus.Diagnosing ? 2
+                : 3)
+            .ThenBy(workOrder => workOrder.CreatedAt);
+        var stableQuery = _dbContext.Database.IsInMemory()
+            ? orderedQuery.ThenBy(workOrder => workOrder.Id.Value)
+            : orderedQuery.ThenBy(workOrder => workOrder.Id);
+        var items = await stableQuery
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -61,13 +93,26 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
         return (items.Select(MapToReadModel).ToList(), totalCount);
     }
 
-    public Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)> ListCustomerDetailsAsync(
+    public async Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)> ListCustomerDetailsAsync(
         int page,
         int pageSize,
         CustomerId customerId,
         CancellationToken cancellationToken = default)
     {
-        return ListDetailsAsync(page, pageSize, customerId, cancellationToken);
+        var query = CreateWorkOrderDetailsQuery()
+            .Where(workOrder => workOrder.CustomerId == customerId);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var orderedQuery = query.OrderBy(workOrder => workOrder.CreatedAt);
+        var stableQuery = _dbContext.Database.IsInMemory()
+            ? orderedQuery.ThenBy(workOrder => workOrder.Id.Value)
+            : orderedQuery.ThenBy(workOrder => workOrder.Id);
+        var items = await stableQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items.Select(MapToReadModel).ToList(), totalCount);
     }
 
     public async Task<AverageServiceTimeReadModel> GetAverageServiceTimeAsync(

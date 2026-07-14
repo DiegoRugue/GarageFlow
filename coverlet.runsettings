@@ -6,7 +6,7 @@
         <Configuration>
           <Format>opencover</Format>
           <IncludeTestAssembly>false</IncludeTestAssembly>
-          <ExcludeByFile>**/Tests/**,**/obj/**,**/*Designer.cs,**/Infrastructure/DataAccess/Migrations/**,**/Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs</ExcludeByFile>
+          <ExcludeByFile>**/Tests/**,**/obj/**,**/*Designer.cs,**/Adapters.Infrastructure/DataAccess/Migrations/**,**/Adapters.Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Adapters.Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs</ExcludeByFile>
         </Configuration>
       </DataCollector>
     </DataCollectors>

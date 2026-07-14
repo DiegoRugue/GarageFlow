@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS restore
+FROM mcr.microsoft.com/dotnet/sdk:10.0.301 AS restore
 WORKDIR /src
+
+COPY ["global.json", "."]
+COPY ["Directory.Build.props", "."]
+COPY ["GarageFlow.slnx", "."]
 
 COPY ["Host/GarageFlow.Host.csproj", "Host/"]
 COPY ["Adapters.Api/GarageFlow.Adapters.Api.csproj", "Adapters.Api/"]
@@ -19,13 +23,15 @@ RUN dotnet build "Host/GarageFlow.Host.csproj" -c Release --no-restore
 FROM build AS publish
 RUN dotnet publish "Host/GarageFlow.Host.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-build
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.9 AS runtime
 WORKDIR /app
-COPY --from=publish /app/publish .
-COPY scripts/seed-local.sql /app/scripts/seed-local.sql
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser
 
-RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
-    && chown -R appuser:appuser /app
+COPY --from=publish --chown=appuser:appuser /app/publish .
+COPY --chown=appuser:appuser scripts/seed-local.sql /app/scripts/seed-local.sql
 
 USER appuser
 

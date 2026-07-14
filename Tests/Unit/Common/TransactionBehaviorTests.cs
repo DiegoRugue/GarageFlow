@@ -1,193 +1,342 @@
+using System.Diagnostics;
 using GarageFlow.Application.Common.Behaviors;
 using GarageFlow.Application.Common.Events;
+using GarageFlow.Application.Common.Integrations;
 using GarageFlow.Application.Common.Messaging;
 using GarageFlow.SharedKernel.Domain.Events;
 using GarageFlow.SharedKernel.Persistence;
 using Mediator;
-using Moq;
+using GarageFlowCommand = GarageFlow.Application.Common.Messaging.ICommand<string>;
 
 namespace GarageFlow.Tests.Unit.Common;
 
-public class TransactionBehaviorTests
+public sealed class TransactionBehaviorTests
 {
     [Fact]
-    public async Task Handle_ShouldDequeueDomainEventsBeforeCommitAndDispatchAfterCommit_WhenCommandSucceeds()
+    public async Task Handle_ShouldExecuteEveryBoundaryInExactOrder_WhenMappedMessagesExist()
     {
-        var unitOfWorkMock = new Mock<IUnitOfWork>(MockBehavior.Strict);
-        var dispatcherMock = new Mock<IDomainEventDispatcher>(MockBehavior.Strict);
-        var domainEvent = new TestDomainEvent();
-        var domainEvents = new List<DomainEvent> { domainEvent };
-        var sequence = new MockSequence();
+        var fixture = new PipelineFixture(hasMappedMessages: true);
 
-        unitOfWorkMock
-            .InSequence(sequence)
-            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        unitOfWorkMock
-            .InSequence(sequence)
-            .Setup(x => x.DequeueDomainEvents())
-            .Returns(domainEvents);
-
-        unitOfWorkMock
-            .InSequence(sequence)
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        dispatcherMock
-            .InSequence(sequence)
-            .Setup(x => x.DispatchAsync(domainEvents, It.IsAny<CancellationToken>()))
-            .Returns(ValueTask.CompletedTask);
-
-        var behavior = new TransactionBehavior<TestCommand, string>(unitOfWorkMock.Object, dispatcherMock.Object);
-        var command = new TestCommand();
-        MessageHandlerDelegate<TestCommand, string> next = static (_, _) => new ValueTask<string>("handled");
-
-        var result = await behavior.Handle(command, next, CancellationToken.None);
+        var result = await fixture.HandleAsync(new TestCommand());
 
         Assert.Equal("handled", result);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.VerifyAll();
-        dispatcherMock.VerifyAll();
+        Assert.Equal(
+            ["Begin", "Handler", "Save1", "Dequeue", "Map", "Write", "Save2", "Commit", "Dispatch"],
+            fixture.Operations);
     }
 
     [Fact]
-    public async Task Handle_ShouldRollbackAndSkipDispatch_WhenCommandFails()
+    public async Task Handle_ShouldSkipWriteAndSecondSave_WhenNoMessagesAreMapped()
     {
-        var unitOfWorkMock = new Mock<IUnitOfWork>();
-        var dispatcherMock = new Mock<IDomainEventDispatcher>();
-        var expectedException = new InvalidOperationException("boom");
-        var sequence = new MockSequence();
+        var fixture = new PipelineFixture(hasMappedMessages: false);
 
-        unitOfWorkMock
-            .InSequence(sequence)
-            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        await fixture.HandleAsync(new TestCommand());
 
-        unitOfWorkMock
-            .InSequence(sequence)
-            .Setup(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        Assert.Equal(
+            ["Begin", "Handler", "Save1", "Dequeue", "Map", "Commit", "Dispatch"],
+            fixture.Operations);
+    }
 
-        var behavior = new TransactionBehavior<TestCommand, string>(unitOfWorkMock.Object, dispatcherMock.Object);
-        var command = new TestCommand();
-        MessageHandlerDelegate<TestCommand, string> next = (_, _) => throw expectedException;
+    [Theory]
+    [InlineData(FailureBoundary.Handler)]
+    [InlineData(FailureBoundary.Save1)]
+    [InlineData(FailureBoundary.Map)]
+    [InlineData(FailureBoundary.Write)]
+    [InlineData(FailureBoundary.Save2)]
+    [InlineData(FailureBoundary.Commit)]
+    public async Task Handle_ShouldRollbackAndNeverDispatch_WhenPreCommitBoundaryFails(FailureBoundary failure)
+    {
+        var fixture = new PipelineFixture(hasMappedMessages: true, failure);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await behavior.Handle(command, next, CancellationToken.None));
+            () => fixture.HandleAsync(new TestCommand()));
 
-        Assert.Same(expectedException, exception);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
-        unitOfWorkMock.Verify(x => x.DequeueDomainEvents(), Times.Never);
-        dispatcherMock.Verify(
-            x => x.DispatchAsync(It.IsAny<IReadOnlyCollection<DomainEvent>>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+        Assert.Equal($"{failure} failed.", exception.Message);
+        Assert.Equal(ExpectedFailureOperations(failure), fixture.Operations);
+    }
+
+    [Theory]
+    [InlineData(FailureBoundary.Handler)]
+    [InlineData(FailureBoundary.Save2)]
+    [InlineData(FailureBoundary.Commit)]
+    public async Task Handle_ShouldCompleteRollbackWithNonCancelledToken_WhenRequestIsCancelledAtPreCommitBoundary(
+        FailureBoundary failure)
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+        var originalException = new OperationCanceledException(
+            $"{failure} cancelled.",
+            cancellationSource.Token);
+        var fixture = new PipelineFixture(
+            hasMappedMessages: true,
+            failure,
+            originalException);
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => fixture.HandleAsync(new TestCommand(), cancellationSource.Token));
+
+        Assert.Same(originalException, exception);
+        Assert.True(fixture.UnitOfWork.RollbackCompleted);
+        Assert.False(fixture.UnitOfWork.RollbackCancellationToken.IsCancellationRequested);
+        Assert.DoesNotContain("Dispatch", fixture.Operations);
     }
 
     [Fact]
-    public async Task Handle_ShouldNotRollback_WhenDispatchFailsAfterCommit()
+    public async Task Handle_ShouldPreserveOriginalCancellation_WhenRollbackFails()
     {
-        var unitOfWorkMock = new Mock<IUnitOfWork>();
-        var dispatcherMock = new Mock<IDomainEventDispatcher>();
-        var domainEvents = new List<DomainEvent> { new TestDomainEvent() };
-        var expectedException = new InvalidOperationException("Dispatch failed.");
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+        var originalException = new OperationCanceledException(
+            "Handler cancelled.",
+            cancellationSource.Token);
+        var fixture = new PipelineFixture(
+            hasMappedMessages: true,
+            FailureBoundary.Handler,
+            originalException,
+            rollbackFails: true);
 
-        unitOfWorkMock
-            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => fixture.HandleAsync(new TestCommand(), cancellationSource.Token));
 
-        unitOfWorkMock
-            .Setup(x => x.DequeueDomainEvents())
-            .Returns(domainEvents);
+        Assert.Same(originalException, exception);
+        Assert.Contains(nameof(ThrowIf), exception.StackTrace);
+        Assert.Equal(["Begin", "Handler", "Rollback"], fixture.Operations);
+        Assert.False(fixture.UnitOfWork.RollbackCancellationToken.IsCancellationRequested);
+        Assert.DoesNotContain("Dispatch", fixture.Operations);
+    }
 
-        unitOfWorkMock
-            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        unitOfWorkMock
-            .Setup(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        dispatcherMock
-            .Setup(x => x.DispatchAsync(domainEvents, It.IsAny<CancellationToken>()))
-            .ThrowsAsync(expectedException);
-
-        var behavior = new TransactionBehavior<TestCommand, string>(unitOfWorkMock.Object, dispatcherMock.Object);
-        MessageHandlerDelegate<TestCommand, string> next = static (_, _) => new ValueTask<string>("handled");
+    [Fact]
+    public async Task Handle_ShouldPropagateDispatchFailureWithoutRollback_WhenCommitSucceeded()
+    {
+        var fixture = new PipelineFixture(hasMappedMessages: true, FailureBoundary.Dispatch);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await behavior.Handle(new TestCommand(), next, CancellationToken.None));
+            () => fixture.HandleAsync(new TestCommand()));
 
-        Assert.Same(expectedException, exception);
-        unitOfWorkMock.Verify(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()), Times.Once);
-        unitOfWorkMock.Verify(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal("Dispatch failed.", exception.Message);
+        Assert.Equal(
+            ["Begin", "Handler", "Save1", "Dequeue", "Map", "Write", "Save2", "Commit", "Dispatch"],
+            fixture.Operations);
+        Assert.DoesNotContain("Rollback", fixture.Operations);
     }
 
     [Fact]
-    public async Task Handle_ShouldDispatchEventsCapturedBeforeCommit_WhenDeletedTrackedEntityEventsWouldDisappearAfterCommit()
+    public async Task Handle_ShouldPropagateCommandCorrelationIdToMapper_WhenCommandIsCorrelated()
     {
-        var domainEvent = new TestDomainEvent();
-        var unitOfWork = new DeletedEntityEventUnitOfWork(domainEvent);
-        IReadOnlyCollection<DomainEvent>? dispatchedEvents = null;
-        var dispatcherMock = new Mock<IDomainEventDispatcher>();
+        var fixture = new PipelineFixture(hasMappedMessages: false);
 
-        dispatcherMock
-            .Setup(x => x.DispatchAsync(It.IsAny<IReadOnlyCollection<DomainEvent>>(), It.IsAny<CancellationToken>()))
-            .Callback((IReadOnlyCollection<DomainEvent> domainEvents, CancellationToken _) => dispatchedEvents = domainEvents)
-            .Returns(ValueTask.CompletedTask);
+        await fixture.HandleAsync(new CorrelatedTestCommand("correlation-123"));
 
-        var behavior = new TransactionBehavior<TestCommand, string>(unitOfWork, dispatcherMock.Object);
-        MessageHandlerDelegate<TestCommand, string> next = static (_, _) => new ValueTask<string>("handled");
-
-        var result = await behavior.Handle(new TestCommand(), next, CancellationToken.None);
-
-        Assert.Equal("handled", result);
-        Assert.True(unitOfWork.DequeuedBeforeCommit);
-        Assert.True(unitOfWork.Committed);
-        Assert.NotNull(dispatchedEvents);
-        var dispatchedEvent = Assert.Single(dispatchedEvents);
-        Assert.Same(domainEvent, dispatchedEvent);
+        Assert.Equal("correlation-123", fixture.Mapper.CorrelationId);
     }
 
-    private sealed record TestCommand : GarageFlow.Application.Common.Messaging.ICommand<string>;
-
-    private sealed record TestDomainEvent : DomainEvent;
-
-    private sealed class DeletedEntityEventUnitOfWork(DomainEvent domainEvent) : IUnitOfWork
+    [Fact]
+    public async Task Handle_ShouldUseCurrentActivityTraceId_WhenCommandIsNotCorrelated()
     {
-        public bool Committed { get; private set; }
-        public bool DequeuedBeforeCommit { get; private set; }
+        using var activity = new Activity("transaction-test")
+            .SetIdFormat(ActivityIdFormat.W3C)
+            .Start();
+        var fixture = new PipelineFixture(hasMappedMessages: false);
+
+        await fixture.HandleAsync(new TestCommand());
+
+        Assert.Equal(activity.TraceId.ToHexString(), fixture.Mapper.CorrelationId);
+    }
+
+    private sealed class PipelineFixture
+    {
+        private readonly FailureBoundary? _failure;
+        private readonly Exception? _failureException;
+        private readonly TransactionBehavior<GarageFlowCommand, string> _behavior;
+
+        public PipelineFixture(
+            bool hasMappedMessages,
+            FailureBoundary? failure = null,
+            Exception? failureException = null,
+            bool rollbackFails = false)
+        {
+            _failure = failure;
+            _failureException = failureException;
+            Operations = [];
+            UnitOfWork = new RecordingUnitOfWork(
+                Operations,
+                failure,
+                failureException,
+                rollbackFails);
+            Mapper = new RecordingMapper(Operations, hasMappedMessages, failure, failureException);
+            var writer = new RecordingWriter(Operations, failure, failureException);
+            var dispatcher = new RecordingDispatcher(Operations, failure, failureException);
+            _behavior = new TransactionBehavior<GarageFlowCommand, string>(
+                UnitOfWork,
+                dispatcher,
+                Mapper,
+                writer);
+        }
+
+        public List<string> Operations { get; }
+        public RecordingMapper Mapper { get; }
+        public RecordingUnitOfWork UnitOfWork { get; }
+
+        public async Task<string> HandleAsync(
+            GarageFlowCommand command,
+            CancellationToken cancellationToken = default)
+        {
+            MessageHandlerDelegate<GarageFlowCommand, string> next = (_, _) =>
+            {
+                Operations.Add("Handler");
+                ThrowIf(FailureBoundary.Handler, _failure, _failureException);
+                return new ValueTask<string>("handled");
+            };
+
+            return await _behavior.Handle(command, next, cancellationToken);
+        }
+    }
+
+    internal sealed class RecordingUnitOfWork(
+        List<string> operations,
+        FailureBoundary? failure,
+        Exception? failureException,
+        bool rollbackFails) : IUnitOfWork
+    {
+        private int _saveCount;
+
+        public CancellationToken RollbackCancellationToken { get; private set; }
+        public bool RollbackCompleted { get; private set; }
 
         public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
+            operations.Add("Begin");
             return Task.CompletedTask;
         }
 
         public Task CommitTransactionAsync(CancellationToken cancellationToken = default)
         {
-            Committed = true;
+            operations.Add("Commit");
+            ThrowIf(FailureBoundary.Commit, failure, failureException);
             return Task.CompletedTask;
-        }
-
-        public IReadOnlyList<DomainEvent> DequeueDomainEvents()
-        {
-            if (Committed)
-            {
-                return [];
-            }
-
-            DequeuedBeforeCommit = true;
-            return [domainEvent];
         }
 
         public Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
         {
+            operations.Add("Rollback");
+            RollbackCancellationToken = cancellationToken;
+            if (rollbackFails)
+            {
+                throw new InvalidOperationException("Rollback failed.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            RollbackCompleted = true;
             return Task.CompletedTask;
         }
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(0);
+            _saveCount++;
+            var boundary = _saveCount == 1 ? FailureBoundary.Save1 : FailureBoundary.Save2;
+            operations.Add(boundary.ToString());
+            ThrowIf(boundary, failure, failureException);
+            return Task.FromResult(1);
         }
+
+        public IReadOnlyList<DomainEvent> DequeueDomainEvents()
+        {
+            operations.Add("Dequeue");
+            return [new TestDomainEvent()];
+        }
+    }
+
+    internal sealed class RecordingMapper(
+        List<string> operations,
+        bool hasMappedMessages,
+        FailureBoundary? failure,
+        Exception? failureException) : IIntegrationOutboxMapper
+    {
+        public string? CorrelationId { get; private set; }
+
+        public IReadOnlyList<IntegrationOutboxMessage> Map(
+            IReadOnlyCollection<DomainEvent> domainEvents,
+            string? correlationId)
+        {
+            operations.Add("Map");
+            CorrelationId = correlationId;
+            ThrowIf(FailureBoundary.Map, failure, failureException);
+
+            return hasMappedMessages
+                ? [new IntegrationOutboxMessage(Guid.NewGuid(), "test.v1", Guid.NewGuid(), "{}", DateTime.UtcNow, correlationId)]
+                : [];
+        }
+    }
+
+    private sealed class RecordingWriter(
+        List<string> operations,
+        FailureBoundary? failure,
+        Exception? failureException) : IOutboxWriter
+    {
+        public Task WriteAsync(
+            IReadOnlyCollection<IntegrationOutboxMessage> messages,
+            CancellationToken cancellationToken)
+        {
+            operations.Add("Write");
+            ThrowIf(FailureBoundary.Write, failure, failureException);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingDispatcher(
+        List<string> operations,
+        FailureBoundary? failure,
+        Exception? failureException) : IDomainEventDispatcher
+    {
+        public ValueTask DispatchAsync(
+            IReadOnlyCollection<DomainEvent> domainEvents,
+            CancellationToken cancellationToken)
+        {
+            operations.Add("Dispatch");
+            ThrowIf(FailureBoundary.Dispatch, failure, failureException);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private static void ThrowIf(
+        FailureBoundary expected,
+        FailureBoundary? actual,
+        Exception? failureException = null)
+    {
+        if (expected == actual)
+        {
+            if (failureException is not null)
+            {
+                throw failureException;
+            }
+
+            throw new InvalidOperationException($"{expected} failed.");
+        }
+    }
+
+    private static IReadOnlyList<string> ExpectedFailureOperations(FailureBoundary failure) => failure switch
+    {
+        FailureBoundary.Handler => ["Begin", "Handler", "Rollback"],
+        FailureBoundary.Save1 => ["Begin", "Handler", "Save1", "Rollback"],
+        FailureBoundary.Map => ["Begin", "Handler", "Save1", "Dequeue", "Map", "Rollback"],
+        FailureBoundary.Write => ["Begin", "Handler", "Save1", "Dequeue", "Map", "Write", "Rollback"],
+        FailureBoundary.Save2 => ["Begin", "Handler", "Save1", "Dequeue", "Map", "Write", "Save2", "Rollback"],
+        FailureBoundary.Commit => ["Begin", "Handler", "Save1", "Dequeue", "Map", "Write", "Save2", "Commit", "Rollback"],
+        _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, null)
+    };
+
+    private sealed record TestCommand : GarageFlowCommand;
+    private sealed record CorrelatedTestCommand(string CorrelationId) : GarageFlowCommand, ICorrelatedCommand;
+    private sealed record TestDomainEvent : DomainEvent;
+
+    public enum FailureBoundary
+    {
+        Handler,
+        Save1,
+        Map,
+        Write,
+        Save2,
+        Commit,
+        Dispatch
     }
 }

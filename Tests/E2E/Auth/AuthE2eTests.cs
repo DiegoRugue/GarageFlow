@@ -9,7 +9,8 @@ using GarageFlow.Tests.E2E.Support.Helpers;
 
 namespace GarageFlow.Tests.E2E.Auth;
 
-public sealed class AuthE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class AuthE2eTests(E2eApiFixture fixture)
 {
     private readonly E2eApiFixture _fixture = fixture;
 

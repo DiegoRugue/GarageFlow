@@ -26,7 +26,7 @@ public sealed class UpdateInventoryItemStockHandler(
             Id: inventoryItem.Id.Value,
             Name: inventoryItem.Name.Value,
             Description: inventoryItem.Description.Value,
-            Type: (int)inventoryItem.Type,
+            Type: inventoryItem.Type.ToString(),
             Cost: inventoryItem.Cost.Value,
             Price: inventoryItem.Price.Value,
             StockQuantity: inventoryItem.StockQuantity.Value,

@@ -30,6 +30,7 @@ services:
       - garageflow_pgadmin_data:/var/lib/pgadmin
 
   api:
+    image: garageflow-api:local
     build:
       context: .
       dockerfile: Dockerfile
@@ -52,6 +53,9 @@ services:
       Auth__BootstrapAdmin__Email: ${BOOTSTRAP_ADMIN_EMAIL:-admin-dev@garageflow.local}
       Auth__BootstrapAdmin__BirthDate: ${BOOTSTRAP_ADMIN_BIRTH_DATE:-1990-01-01}
       Auth__BootstrapAdmin__Password: ${BOOTSTRAP_ADMIN_PASSWORD:-Admin@12345}
+      Webhooks__EstimateDecisions__HmacSecret: ${ESTIMATE_DECISION_WEBHOOK_SECRET:-local-estimate-decision-webhook-secret-32chars}
+      Integrations__Outbox__Enabled: "false"
+      Integrations__Sns__Region: us-east-1
     ports:
       - "${API_PORT:-8080}:8080"
 

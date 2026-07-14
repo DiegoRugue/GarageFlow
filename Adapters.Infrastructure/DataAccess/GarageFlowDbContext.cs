@@ -11,9 +11,14 @@ using GarageFlow.Adapters.Infrastructure.Services.Configurations;
 using GarageFlow.Adapters.Infrastructure.Users.Configurations;
 using GarageFlow.Adapters.Infrastructure.Vehicles.Configurations;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Configurations;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Inbox;
+using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 using GarageFlow.SharedKernel.Domain.Events;
+using GarageFlow.SharedKernel.Domain.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 
 namespace GarageFlow.Adapters.Infrastructure.DataAccess;
 
@@ -21,6 +26,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     : DbContext(options), IUnitOfWork
 {
     private IDbContextTransaction? _currentTransaction;
+    private readonly List<DomainEvent> _stagedDomainEvents = [];
 
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
@@ -31,6 +37,9 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     public DbSet<VehicleModel> VehicleModels => Set<VehicleModel>();
     public DbSet<VehicleColor> VehicleColors => Set<VehicleColor>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
+    public DbSet<IntakeRequestReceipt> WorkOrderIntakeRequests => Set<IntakeRequestReceipt>();
+    public DbSet<EstimateDecisionInboxEvent> EstimateDecisionInboxEvents => Set<EstimateDecisionInboxEvent>();
+    public DbSet<IntegrationOutboxMessageEntity> IntegrationOutboxMessages => Set<IntegrationOutboxMessageEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,6 +55,9 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
         modelBuilder.ApplyConfiguration(new EstimateEntityConfiguration());
         modelBuilder.ApplyConfiguration(new EstimateInventoryLineEntityConfiguration());
         modelBuilder.ApplyConfiguration(new EstimateServiceLineEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new IntakeRequestReceiptConfiguration());
+        modelBuilder.ApplyConfiguration(new EstimateDecisionInboxEventConfiguration());
+        modelBuilder.ApplyConfiguration(new IntegrationOutboxMessageEntityConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 
@@ -63,13 +75,11 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
     {
         if (_currentTransaction is null)
         {
-            await SaveChangesAsync(cancellationToken);
             return;
         }
 
         try
         {
-            await SaveChangesAsync(cancellationToken);
             await _currentTransaction.CommitAsync(cancellationToken);
         }
         finally
@@ -84,6 +94,7 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
         if (_currentTransaction is null)
         {
             ChangeTracker.Clear();
+            _stagedDomainEvents.Clear();
             return;
         }
 
@@ -96,32 +107,45 @@ public sealed class GarageFlowDbContext(DbContextOptions<GarageFlowDbContext> op
             await _currentTransaction.DisposeAsync();
             _currentTransaction = null;
             ChangeTracker.Clear();
+            _stagedDomainEvents.Clear();
         }
     }
 
-    public new Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        return base.SaveChangesAsync(cancellationToken);
-    }
-
-    public IReadOnlyList<DomainEvent> DequeueDomainEvents()
-    {
-        var entities = ChangeTracker
+        var entitiesWithEvents = ChangeTracker
             .Entries()
             .Select(entry => entry.Entity)
             .OfType<IHasDomainEvents>()
             .Where(entity => entity.DomainEvents.Count > 0)
             .ToList();
-
-        var domainEvents = entities
+        var domainEvents = entitiesWithEvents
             .SelectMany(entity => entity.DomainEvents)
             .ToList();
 
-        foreach (var entity in entities)
+        try
         {
-            entity.ClearDomainEvents();
-        }
+            var result = await base.SaveChangesAsync(cancellationToken);
 
+            foreach (var entity in entitiesWithEvents)
+            {
+                entity.ClearDomainEvents();
+            }
+
+            _stagedDomainEvents.AddRange(domainEvents);
+            return result;
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw new BusinessRuleViolationException("A resource with the same unique value already exists.");
+        }
+    }
+
+    public IReadOnlyList<DomainEvent> DequeueDomainEvents()
+    {
+        var domainEvents = _stagedDomainEvents.ToList();
+        _stagedDomainEvents.Clear();
         return domainEvents;
     }
 }

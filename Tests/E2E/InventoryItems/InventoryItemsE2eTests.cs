@@ -6,7 +6,8 @@ using GarageFlow.Tests.E2E.Support.Helpers;
 
 namespace GarageFlow.Tests.E2E.InventoryItems;
 
-public sealed class InventoryItemsE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class InventoryItemsE2eTests(E2eApiFixture fixture)
 {
     private const string NotFoundProblemTitle = "Resource not found";
 
@@ -23,7 +24,7 @@ public sealed class InventoryItemsE2eTests(E2eApiFixture fixture) : IClassFixtur
         var createRequest = new CreateInventoryItemRequest(
             Name: $"E2E Item {uniqueSeed[..8]}",
             Description: $"Initial description {uniqueSeed[..8]}",
-            Type: (int)InventoryItemTypeContract.Part,
+            Type: "Part",
             Cost: 35.50m,
             Price: 62.00m,
             StockQuantity: 8);
@@ -84,7 +85,7 @@ public sealed class InventoryItemsE2eTests(E2eApiFixture fixture) : IClassFixtur
         var updateRequest = new UpdateInventoryItemRequest(
             Name: $"E2E Item Updated {uniqueSeed[..8]}",
             Description: $"Updated description {uniqueSeed[..8]}",
-            Type: (int)InventoryItemTypeContract.Supply,
+            Type: "Supply",
             Cost: 42.10m,
             Price: 79.99m);
 
@@ -140,7 +141,7 @@ public sealed class InventoryItemsE2eTests(E2eApiFixture fixture) : IClassFixtur
     private sealed record CreateInventoryItemRequest(
         string Name,
         string Description,
-        int Type,
+        string Type,
         decimal Cost,
         decimal Price,
         int StockQuantity);
@@ -148,7 +149,7 @@ public sealed class InventoryItemsE2eTests(E2eApiFixture fixture) : IClassFixtur
     private sealed record UpdateInventoryItemRequest(
         string Name,
         string Description,
-        int Type,
+        string Type,
         decimal Cost,
         decimal Price);
 
@@ -158,16 +159,10 @@ public sealed class InventoryItemsE2eTests(E2eApiFixture fixture) : IClassFixtur
         Guid Id,
         string Name,
         string Description,
-        int Type,
+        string Type,
         decimal Cost,
         decimal Price,
         int StockQuantity,
         DateTime CreatedAt);
 
-    private enum InventoryItemTypeContract
-    {
-        // Keep API payload numeric while making tests self-descriptive.
-        Part = 0,
-        Supply = 1
-    }
 }

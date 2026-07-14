@@ -28,10 +28,12 @@ public class WorkOrderRepositoryContractsCompilationTests
 
         Signature<Func<IWorkOrderQueries, WorkOrderId, CancellationToken, Task<WorkOrderDetailsReadModel?>>>(
             (queries, id, cancellationToken) => queries.GetDetailsByIdAsync(id, cancellationToken));
+        Signature<Func<IWorkOrderQueries, WorkOrderId, CancellationToken, Task<WorkOrderStatusReadModel?>>>(
+            (queries, id, cancellationToken) => queries.GetStatusByIdAsync(id, cancellationToken));
         Signature<Func<IWorkOrderQueries, WorkOrderId, CustomerId, CancellationToken, Task<WorkOrderDetailsReadModel?>>>(
             (queries, id, customerId, cancellationToken) => queries.GetCustomerDetailsByIdAsync(id, customerId, cancellationToken));
         Signature<Func<IWorkOrderQueries, int, int, CustomerId?, CancellationToken, Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)>>>(
-            (queries, page, pageSize, customerId, cancellationToken) => queries.ListDetailsAsync(page, pageSize, customerId, cancellationToken));
+            (queries, page, pageSize, customerId, cancellationToken) => queries.ListActiveDetailsAsync(page, pageSize, customerId, cancellationToken));
         Signature<Func<IWorkOrderQueries, int, int, CustomerId, CancellationToken, Task<(IReadOnlyList<WorkOrderDetailsReadModel> Items, int TotalCount)>>>(
             (queries, page, pageSize, customerId, cancellationToken) => queries.ListCustomerDetailsAsync(page, pageSize, customerId, cancellationToken));
         Signature<Func<IWorkOrderQueries, DateTime, DateTime, ServiceId?, CancellationToken, Task<AverageServiceTimeReadModel>>>(

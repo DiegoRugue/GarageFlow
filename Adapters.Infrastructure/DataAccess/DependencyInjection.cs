@@ -1,5 +1,6 @@
+using Amazon;
+using Amazon.SimpleNotificationService;
 using GarageFlow.Application.Auth.Abstractions;
-using GarageFlow.Application.WorkOrders.Abstractions;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Application.InventoryItems.Ports;
@@ -7,6 +8,8 @@ using GarageFlow.Application.Services.Ports;
 using GarageFlow.Application.Users.Ports;
 using GarageFlow.Application.Vehicles.Ports;
 using GarageFlow.Application.WorkOrders.Ports;
+using GarageFlow.Application.Common.Integrations;
+using GarageFlow.Application.WorkOrders.Integrations;
 using GarageFlow.Adapters.Infrastructure.Auth;
 using GarageFlow.Adapters.Infrastructure.Auth.Jwt;
 using GarageFlow.Adapters.Infrastructure.Customers.Repositories;
@@ -14,12 +17,16 @@ using GarageFlow.Adapters.Infrastructure.InventoryItems.Repositories;
 using GarageFlow.Adapters.Infrastructure.Services.Repositories;
 using GarageFlow.Adapters.Infrastructure.Users.Repositories;
 using GarageFlow.Adapters.Infrastructure.Vehicles.Repositories;
-using GarageFlow.Adapters.Infrastructure.WorkOrders.Email;
 using GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Idempotency;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Inbox;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Notifications;
+using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace GarageFlow.Adapters.Infrastructure.DataAccess;
 
@@ -79,7 +86,29 @@ public static class DependencyInjection
         services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
         services.AddScoped<IWorkOrderQueries, EfWorkOrderQueries>();
         services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
-        services.AddScoped<ICustomerApprovalEmailSender, LoggingCustomerApprovalEmailSender>();
+        services.AddScoped<IWorkOrderIntakeRequestStore, WorkOrderIntakeRequestStore>();
+        services.AddScoped<IEstimateDecisionInbox, EstimateDecisionInbox>();
+        services.AddScoped<IIntegrationOutboxMapper, WorkOrderIntegrationOutboxMapper>();
+        services.AddScoped<IOutboxWriter, EfOutboxWriter>();
+        services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();
+        services.AddSingleton<IValidateOptions<IntegrationOutboxOptions>, IntegrationOutboxOptionsValidator>();
+        services.AddOptions<IntegrationOutboxOptions>()
+            .Bind(configuration.GetSection(IntegrationOutboxOptions.SectionName))
+            .ValidateOnStart();
+        if (configuration.GetValue<bool>($"{IntegrationOutboxOptions.SectionName}:Enabled"))
+        {
+            services.AddSingleton<IValidateOptions<AmazonSnsStatusNotificationOptions>,
+                AmazonSnsStatusNotificationOptionsValidator>();
+            services.AddOptions<AmazonSnsStatusNotificationOptions>()
+                .Bind(configuration.GetSection(AmazonSnsStatusNotificationOptions.SectionName))
+                .ValidateOnStart();
+            services.AddSingleton<IAmazonSimpleNotificationService>(
+                _ => new AmazonSimpleNotificationServiceClient(RegionEndpoint.USEast1));
+            services.AddScoped<IWorkOrderStatusNotificationPublisher,
+                AmazonSnsWorkOrderStatusNotificationPublisher>();
+            services.AddScoped<IIntegrationOutboxProcessor, IntegrationOutboxProcessor>();
+            services.AddHostedService<IntegrationOutboxPublisher>();
+        }
         services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.Configure<JwtTokenOptions>(configuration.GetSection(JwtTokenOptions.SectionName));

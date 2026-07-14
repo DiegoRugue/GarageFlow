@@ -1,13 +1,22 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using GarageFlow.Adapters.Infrastructure.DataAccess;
+using GarageFlow.Application.Common.Integrations;
+using GarageFlow.Application.WorkOrders.Integrations;
 using GarageFlow.Tests.E2E.Support.Contracts.Auth;
 using GarageFlow.Tests.E2E.Support.Contracts.Common;
 using GarageFlow.Tests.E2E.Support.Fixtures;
 using GarageFlow.Tests.E2E.Support.Helpers;
+using GarageFlow.Tests.Shared.WorkOrders;
+using Npgsql;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GarageFlow.Tests.E2E.WorkOrders;
 
-public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class WorkOrdersE2eTests(E2eApiFixture fixture)
 {
     private const string NotFoundProblemTitle = "Resource not found";
     private const string ConflictProblemTitle = "Business rule violation";
@@ -27,7 +36,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
             "/work-orders",
             new CreateWorkOrderRequest(setup.CustomerId, setup.VehicleId));
 
-        // Then the work order starts in the Created state.
+        // Then the work order starts in the Received state.
         HttpResponseAssertions.AssertStatus(createWorkOrderResponse, HttpStatusCode.Created);
         Assert.NotNull(createWorkOrderResponse.Headers.Location);
 
@@ -35,7 +44,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Assert.NotEqual(Guid.Empty, createdWorkOrder.Id);
         Assert.Equal(setup.CustomerId, createdWorkOrder.CustomerId);
         Assert.Equal(setup.VehicleId, createdWorkOrder.VehicleId);
-        Assert.Equal("Created", createdWorkOrder.Status);
+        Assert.Equal("Received", createdWorkOrder.Status);
         Assert.NotEqual(default, createdWorkOrder.CreatedAt);
 
         // When staff creates the first estimate for the work order.
@@ -105,13 +114,32 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
             $"/me/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/approve",
             content: null);
 
-        // Then the approval is accepted and the work order becomes approved.
+        // Then the approval is accepted and the work order enters execution.
         HttpResponseAssertions.AssertStatus(approveEstimateResponse, HttpStatusCode.NoContent);
 
         using var detailsAfterApprovalResponse = await staffClient.GetAsync($"/work-orders/{createdWorkOrder.Id}");
         HttpResponseAssertions.AssertStatus(detailsAfterApprovalResponse, HttpStatusCode.OK);
         var detailsAfterApproval = await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(detailsAfterApprovalResponse);
-        Assert.Equal("Approved", detailsAfterApproval.Status);
+        Assert.Equal("InProgress", detailsAfterApproval.Status);
+
+        using (var approvalScope = _fixture.CreateScope())
+        {
+            var approvalContext = approvalScope.ServiceProvider.GetRequiredService<GarageFlowDbContext>();
+            var approvalNotifications = (await approvalContext.IntegrationOutboxMessages
+                    .AsNoTracking()
+                    .Where(message => message.AggregateId == createdWorkOrder.Id)
+                    .ToListAsync())
+                .Select(message => IntegrationEventJson.Deserialize<WorkOrderStatusChangedIntegrationEvent>(message.Payload))
+                .Where(notification => notification is
+                {
+                    PreviousStatus: "WaitingApproval",
+                    CurrentStatus: "InProgress"
+                })
+                .ToList();
+            var approvalNotification = Assert.Single(approvalNotifications);
+            Assert.NotNull(approvalNotification);
+            Assert.Equal(createdWorkOrder.Id, approvalNotification.WorkOrderId);
+        }
 
         var estimateAfterApproval = Assert.Single(detailsAfterApproval.Estimates);
         Assert.Equal(createdEstimate.Id, estimateAfterApproval.Id);
@@ -121,13 +149,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Assert.Null(approvedServiceLine.StartedAt);
         Assert.Null(approvedServiceLine.CompletedAt);
 
-        // When staff starts the work order and completes the approved service line.
-        using var startWorkResponse = await staffClient.PostAsync(
-            $"/work-orders/{createdWorkOrder.Id}/start-work",
-            content: null);
-
-        HttpResponseAssertions.AssertStatus(startWorkResponse, HttpStatusCode.NoContent);
-
+        // When staff starts and completes the approved service line.
         using var startServiceResponse = await staffClient.PostAsync(
             $"/work-orders/{createdWorkOrder.Id}/estimates/{createdEstimate.Id}/services/{approvedServiceLine.Id}/start",
             content: null);
@@ -188,6 +210,207 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Assert.NotNull(serviceLine.StartedAt);
         Assert.NotNull(serviceLine.CompletedAt);
         Assert.True(serviceLine.StartedAt <= serviceLine.CompletedAt);
+
+        // And the focused staff status endpoint exposes only the status projection.
+        using var statusResponse = await staffClient.GetAsync($"/work-orders/{createdWorkOrder.Id}/status");
+        HttpResponseAssertions.AssertStatus(statusResponse, HttpStatusCode.OK);
+        using var statusDocument = JsonDocument.Parse(await statusResponse.Content.ReadAsStringAsync());
+        Assert.Equal(
+            ["id", "status", "updatedAt"],
+            statusDocument.RootElement.EnumerateObject().Select(property => property.Name).Order());
+        Assert.Equal(createdWorkOrder.Id, statusDocument.RootElement.GetProperty("id").GetGuid());
+        Assert.Equal("Delivered", statusDocument.RootElement.GetProperty("status").GetString());
+
+        // Delivered orders leave the active staff queue but remain in the customer's complete history.
+        using var staffQueueResponse = await staffClient.GetAsync("/work-orders?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(staffQueueResponse, HttpStatusCode.OK);
+        var staffQueue = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(staffQueueResponse);
+        Assert.DoesNotContain(staffQueue.Items, item => item.Id == createdWorkOrder.Id);
+
+        using var customerHistoryResponse = await customerClient.GetAsync("/me/work-orders?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(customerHistoryResponse, HttpStatusCode.OK);
+        var customerHistory = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(customerHistoryResponse);
+        Assert.Contains(customerHistory.Items, item => item.Id == createdWorkOrder.Id && item.Status == "Delivered");
+    }
+
+    [Fact]
+    public async Task WorkOrders_ShouldTranslateActiveQueueOrderingFilteringAndPaging_InPostgreSql()
+    {
+        using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
+        var seed = Guid.NewGuid().ToString("N");
+        var targetSetup = await CreateWorkOrderSetupAsync(staffClient, seed);
+        var otherSetup = await CreateWorkOrderSetupAsync(staffClient, Guid.NewGuid().ToString("N"));
+
+        var inProgressOldest = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var inProgressNewest = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var waitingApproval = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var diagnosing = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var receivedFirst = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var receivedSecond = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var completed = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var delivered = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var cancelled = await CreateWorkOrderAsync(staffClient, targetSetup);
+        var otherCustomerReceived = await CreateWorkOrderAsync(staffClient, otherSetup);
+
+        var idPrefix = Guid.NewGuid().ToString("N")[..30];
+        var receivedLowerId = Guid.ParseExact($"{idPrefix}01", "N");
+        var receivedHigherId = Guid.ParseExact($"{idPrefix}02", "N");
+        var baseline = new DateTime(2026, 7, 12, 8, 0, 0, DateTimeKind.Utc);
+
+        await SeedWorkOrderQueueAsync(
+        [
+            new(inProgressOldest.Id, inProgressOldest.Id, "InProgress", baseline),
+            new(inProgressNewest.Id, inProgressNewest.Id, "InProgress", baseline.AddMinutes(1)),
+            new(waitingApproval.Id, waitingApproval.Id, "WaitingApproval", baseline),
+            new(diagnosing.Id, diagnosing.Id, "Diagnosing", baseline),
+            new(receivedFirst.Id, receivedLowerId, "Received", baseline),
+            new(receivedSecond.Id, receivedHigherId, "Received", baseline),
+            new(completed.Id, completed.Id, "Completed", baseline),
+            new(delivered.Id, delivered.Id, "Delivered", baseline),
+            new(cancelled.Id, cancelled.Id, "Cancelled", baseline),
+            new(otherCustomerReceived.Id, otherCustomerReceived.Id, "Received", baseline)
+        ]);
+
+        Guid[] expectedIds =
+        [
+            inProgressOldest.Id,
+            inProgressNewest.Id,
+            waitingApproval.Id,
+            diagnosing.Id,
+            receivedLowerId,
+            receivedHigherId
+        ];
+        Guid[] terminalIds = [completed.Id, delivered.Id, cancelled.Id];
+
+        using var completeResponse = await staffClient.GetAsync(
+            $"/work-orders?page=1&pageSize=100&customerId={targetSetup.CustomerId}");
+        HttpResponseAssertions.AssertStatus(completeResponse, HttpStatusCode.OK);
+        var completeQueue = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(completeResponse);
+
+        Assert.Equal(6, completeQueue.TotalCount);
+        Assert.Equal(expectedIds, completeQueue.Items.Select(item => item.Id));
+        Assert.Equal(
+            ["InProgress", "InProgress", "WaitingApproval", "Diagnosing", "Received", "Received"],
+            completeQueue.Items.Select(item => item.Status));
+        Assert.DoesNotContain(completeQueue.Items, item => terminalIds.Contains(item.Id));
+        Assert.DoesNotContain(completeQueue.Items, item => item.Id == otherCustomerReceived.Id);
+
+        var pagedIds = new List<Guid>();
+        for (var page = 1; page <= 3; page++)
+        {
+            using var pageResponse = await staffClient.GetAsync(
+                $"/work-orders?page={page}&pageSize=2&customerId={targetSetup.CustomerId}");
+            HttpResponseAssertions.AssertStatus(pageResponse, HttpStatusCode.OK);
+            var pagePayload = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(pageResponse);
+
+            Assert.Equal(6, pagePayload.TotalCount);
+            Assert.Equal(page, pagePayload.Page);
+            Assert.Equal(2, pagePayload.PageSize);
+            Assert.Equal(2, pagePayload.Items.Count);
+            pagedIds.AddRange(pagePayload.Items.Select(item => item.Id));
+        }
+
+        Assert.Equal(expectedIds, pagedIds);
+        Assert.Equal(expectedIds.Length, pagedIds.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task WorkOrderIntake_ShouldSerializeConcurrentIdenticalRequests_AndRejectChangedReplay()
+    {
+        using var firstClient = await _fixture.CreateAuthenticatedClientAsync();
+        using var secondClient = await _fixture.CreateAuthenticatedClientAsync();
+        var request = CreateIntakeRequest();
+
+        var firstTask = firstClient.PostAsJsonAsync("/work-orders/intake", request);
+        var secondTask = secondClient.PostAsJsonAsync("/work-orders/intake", request);
+        var responses = await Task.WhenAll(firstTask, secondTask);
+        using var firstResponse = responses[0];
+        using var secondResponse = responses[1];
+
+        Assert.Equal(
+            [HttpStatusCode.OK, HttpStatusCode.Created],
+            responses.Select(response => response.StatusCode).Order().ToArray());
+        var first = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderIntakeResponse>(firstResponse);
+        var second = await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderIntakeResponse>(secondResponse);
+        Assert.Equal(JsonSerializer.Serialize(first), JsonSerializer.Serialize(second));
+        Assert.NotEqual(Guid.Empty, first.WorkOrderId);
+        Assert.NotEqual(Guid.Empty, first.CustomerId);
+        Assert.NotEqual(Guid.Empty, first.VehicleId);
+
+        using var detailsResponse = await firstClient.GetAsync($"/work-orders/{first.WorkOrderId}");
+        HttpResponseAssertions.AssertStatus(detailsResponse, HttpStatusCode.OK);
+        var details = await HttpResponseAssertions.ReadRequiredJsonAsync<WorkOrderDetailsResponse>(detailsResponse);
+        Assert.Equal(first.CustomerId, details.CustomerId);
+        Assert.Equal(first.VehicleId, details.VehicleId);
+        Assert.Equal(first.EstimateId, Assert.Single(details.Estimates).Id);
+
+        using var listResponse = await firstClient.GetAsync("/work-orders?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(listResponse, HttpStatusCode.OK);
+        var list = await HttpResponseAssertions.ReadRequiredJsonAsync<ListWorkOrdersResponse>(listResponse);
+        var listed = Assert.Single(
+            list.Items,
+            item => item.CustomerId == first.CustomerId && item.VehicleId == first.VehicleId);
+        Assert.Equal(first.WorkOrderId, listed.Id);
+        Assert.Equal(first.CustomerId, listed.CustomerId);
+        Assert.Equal(first.VehicleId, listed.VehicleId);
+        var listedEstimate = Assert.Single(listed.Estimates);
+        Assert.Equal(first.EstimateId, listedEstimate.Id);
+        Assert.Equal(Assert.Single(first.ServiceIds), Assert.Single(listedEstimate.ServiceLines).ServiceId);
+        Assert.Equal(
+            Assert.Single(first.InventoryItemIds),
+            Assert.Single(listedEstimate.InventoryLines).InventoryItemId);
+
+        using var customersResponse = await firstClient.GetAsync("/customers?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(customersResponse, HttpStatusCode.OK);
+        var customers = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<CreateCustomerResponse>>(
+            customersResponse);
+        var persistedCustomer = Assert.Single(
+            customers.Items,
+            customer => customer.TaxDocument == request.Customer!.TaxDocument);
+        Assert.Equal(first.CustomerId, persistedCustomer.Id);
+
+        using var vehiclesResponse = await firstClient.GetAsync("/vehicles?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(vehiclesResponse, HttpStatusCode.OK);
+        var vehicles = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<CreateVehicleResponse>>(
+            vehiclesResponse);
+        var persistedVehicle = Assert.Single(
+            vehicles.Items,
+            vehicle => vehicle.Plate == request.Vehicle!.Plate);
+        Assert.Equal(first.VehicleId, persistedVehicle.Id);
+        Assert.Equal(first.CustomerId, persistedVehicle.CustomerId);
+
+        using var servicesResponse = await firstClient.GetAsync("/services?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(servicesResponse, HttpStatusCode.OK);
+        var services = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<ServiceResponse>>(
+            servicesResponse);
+        var requestedService = Assert.Single(request.Services!);
+        var persistedService = Assert.Single(
+            services.Items,
+            service => service.Description == requestedService.Description);
+        Assert.Equal(Assert.Single(first.ServiceIds), persistedService.Id);
+
+        using var inventoryClient = await _fixture.CreateAuthenticatedClientAsync();
+        _ = await inventoryClient.AuthenticateAsActiveAttendantAsync(Guid.NewGuid().ToString("N"));
+        using var inventoryItemsResponse = await inventoryClient.GetAsync("/inventory-items?page=1&pageSize=100");
+        HttpResponseAssertions.AssertStatus(inventoryItemsResponse, HttpStatusCode.OK);
+        var inventoryItems = await HttpResponseAssertions.ReadRequiredJsonAsync<PaginatedResponse<InventoryItemResponse>>(
+            inventoryItemsResponse);
+        var requestedInventoryItem = Assert.Single(request.InventoryItems!);
+        var persistedInventoryItem = Assert.Single(
+            inventoryItems.Items,
+            item => item.Name == requestedInventoryItem.Name);
+        Assert.Equal(Assert.Single(first.InventoryItemIds), persistedInventoryItem.Id);
+
+        var changed = request with
+        {
+            Services = [new IntakeServiceRequest("Oil and filter replacement", 181m)]
+        };
+        using var conflictResponse = await firstClient.PostAsJsonAsync("/work-orders/intake", changed);
+
+        HttpResponseAssertions.AssertStatus(conflictResponse, HttpStatusCode.Conflict);
+        var problem = await HttpResponseAssertions.ReadRequiredJsonAsync<ProblemDetailsResponse>(conflictResponse);
+        Assert.Equal((int)HttpStatusCode.Conflict, problem.Status);
+        Assert.Equal(ConflictProblemTitle, problem.Title);
     }
 
     [Fact]
@@ -232,7 +455,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
     }
 
     [Fact]
-    public async Task WorkOrders_ShouldReturnConflict_ForInvalidTransition()
+    public async Task WorkOrders_ShouldReturnNotFound_ForRemovedExecutionRoute()
     {
         // Given staff created a work order and submitted an estimate that still awaits customer approval.
         using var staffClient = await _fixture.CreateAuthenticatedClientAsync();
@@ -265,19 +488,13 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
 
         HttpResponseAssertions.AssertStatus(submitEstimateResponse, HttpStatusCode.NoContent);
 
-        // When staff tries to start work before customer approval.
-        using var invalidTransitionResponse = await staffClient.PostAsync(
+        // When staff calls the removed execution route.
+        using var removedRouteResponse = await staffClient.PostAsync(
             $"/work-orders/{createdWorkOrder.Id}/start-work",
             content: null);
 
-        // Then the domain state machine is exposed as a conflict ProblemDetails response.
-        HttpResponseAssertions.AssertStatus(invalidTransitionResponse, HttpStatusCode.Conflict);
-
-        var problem = await HttpResponseAssertions.ReadRequiredJsonAsync<ProblemDetailsResponse>(invalidTransitionResponse);
-        Assert.False(string.IsNullOrWhiteSpace(problem.Type));
-        Assert.Equal((int)HttpStatusCode.Conflict, problem.Status);
-        Assert.Equal(ConflictProblemTitle, problem.Title);
-        Assert.Equal("Work order cannot start while waiting for customer approval.", problem.Detail);
+        // Then the API no longer advertises or handles it.
+        HttpResponseAssertions.AssertStatus(removedRouteResponse, HttpStatusCode.NotFound);
     }
 
     private async Task<WorkOrderSetupIds> CreateWorkOrderSetupAsync(HttpClient staffClient, string seed)
@@ -298,6 +515,26 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
             inventoryItem.Cost,
             inventoryItem.Price);
     }
+
+    private static CreateWorkOrderIntakeRequest CreateIntakeRequest() => new(
+        Guid.NewGuid(),
+        new IntakeCustomerRequest(
+            "52998224725",
+            "Maria Oliveira",
+            "maria@example.com",
+            "+5511999999999"),
+        new IntakeVehicleRequest("ABC1D23", 2022, "Toyota", "Corolla", "Black"),
+        [new IntakeServiceRequest("Oil and filter replacement", 180m)],
+        [
+            new IntakeInventoryItemRequest(
+                "5W30 engine oil",
+                "Synthetic engine oil",
+                "Part",
+                35m,
+                55m,
+                StockQuantity: 10,
+                Quantity: 4)
+        ]);
 
     private static async Task<CreateCustomerResponse> CreateCustomerAsync(HttpClient client, string seed)
     {
@@ -320,6 +557,47 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Assert.NotEqual(default, payload.CreatedAt);
 
         return payload;
+    }
+
+    private static async Task<CreateWorkOrderResponse> CreateWorkOrderAsync(
+        HttpClient client,
+        WorkOrderSetupIds setup)
+    {
+        using var response = await client.PostAsJsonAsync(
+            "/work-orders",
+            new CreateWorkOrderRequest(setup.CustomerId, setup.VehicleId));
+        HttpResponseAssertions.AssertStatus(response, HttpStatusCode.Created);
+        return await HttpResponseAssertions.ReadRequiredJsonAsync<CreateWorkOrderResponse>(response);
+    }
+
+    private async Task SeedWorkOrderQueueAsync(IReadOnlyCollection<WorkOrderQueueSeed> seeds)
+    {
+        await using var connection = new NpgsqlConnection(_fixture.DatabaseConnectionString);
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        foreach (var seed in seeds)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                UPDATE "WorkOrders"
+                SET "Id" = @seededId,
+                    "Status" = @status,
+                    "CreatedAt" = @createdAt,
+                    "UpdatedAt" = @createdAt
+                WHERE "Id" = @currentId;
+                """;
+            command.Parameters.AddWithValue("seededId", seed.SeededId);
+            command.Parameters.AddWithValue("status", seed.Status);
+            command.Parameters.AddWithValue("createdAt", seed.CreatedAt);
+            command.Parameters.AddWithValue("currentId", seed.CurrentId);
+
+            Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        }
+
+        await transaction.CommitAsync();
     }
 
     private static async Task<CreatedVehicleDependencies> CreateVehicleAsync(HttpClient client, Guid customerId, string seed)
@@ -394,7 +672,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         var request = new CreateInventoryItemRequest(
             Name: $"E2E WO Item {seed[..8]}",
             Description: $"E2E WO Item Description {seed[..8]}",
-            Type: 0,
+            Type: "Part",
             Cost: 50m,
             Price: 95m,
             StockQuantity: 12);
@@ -562,6 +840,24 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         decimal InventoryItemCost,
         decimal InventoryItemPrice);
 
+    private sealed record WorkOrderQueueSeed(
+        Guid CurrentId,
+        Guid SeededId,
+        string Status,
+        DateTime CreatedAt);
+
+    private sealed record ListWorkOrdersResponse(
+        IReadOnlyList<WorkOrderDetailsResponse> Items,
+        int TotalCount,
+        int Page,
+        int PageSize);
+
+    private sealed record PaginatedResponse<T>(
+        IReadOnlyList<T> Items,
+        int TotalCount,
+        int Page,
+        int PageSize);
+
     private sealed record CreatedVehicleDependencies(Guid Id);
 
     private sealed record CreateWorkOrderRequest(Guid CustomerId, Guid VehicleId);
@@ -705,7 +1001,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
     private sealed record CreateInventoryItemRequest(
         string Name,
         string Description,
-        int Type,
+        string Type,
         decimal Cost,
         decimal Price,
         int StockQuantity);
@@ -714,7 +1010,7 @@ public sealed class WorkOrdersE2eTests(E2eApiFixture fixture) : IClassFixture<E2
         Guid Id,
         string Name,
         string Description,
-        int Type,
+        string Type,
         decimal Cost,
         decimal Price,
         int StockQuantity,

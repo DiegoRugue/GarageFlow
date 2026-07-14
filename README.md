@@ -4,6 +4,8 @@ GarageFlow é uma API para gestão de oficinas automotivas, desenvolvida como en
 
 O projeto adota Clean Architecture com DDD no domínio, adapters explícitos e organização modular por vertical slices/casos de uso. A API foi construída com Minimal APIs, Mediator, EF Core e PostgreSQL. O ambiente local foi preparado para subir a aplicação completa com Docker Compose, incluindo API, banco de dados e pgAdmin.
 
+Na Fase 2, a entrega evolui o comportamento funcional — incluindo tanto a abertura de ordens de serviço com os identificadores dos cadastros existentes quanto a abertura completa que realiza todos os cadastros a partir de um único payload —, amplia a conteinerização com artefatos Kubernetes, adiciona a infraestrutura como código em Terraform e automatiza o ciclo de deploy e remoção na AWS Academy.
+
 ## Sumário
 
 - [Visão geral](#visão-geral)

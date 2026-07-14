@@ -6,7 +6,8 @@ using GarageFlow.Tests.E2E.Support.Helpers;
 
 namespace GarageFlow.Tests.E2E.Vehicles;
 
-public sealed class VehiclesE2eTests(E2eApiFixture fixture) : IClassFixture<E2eApiFixture>
+[Collection(E2eApiCollection.Name)]
+public sealed class VehiclesE2eTests(E2eApiFixture fixture)
 {
     private const string ConflictProblemTitle = "Business rule violation";
 

@@ -1,7 +1,4 @@
-using GarageFlow.Application.Common.Events;
 using GarageFlow.Application.WorkOrders.Common;
-using GarageFlow.Application.WorkOrders.Events;
-using GarageFlow.Application.WorkOrders.Abstractions;
 using GarageFlow.Application.WorkOrders.UseCases.AddEstimateInventoryItem;
 using GarageFlow.Application.WorkOrders.UseCases.AddEstimateService;
 using GarageFlow.Application.WorkOrders.UseCases.ApproveMyEstimate;
@@ -15,10 +12,10 @@ using GarageFlow.Application.WorkOrders.UseCases.GetMyWorkOrderById;
 using GarageFlow.Application.WorkOrders.UseCases.GetWorkOrderById;
 using GarageFlow.Application.WorkOrders.UseCases.ListMyWorkOrders;
 using GarageFlow.Application.WorkOrders.UseCases.ListWorkOrders;
+using GarageFlow.Application.WorkOrders.UseCases.GetWorkOrderStatus;
 using GarageFlow.Application.WorkOrders.UseCases.RejectMyEstimate;
 using GarageFlow.Application.WorkOrders.UseCases.StartDiagnosis;
 using GarageFlow.Application.WorkOrders.UseCases.StartEstimateService;
-using GarageFlow.Application.WorkOrders.UseCases.StartWork;
 using GarageFlow.Application.WorkOrders.UseCases.SubmitEstimate;
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
@@ -52,7 +49,6 @@ using GarageFlow.Tests.Shared.Users;
 using GarageFlow.Tests.Shared.Vehicles;
 using GarageFlow.Tests.Shared.WorkOrders;
 using Mediator;
-using Microsoft.Extensions.Logging;
 using Moq;
 using MediatorUnit = Mediator.Unit;
 
@@ -61,7 +57,7 @@ namespace GarageFlow.Tests.Unit.WorkOrders;
 public class WorkOrderHandlersTests
 {
     [Fact]
-    public async Task CreateWorkOrder_ShouldCreateCreatedWorkOrder_WhenVehicleBelongsToCustomer()
+    public async Task CreateWorkOrder_ShouldCreateReceivedWorkOrder_WhenVehicleBelongsToCustomer()
     {
         var customer = new CustomerBuilder().Build();
         var vehicle = new VehicleBuilder().WithCustomerId(customer.Id.Value).Build();
@@ -80,9 +76,9 @@ public class WorkOrderHandlersTests
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal(customer.Id.Value, result.CustomerId);
         Assert.Equal(vehicle.Id.Value, result.VehicleId);
-        Assert.Equal("Created", result.Status);
+        Assert.Equal("Received", result.Status);
         Assert.Single(workOrders);
-        Assert.Equal(WorkOrderStatus.Created, workOrders[0].Status);
+        Assert.Equal(WorkOrderStatus.Received, workOrders[0].Status);
     }
 
     [Fact]
@@ -242,7 +238,7 @@ public class WorkOrderHandlersTests
                     Quantity: 1),
                 CancellationToken.None));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
         Assert.Equal(6, inventoryItem.StockQuantity.Value);
         inventoryItemRepositoryMock.Verify(
             x => x.GetByIdForStockReservationAsync(It.IsAny<InventoryItemId>(), It.IsAny<CancellationToken>()),
@@ -365,7 +361,7 @@ public class WorkOrderHandlersTests
                 new AddEstimateServiceCommand(workOrder.Id.Value, estimateId.Value, service.Id.Value),
                 CancellationToken.None));
 
-        Assert.Equal("Approved or in-progress work orders cannot be changed.", exception.Message);
+        Assert.Equal("In-progress work orders cannot be changed.", exception.Message);
         serviceRepositoryMock.Verify(
             x => x.GetByIdAsync(It.IsAny<ServiceId>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -538,85 +534,6 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
-    public async Task WaitingApprovalHandler_ShouldSendApprovalEmail()
-    {
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
-        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
-        var domainEvent = new EstimateWaitingApprovalRequested(
-            WorkOrderId.From(Guid.NewGuid()),
-            EstimateId.From(Guid.NewGuid()),
-            CustomerId.From(Guid.NewGuid()),
-            DateTime.UtcNow);
-
-        await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None);
-
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                domainEvent.WorkOrderId.Value,
-                domainEvent.EstimateId.Value,
-                domainEvent.CustomerId.Value,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task WaitingApprovalHandler_ShouldNotThrow_WhenEmailSenderFails()
-    {
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
-        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
-        var domainEvent = new EstimateWaitingApprovalRequested(
-            WorkOrderId.From(Guid.NewGuid()),
-            EstimateId.From(Guid.NewGuid()),
-            CustomerId.From(Guid.NewGuid()),
-            DateTime.UtcNow);
-        emailSenderMock
-            .Setup(x => x.SendEstimateWaitingApprovalAsync(
-                domainEvent.WorkOrderId.Value,
-                domainEvent.EstimateId.Value,
-                domainEvent.CustomerId.Value,
-                It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Email sender failed."));
-
-        var exception = await Record.ExceptionAsync(
-            async () => await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None));
-
-        Assert.Null(exception);
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                domainEvent.WorkOrderId.Value,
-                domainEvent.EstimateId.Value,
-                domainEvent.CustomerId.Value,
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public async Task WaitingApprovalHandler_ShouldIgnoreNonMatchingDomainEvent()
-    {
-        var emailSenderMock = new Mock<ICustomerApprovalEmailSender>();
-        var logger = Mock.Of<ILogger<SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler>>();
-        var handler = new SendApprovalEmailWhenEstimateWaitingApprovalRequestedHandler(emailSenderMock.Object, logger);
-        var domainEvent = new EstimateSubmitted(
-            WorkOrderId.From(Guid.NewGuid()),
-            EstimateId.From(Guid.NewGuid()),
-            EstimateStatus.Pending,
-            125m,
-            DateTime.UtcNow);
-
-        await handler.Handle(new DomainEventNotification(domainEvent), CancellationToken.None);
-
-        emailSenderMock.Verify(
-            x => x.SendEstimateWaitingApprovalAsync(
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<Guid>(),
-                It.IsAny<CancellationToken>()),
-            Times.Never);
-    }
-
-    [Fact]
     public async Task StartDiagnosis_ShouldTransitionToDiagnosing_WhenWorkOrderIsCreated()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
@@ -631,31 +548,63 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
-    public async Task StartWork_ShouldTransitionToInProgress_WhenWorkOrderIsApproved()
-    {
-        var workOrder = new WorkOrderBuilder().BuildWithApprovedEstimate();
-        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
-        var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new StartWorkHandler(workOrderRepositoryMock.Object);
-
-        var result = await handler.Handle(new StartWorkCommand(workOrder.Id.Value), CancellationToken.None);
-
-        Assert.Equal(MediatorUnit.Value, result);
-        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
-    }
-
-    [Fact]
     public async Task CancelWorkOrder_ShouldTransitionToCancelled_WhenWorkOrderIsCreated()
     {
         var workOrder = new WorkOrderBuilder().BuildCreated();
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
         var unitOfWorkMock = CreateUnitOfWorkMock();
-        var handler = new CancelWorkOrderHandler(workOrderRepositoryMock.Object);
+        var handler = new CancelWorkOrderHandler(
+            workOrderRepositoryMock.Object,
+            CreateEstimateDecisionProcessor());
 
         var result = await handler.Handle(new CancelWorkOrderCommand(workOrder.Id.Value), CancellationToken.None);
 
         Assert.Equal(MediatorUnit.Value, result);
         Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+    }
+
+    [Fact]
+    public async Task CancelWorkOrder_ShouldRestoreReservedStockExactlyOnce_UsingMutationLock()
+    {
+        var inventoryItem = new InventoryItemBuilder().WithStockQuantity(8).Build();
+        var workOrder = new WorkOrderBuilder().BuildCreated();
+        var estimate = workOrder.CreateEstimate();
+        workOrder.AddInventoryLine(
+            estimate.Id,
+            inventoryItem.Id,
+            Description.Create("Reserved battery"),
+            EstimateItemQuantity.Create(2),
+            Price.Create(100m),
+            Price.Create(150m));
+        WorkOrderBuilder.AddDefaultServiceLine(workOrder, estimate.Id);
+        workOrder.SubmitEstimate(estimate.Id);
+        workOrder.ApproveEstimate(estimate.Id);
+        var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var inventoryItemRepositoryMock = CreateInventoryItemRepositoryMock([inventoryItem]);
+        var handler = new CancelWorkOrderHandler(
+            workOrderRepositoryMock.Object,
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
+
+        await handler.Handle(new CancelWorkOrderCommand(workOrder.Id.Value), CancellationToken.None);
+        await handler.Handle(new CancelWorkOrderCommand(workOrder.Id.Value), CancellationToken.None);
+
+        Assert.Equal(WorkOrderStatus.Cancelled, workOrder.Status);
+        Assert.Equal(10, inventoryItem.StockQuantity.Value);
+        workOrderRepositoryMock.Verify(
+            repository => repository.GetByIdForEstimateMutationAsync(
+                workOrder.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
+        workOrderRepositoryMock.Verify(
+            repository => repository.GetByIdAsync(
+                It.IsAny<WorkOrderId>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+        inventoryItemRepositoryMock.Verify(
+            repository => repository.GetByIdForStockReservationAsync(
+                inventoryItem.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -704,6 +653,7 @@ public class WorkOrderHandlersTests
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
         var workOrderRepositoryMock = CreateWorkOrderRepositoryMock([workOrder]);
+        var inventoryItemRepositoryMock = CreateInventoryItemRepositoryMock();
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
@@ -714,8 +664,13 @@ public class WorkOrderHandlersTests
             CancellationToken.None);
 
         Assert.Equal(MediatorUnit.Value, result);
-        Assert.Equal(WorkOrderStatus.Approved, workOrder.Status);
+        Assert.Equal(WorkOrderStatus.InProgress, workOrder.Status);
         Assert.Equal(EstimateStatus.Approved, workOrder.Estimates.Single().Status);
+        inventoryItemRepositoryMock.Verify(
+            repository => repository.GetByIdForStockReservationAsync(
+                It.IsAny<InventoryItemId>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -833,7 +788,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var result = await handler.Handle(
             new RejectMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -908,7 +863,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var result = await handler.Handle(
             new RejectMyEstimateCommand(user.Id.Value, workOrder.Id.Value, estimate.Id.Value),
@@ -941,7 +896,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
@@ -1125,7 +1080,7 @@ public class WorkOrderHandlersTests
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
             workOrderRepositoryMock.Object,
-            inventoryItemRepositoryMock.Object);
+            CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             async () => await handler.Handle(
@@ -1218,6 +1173,34 @@ public class WorkOrderHandlersTests
     }
 
     [Fact]
+    public async Task GetWorkOrderStatus_ShouldReturnFocusedStatus_WhenWorkOrderExists()
+    {
+        var workOrderId = Guid.NewGuid();
+        var updatedAt = new DateTime(2026, 7, 12, 12, 30, 0, DateTimeKind.Utc);
+        var status = new WorkOrderStatusReadModel(workOrderId, "Diagnosing", updatedAt);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock(statusById: [status]);
+        var handler = new GetWorkOrderStatusHandler(workOrderQueriesMock.Object);
+
+        var result = await handler.Handle(new GetWorkOrderStatusQuery(workOrderId), CancellationToken.None);
+
+        Assert.Equal(workOrderId, result.Id);
+        Assert.Equal("Diagnosing", result.Status);
+        Assert.Equal(updatedAt, result.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task GetWorkOrderStatus_ShouldThrowNotFoundException_WhenWorkOrderDoesNotExist()
+    {
+        var workOrderId = Guid.NewGuid();
+        var handler = new GetWorkOrderStatusHandler(CreateWorkOrderQueriesMock().Object);
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            async () => await handler.Handle(new GetWorkOrderStatusQuery(workOrderId), CancellationToken.None));
+
+        Assert.Equal($"Work order with ID '{workOrderId}' was not found.", exception.Message);
+    }
+
+    [Fact]
     public async Task ListWorkOrders_ShouldReturnMappedPage_WhenPageRequestIsValid()
     {
         var customerId = Guid.NewGuid();
@@ -1241,7 +1224,7 @@ public class WorkOrderHandlersTests
         Assert.Equal(2, result.Page);
         Assert.Equal(2, result.PageSize);
         workOrderQueriesMock.Verify(
-            x => x.ListDetailsAsync(2, 2, It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
+            x => x.ListActiveDetailsAsync(2, 2, It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -1258,7 +1241,7 @@ public class WorkOrderHandlersTests
 
         Assert.Equal("Page must be greater than or equal to 1. Received: 0.", exception.Message);
         workOrderQueriesMock.Verify(
-            x => x.ListDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
+            x => x.ListActiveDetailsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CustomerId?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -1367,12 +1350,14 @@ public class WorkOrderHandlersTests
         List<WorkOrderDetailsReadModel>? detailsList = null,
         List<WorkOrderDetailsReadModel>? customerDetailsById = null,
         List<WorkOrderDetailsReadModel>? customerDetailsList = null,
-        AverageServiceTimeReadModel? averageServiceTime = null)
+        AverageServiceTimeReadModel? averageServiceTime = null,
+        List<WorkOrderStatusReadModel>? statusById = null)
     {
         var staffDetailsById = detailsById ?? [];
         var staffDetailsList = detailsList ?? [];
         var customerDetailsByIdList = customerDetailsById ?? [];
         var customerDetailsListPage = customerDetailsList ?? [];
+        var statusByIdList = statusById ?? [];
         var queriesMock = new Mock<IWorkOrderQueries>();
 
         queriesMock
@@ -1391,7 +1376,7 @@ public class WorkOrderHandlersTests
                 customerDetailsByIdList.SingleOrDefault(item => item.Id == id.Value && item.CustomerId == customerId.Value));
 
         queriesMock
-            .Setup(x => x.ListDetailsAsync(
+            .Setup(x => x.ListActiveDetailsAsync(
                 It.IsAny<int>(),
                 It.IsAny<int>(),
                 It.IsAny<CustomerId?>(),
@@ -1412,6 +1397,13 @@ public class WorkOrderHandlersTests
                 var totalCount = filtered.Count();
                 return ((IReadOnlyList<WorkOrderDetailsReadModel>)pageItems, totalCount);
             });
+
+        queriesMock
+            .Setup(x => x.GetStatusByIdAsync(
+                It.IsAny<WorkOrderId>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WorkOrderId id, CancellationToken _) =>
+                statusByIdList.SingleOrDefault(item => item.Id == id.Value));
 
         queriesMock
             .Setup(x => x.ListCustomerDetailsAsync(
@@ -1502,6 +1494,13 @@ public class WorkOrderHandlersTests
             .ReturnsAsync((InventoryItemId id, CancellationToken _) => inventoryItems.SingleOrDefault(item => item.Id == id));
 
         return repositoryMock;
+    }
+
+    private static EstimateDecisionProcessor CreateEstimateDecisionProcessor(
+        IInventoryItemRepository? inventoryItemRepository = null)
+    {
+        return new EstimateDecisionProcessor(
+            inventoryItemRepository ?? CreateInventoryItemRepositoryMock().Object);
     }
 
     private static Mock<IServiceRepository> CreateServiceRepositoryMock(List<Service>? initialServices = null)
