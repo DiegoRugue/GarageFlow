@@ -19,6 +19,6 @@ public interface IIntegrationOutboxRepository
         Guid id,
         Guid leaseId,
         DateTime nextAttemptAt,
-        string error,
+        string errorMessage,
         CancellationToken cancellationToken = default);
 }

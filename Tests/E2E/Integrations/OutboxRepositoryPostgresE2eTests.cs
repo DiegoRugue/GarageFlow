@@ -206,9 +206,15 @@ public sealed class OutboxRepositoryPostgresE2eTests(E2eApiFixture fixture)
         command.Parameters.AddWithValue("aggregateId", Guid.NewGuid());
         command.Parameters.AddWithValue("occurredAt", occurredAt);
         command.Parameters.AddWithValue("nextAttemptAt", nextAttemptAt);
-        command.Parameters.AddWithValue("processedAt", (object?)processedAt ?? DBNull.Value);
-        command.Parameters.AddWithValue("leaseId", (object?)leaseId ?? DBNull.Value);
-        command.Parameters.AddWithValue("leaseExpiresAt", (object?)leaseExpiresAt ?? DBNull.Value);
+        command.Parameters.AddWithValue(
+            "processedAt",
+            processedAt.HasValue ? (object)processedAt.Value : DBNull.Value);
+        command.Parameters.AddWithValue(
+            "leaseId",
+            leaseId.HasValue ? (object)leaseId.Value : DBNull.Value);
+        command.Parameters.AddWithValue(
+            "leaseExpiresAt",
+            leaseExpiresAt.HasValue ? (object)leaseExpiresAt.Value : DBNull.Value);
         command.Parameters.AddWithValue("lastError", (object?)lastError ?? DBNull.Value);
         await command.ExecuteNonQueryAsync();
         return messageId;

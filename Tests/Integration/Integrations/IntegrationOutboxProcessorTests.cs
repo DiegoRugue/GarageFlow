@@ -203,9 +203,9 @@ public sealed class IntegrationOutboxProcessorTests
             return Task.FromResult(UpdateResult);
         }
 
-        public Task<bool> RescheduleAsync(Guid id, Guid leaseId, DateTime nextAttemptAt, string error, CancellationToken cancellationToken = default)
+        public Task<bool> RescheduleAsync(Guid id, Guid leaseId, DateTime nextAttemptAt, string errorMessage, CancellationToken cancellationToken = default)
         {
-            Rescheduled.Add((id, leaseId, nextAttemptAt, error));
+            Rescheduled.Add((id, leaseId, nextAttemptAt, errorMessage));
             return Task.FromResult(UpdateResult);
         }
     }

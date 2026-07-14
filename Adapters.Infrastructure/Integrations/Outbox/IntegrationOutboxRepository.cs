@@ -82,13 +82,13 @@ public sealed class IntegrationOutboxRepository(GarageFlowDbContext dbContext) :
         Guid id,
         Guid leaseId,
         DateTime nextAttemptAt,
-        string error,
+        string errorMessage,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(error);
-        var boundedError = error.Length <= MaximumErrorLength
-            ? error
-            : error[..MaximumErrorLength];
+        ArgumentNullException.ThrowIfNull(errorMessage);
+        var boundedError = errorMessage.Length <= MaximumErrorLength
+            ? errorMessage
+            : errorMessage[..MaximumErrorLength];
         var affected = await _dbContext.IntegrationOutboxMessages
             .Where(message => message.Id == id && message.LeaseId == leaseId && message.ProcessedAt == null)
             .ExecuteUpdateAsync(setters => setters
