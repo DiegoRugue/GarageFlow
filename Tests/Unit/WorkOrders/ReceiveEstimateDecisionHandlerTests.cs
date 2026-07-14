@@ -25,13 +25,13 @@ public sealed class ReceiveEstimateDecisionHandlerTests
 {
     private const string ValidPayloadHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-    public static TheoryData<string> InvalidPayloadHashes => new()
-    {
+    public static TheoryData<string> InvalidPayloadHashes =>
+    [
         ValidPayloadHash.ToUpperInvariant(),
         $"{ValidPayloadHash[..63]}g",
         ValidPayloadHash[..63],
         $"{ValidPayloadHash}0"
-    };
+    ];
 
     [Fact]
     public void Command_UsesEventIdAsDFormatCorrelationId()
@@ -39,7 +39,7 @@ public sealed class ReceiveEstimateDecisionHandlerTests
         var fixture = new Fixture();
         var command = fixture.ValidCommand();
 
-        var correlated = Assert.IsAssignableFrom<ICorrelatedCommand>(command);
+        var correlated = Assert.IsType<ICorrelatedCommand>(command, exactMatch: false);
 
         Assert.Equal(command.EventId.ToString("D"), correlated.CorrelationId);
     }

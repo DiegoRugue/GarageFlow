@@ -80,11 +80,9 @@ public class WorkOrderTests
 
         Assert.Equal(WorkOrderStatus.Diagnosing, workOrder.Status);
         Assert.Equal(EstimateStatus.Rejected, estimate.Status);
-        Assert.Collection(releases, release =>
-        {
-            Assert.Equal(inventoryItemId, release.InventoryItemId);
-            Assert.Equal(2, release.Quantity.Value);
-        });
+        var release = Assert.Single(releases);
+        Assert.Equal(inventoryItemId, release.InventoryItemId);
+        Assert.Equal(2, release.Quantity.Value);
         Assert.Single(workOrder.DomainEvents.OfType<EstimateRejected>());
     }
 

@@ -90,10 +90,18 @@ public sealed class AmazonSnsWorkOrderStatusNotificationPublisherTests
     [Theory]
     [MemberData(nameof(InvalidNotifications))]
     public async Task PublishAsync_ShouldRejectInvalidNotificationBeforeCallingClient(
-        WorkOrderStatusChangedIntegrationEvent notification)
+        Guid workOrderId,
+        string? previousStatus,
+        string? currentStatus,
+        DateTime occurredAt)
     {
         var client = new Mock<IAmazonSimpleNotificationService>(MockBehavior.Strict);
         var publisher = CreatePublisher(client.Object);
+        var notification = new WorkOrderStatusChangedIntegrationEvent(
+            workOrderId,
+            previousStatus!,
+            currentStatus!,
+            occurredAt);
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => publisher.PublishAsync(notification, CancellationToken.None));
@@ -122,23 +130,28 @@ public sealed class AmazonSnsWorkOrderStatusNotificationPublisherTests
         client.VerifyAll();
     }
 
-    public static TheoryData<WorkOrderStatusChangedIntegrationEvent> InvalidNotifications() =>
-        new()
+    public static TheoryData<Guid, string?, string?, DateTime> InvalidNotifications()
+    {
+        var validWorkOrderId = Guid.Parse("db5e8a33-0d8a-4d75-b177-e570fc748c1d");
+        var validOccurredAt = new DateTime(2026, 7, 12, 14, 25, 36, DateTimeKind.Utc);
+
+        return new TheoryData<Guid, string?, string?, DateTime>
         {
-            CreateNotification(workOrderId: Guid.Empty),
-            CreateNotification(previousStatus: null!),
-            CreateNotification(previousStatus: ""),
-            CreateNotification(previousStatus: "   "),
-            CreateNotification(currentStatus: null!),
-            CreateNotification(currentStatus: ""),
-            CreateNotification(currentStatus: "   "),
-            CreateNotification(currentStatus: "Approved\rPending"),
-            CreateNotification(currentStatus: "Approved\nPending"),
-            CreateNotification(currentStatus: "Approved\u0001Pending"),
-            CreateNotification(currentStatus: new string('A', 100 - SubjectPrefix.Length)),
-            CreateNotification(occurredAt: new DateTime(2026, 7, 12, 14, 25, 36, DateTimeKind.Local)),
-            CreateNotification(occurredAt: new DateTime(2026, 7, 12, 14, 25, 36, DateTimeKind.Unspecified))
+            { Guid.Empty, "Created", "Approved", validOccurredAt },
+            { validWorkOrderId, null, "Approved", validOccurredAt },
+            { validWorkOrderId, "", "Approved", validOccurredAt },
+            { validWorkOrderId, "   ", "Approved", validOccurredAt },
+            { validWorkOrderId, "Created", null, validOccurredAt },
+            { validWorkOrderId, "Created", "", validOccurredAt },
+            { validWorkOrderId, "Created", "   ", validOccurredAt },
+            { validWorkOrderId, "Created", "Approved\rPending", validOccurredAt },
+            { validWorkOrderId, "Created", "Approved\nPending", validOccurredAt },
+            { validWorkOrderId, "Created", "Approved\u0001Pending", validOccurredAt },
+            { validWorkOrderId, "Created", new string('A', 100 - SubjectPrefix.Length), validOccurredAt },
+            { validWorkOrderId, "Created", "Approved", new DateTime(2026, 7, 12, 14, 25, 36, DateTimeKind.Local) },
+            { validWorkOrderId, "Created", "Approved", new DateTime(2026, 7, 12, 14, 25, 36, DateTimeKind.Unspecified) }
         };
+    }
 
     private static WorkOrderStatusChangedIntegrationEvent CreateNotification(
         Guid? workOrderId = null,
