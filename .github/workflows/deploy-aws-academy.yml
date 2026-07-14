@@ -89,7 +89,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
-          version: v1.36.0
+          version: v${{ inputs.kubernetes_version }}.0
 
       - name: Preflight identity, support, offerings, and Academy capacity
         shell: bash

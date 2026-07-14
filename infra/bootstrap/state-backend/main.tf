@@ -151,6 +151,7 @@ resource "aws_s3_bucket_logging" "state" {
 
   depends_on = [
     aws_s3_bucket_ownership_controls.state_logs,
+    aws_s3_bucket_public_access_block.state_logs,
     aws_s3_bucket_policy.state_logs
   ]
 }
