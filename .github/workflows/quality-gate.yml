@@ -84,7 +84,7 @@ jobs:
           COVERAGE_FILE: ${{ runner.temp }}/garageflow-test-results/python/.coverage
         run: |
           set -Eeuo pipefail
-          python -m pip install -r scripts/requirements-test.txt
+          python -m pip install --require-hashes -r scripts/requirements-test.txt
           mkdir -p "${RUNNER_TEMP}/garageflow-test-results/python"
           python -m coverage run --branch --source=scripts --omit='scripts/tests/*' -m unittest discover -s scripts/tests -v
           python -m coverage xml -o "${RUNNER_TEMP}/garageflow-test-results/python/coverage.xml"

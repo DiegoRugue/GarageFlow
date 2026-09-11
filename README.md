@@ -34,10 +34,12 @@ O [schema dos manifests de infraestrutura](contracts/infra-contract-v1.schema.js
 Validação local dos contratos (Python 3.12):
 
 ```bash
-python -m pip install -r scripts/requirements-test.txt
+python -m pip install --require-hashes -r scripts/requirements-test.txt
 python -m unittest discover -s scripts/tests -v
-python scripts/infra_contract.py validate --file /caminho/externo/platform.json --producer platform --environment homologation
+python scripts/infra_contract.py validate --file platform.json --producer platform --environment homologation
 ```
+
+Os caminhos do utilitário ficam restritos ao diretório de artefatos: `RUNNER_TEMP`, quando definido, ou o diretório temporário do sistema operacional. No exemplo, `platform.json` deve estar nessa área. Caminhos absolutos também precisam permanecer dentro dela; o utilitário rejeita caminhos ou links simbólicos que escapem desse limite. As dependências de teste têm versões e hashes fixados em `scripts/requirements-test.txt`; o utilitário em execução usa apenas a biblioteca padrão.
 
 Repositórios de infraestrutura desta fase:
 

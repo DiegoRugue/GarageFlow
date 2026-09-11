@@ -66,7 +66,7 @@ Cada root publica um JSON em S3 depois de `apply` e das verificações daquele r
 
 Campos comuns: `schemaVersion` = `1.0`, `environment`, `producer`, `sourceCommit` (SHA Git), `publishedAt` (UTC/RFC3339) e `outputs` (objeto). O consumidor valida versão, produtor, ambiente e presença/tipo dos campos antes de implantar. Campo adicional opcional é compatível; remoção, mudança de tipo ou de significado exige nova versão principal. Publicar primeiro a cópia imutável em `contracts/v1/{environment}/{producer}/revisions/{sourceCommit}/{runId}-{runAttempt}.json` e depois atualizar o caminho estável, permitindo auditoria e retorno de configuração.
 
-O [JSON Schema](../../../contracts/infra-contract-v1.schema.json) documenta o formato e o [validador/publicador Python](../../../scripts/infra_contract.py) é executado antes de consumir ou publicar um manifest. A execução do utilitário usa apenas a biblioteca padrão; as dependências adicionais são exclusivas dos testes. Os scripts de deploy mantêm manifests temporários e planos Terraform em `RUNNER_TEMP`.
+O [JSON Schema](../../../contracts/infra-contract-v1.schema.json) documenta o formato e o [validador/publicador Python](../../../scripts/infra_contract.py) é executado antes de consumir ou publicar um manifest. A execução do utilitário usa apenas a biblioteca padrão; as dependências adicionais são exclusivas dos testes e têm versões e hashes fixados. Os scripts de deploy mantêm manifests temporários e planos Terraform em `RUNNER_TEMP`. O utilitário resolve seus caminhos dentro desse diretório, ou do diretório temporário do sistema na execução local, e rejeita travessia de diretórios e links simbólicos que saiam dessa área.
 
 | Produtor | Outputs obrigatórios | Consumidores |
 | --- | --- | --- |
