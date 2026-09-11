@@ -7,4 +7,5 @@ public sealed record UpdateCustomerResult(
     string FullName,
     string Email,
     string PhoneNumber,
+    string Status,
     DateTime CreatedAt);

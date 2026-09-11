@@ -41,6 +41,7 @@ public static class UpdateCustomerEndpoint
             FullName: result.FullName,
             Email: result.Email,
             PhoneNumber: result.PhoneNumber,
+            Status: result.Status,
             CreatedAt: result.CreatedAt);
 
         return Results.Ok(response);

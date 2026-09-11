@@ -1,5 +1,6 @@
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.Application.Auth.UseCases.Login;
+using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Application.Users.UseCases.ChangeMyPassword;
 using GarageFlow.Application.Users.UseCases.CreateUser;
 using GarageFlow.Application.Users.UseCases.DeleteUser;
@@ -10,9 +11,13 @@ using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Users.Entities;
 using GarageFlow.Domain.Users.Enums;
+using GarageFlow.Domain.Customers.Entities;
+using GarageFlow.Domain.Customers.Enums;
+using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Application.Users.Ports;
 using GarageFlow.Domain.Users.ValueObjects;
 using GarageFlow.Tests.Shared.Users;
+using GarageFlow.Tests.Shared.Customers;
 using Moq;
 
 namespace GarageFlow.Tests.Unit.Users;
@@ -178,6 +183,7 @@ public class UserHandlersTests
         var tokenServiceMock = new Mock<ITokenService>();
         var handler = new LoginHandler(
             repositoryMock.Object,
+            CreateCustomerRepositoryMock().Object,
             passwordHashServiceMock.Object,
             tokenServiceMock.Object);
 
@@ -204,6 +210,7 @@ public class UserHandlersTests
         var tokenServiceMock = new Mock<ITokenService>();
         var handler = new LoginHandler(
             repositoryMock.Object,
+            CreateCustomerRepositoryMock().Object,
             passwordHashServiceMock.Object,
             tokenServiceMock.Object);
 
@@ -213,6 +220,127 @@ public class UserHandlersTests
                 CancellationToken.None));
 
         tokenServiceMock.Verify(x => x.GenerateToken(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Login_ShouldThrowUnauthorizedAccessException_WhenLinkedCustomerIsSuspended()
+    {
+        var customer = new CustomerBuilder().Build();
+        customer.ChangeStatus(CustomerStatus.Suspended);
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customer.Id)
+            .WithEmail("suspended.customer@example.com")
+            .WithPasswordHash("stored-hash")
+            .Build();
+        var userRepositoryMock = CreateRepositoryMock([user]);
+        var customerRepositoryMock = CreateCustomerRepositoryMock([customer]);
+        var passwordHashServiceMock = new Mock<IPasswordHashService>();
+        passwordHashServiceMock
+            .Setup(x => x.Verify("valid-password", "stored-hash"))
+            .Returns(true);
+        var tokenServiceMock = new Mock<ITokenService>();
+        var handler = new LoginHandler(
+            userRepositoryMock.Object,
+            customerRepositoryMock.Object,
+            passwordHashServiceMock.Object,
+            tokenServiceMock.Object);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => handler.Handle(
+                new LoginCommand("suspended.customer@example.com", "valid-password"),
+                CancellationToken.None).AsTask());
+
+        tokenServiceMock.Verify(x => x.GenerateToken(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Login_ShouldThrowUnauthorizedAccessException_WhenLinkedCustomerIsMissing()
+    {
+        var customerId = CustomerId.New();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customerId)
+            .WithEmail("missing.customer@example.com")
+            .WithPasswordHash("stored-hash")
+            .Build();
+        var userRepositoryMock = CreateRepositoryMock([user]);
+        var passwordHashServiceMock = new Mock<IPasswordHashService>();
+        passwordHashServiceMock
+            .Setup(x => x.Verify("valid-password", "stored-hash"))
+            .Returns(true);
+        var tokenServiceMock = new Mock<ITokenService>();
+        var handler = new LoginHandler(
+            userRepositoryMock.Object,
+            CreateCustomerRepositoryMock().Object,
+            passwordHashServiceMock.Object,
+            tokenServiceMock.Object);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => handler.Handle(
+                new LoginCommand("missing.customer@example.com", "valid-password"),
+                CancellationToken.None).AsTask());
+
+        tokenServiceMock.Verify(x => x.GenerateToken(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Login_ShouldReturnToken_WhenLinkedCustomerIsActive()
+    {
+        var customer = new CustomerBuilder().Build();
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customer.Id)
+            .WithEmail("active.customer@example.com")
+            .WithPasswordHash("stored-hash")
+            .Build();
+        var userRepositoryMock = CreateRepositoryMock([user]);
+        var customerRepositoryMock = CreateCustomerRepositoryMock([customer]);
+        var passwordHashServiceMock = new Mock<IPasswordHashService>();
+        passwordHashServiceMock
+            .Setup(x => x.Verify("valid-password", "stored-hash"))
+            .Returns(true);
+        var tokenServiceMock = new Mock<ITokenService>();
+        tokenServiceMock.Setup(x => x.GenerateToken(user)).Returns("active-token");
+        var handler = new LoginHandler(
+            userRepositoryMock.Object,
+            customerRepositoryMock.Object,
+            passwordHashServiceMock.Object,
+            tokenServiceMock.Object);
+
+        var result = await handler.Handle(
+            new LoginCommand("active.customer@example.com", "valid-password"),
+            CancellationToken.None);
+
+        Assert.Equal("active-token", result.Token);
+    }
+
+    [Fact]
+    public async Task Login_ShouldReturnToken_WhenEmployeeCredentialsAreValid()
+    {
+        var user = new UserBuilder()
+            .WithRole(UserRole.Attendant)
+            .WithEmail("active.employee@example.com")
+            .WithPasswordHash("stored-hash")
+            .Build();
+        var userRepositoryMock = CreateRepositoryMock([user]);
+        var passwordHashServiceMock = new Mock<IPasswordHashService>();
+        passwordHashServiceMock
+            .Setup(x => x.Verify("valid-password", "stored-hash"))
+            .Returns(true);
+        var tokenServiceMock = new Mock<ITokenService>();
+        tokenServiceMock.Setup(x => x.GenerateToken(user)).Returns("employee-token");
+        var handler = new LoginHandler(
+            userRepositoryMock.Object,
+            CreateCustomerRepositoryMock().Object,
+            passwordHashServiceMock.Object,
+            tokenServiceMock.Object);
+
+        var result = await handler.Handle(
+            new LoginCommand("active.employee@example.com", "valid-password"),
+            CancellationToken.None);
+
+        Assert.Equal("employee-token", result.Token);
     }
 
     [Fact]
@@ -341,6 +469,20 @@ public class UserHandlersTests
         repositoryMock
             .Setup(x => x.Remove(It.IsAny<User>()))
             .Callback((User user) => users.RemoveAll(existing => existing.Id == user.Id));
+
+        return repositoryMock;
+    }
+
+    private static Mock<ICustomerRepository> CreateCustomerRepositoryMock(
+        List<Customer>? initialCustomers = null)
+    {
+        var customers = initialCustomers ?? [];
+        var repositoryMock = new Mock<ICustomerRepository>();
+
+        repositoryMock
+            .Setup(x => x.GetByIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CustomerId id, CancellationToken _) =>
+                customers.SingleOrDefault(customer => customer.Id == id));
 
         return repositoryMock;
     }

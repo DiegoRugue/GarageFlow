@@ -44,6 +44,7 @@ public sealed class GetCustomerByIdHandler(
             FullName: customer.FullName.Value,
             Email: customer.Email.Value,
             PhoneNumber: customer.PhoneNumber.Value,
+            Status: customer.Status.ToString(),
             CreatedAt: customer.CreatedAt,
             Vehicles: vehicleDtos);
     }

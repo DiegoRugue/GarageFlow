@@ -7,5 +7,6 @@ public sealed record CustomerResponse(
     string FullName,
     string Email,
     string PhoneNumber,
+    string Status,
     DateTime CreatedAt,
     IReadOnlyList<CustomerVehicleResponse>? Vehicles = null);

@@ -3,6 +3,7 @@ using System;
 using GarageFlow.Adapters.Infrastructure.DataAccess;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GarageFlow.Adapters.Infrastructure.DataAccess.Migrations
 {
     [DbContext(typeof(GarageFlowDbContext))]
-    partial class GarageFlowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260911192703_AddCustomerStatus")]
+    partial class AddCustomerStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

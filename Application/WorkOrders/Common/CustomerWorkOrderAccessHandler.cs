@@ -1,5 +1,7 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.Domain.Customers.ValueObjects;
+using GarageFlow.Domain.Customers.Enums;
+using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Users.Enums;
 using GarageFlow.Application.Users.Ports;
 using GarageFlow.Domain.Users.ValueObjects;
@@ -13,6 +15,7 @@ internal static class CustomerWorkOrderAccess
 {
     public static async Task<CustomerId> GetRequiredCustomerIdAsync(
         IUserRepository userRepository,
+        ICustomerRepository customerRepository,
         Guid userIdValue,
         CancellationToken cancellationToken)
     {
@@ -26,6 +29,12 @@ internal static class CustomerWorkOrderAccess
         if (user.Role != UserRole.Customer || user.CustomerId is null)
         {
             throw new UnauthorizedAccessException("Authenticated user is not a customer user.");
+        }
+
+        var customer = await customerRepository.GetByIdAsync(user.CustomerId.Value, cancellationToken);
+        if (customer is null || customer.Status != CustomerStatus.Active)
+        {
+            throw new UnauthorizedAccessException("Customer access is unavailable.");
         }
 
         return user.CustomerId.Value;

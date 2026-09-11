@@ -1,5 +1,6 @@
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Customers.Entities;
+using GarageFlow.Domain.Customers.Enums;
 using GarageFlow.Domain.Customers.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -10,7 +11,11 @@ public sealed class CustomerEntityConfiguration : IEntityTypeConfiguration<Custo
 {
     public void Configure(EntityTypeBuilder<Customer> builder)
     {
-        builder.ToTable("Customers");
+        builder.ToTable(
+            "Customers",
+            tableBuilder => tableBuilder.HasCheckConstraint(
+                "CK_Customers_Status",
+                "\"Status\" IN ('Active', 'Suspended')"));
 
         builder.HasKey(customer => customer.Id);
 
@@ -49,6 +54,12 @@ public sealed class CustomerEntityConfiguration : IEntityTypeConfiguration<Custo
                 phoneNumber => phoneNumber.Value,
                 value => PhoneNumber.Create(value))
             .HasMaxLength(11)
+            .IsRequired();
+
+        builder.Property(customer => customer.Status)
+            .HasConversion<string>()
+            .HasMaxLength(9)
+            .HasDefaultValue(CustomerStatus.Active)
             .IsRequired();
 
         builder.Property(customer => customer.CreatedAt)

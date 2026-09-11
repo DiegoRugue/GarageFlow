@@ -18,6 +18,15 @@ public sealed class CustomerRepository(GarageFlowDbContext dbContext) : ICustome
             cancellationToken);
     }
 
+    public async Task<Customer?> GetByTaxDocumentAsync(
+        TaxDocument taxDocument,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Customers
+            .AsNoTracking()
+            .SingleOrDefaultAsync(customer => customer.TaxDocument == taxDocument, cancellationToken);
+    }
+
     public async Task<(IReadOnlyList<Customer> Items, int TotalCount)> ListAsync(
         int page,
         int pageSize,
