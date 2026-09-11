@@ -37,6 +37,7 @@ public static class ListCustomersEndpoint
                     FullName: dto.FullName,
                     Email: dto.Email,
                     PhoneNumber: dto.PhoneNumber,
+                    Status: dto.Status,
                     CreatedAt: dto.CreatedAt))
                 .ToList(),
             TotalCount: result.TotalCount,

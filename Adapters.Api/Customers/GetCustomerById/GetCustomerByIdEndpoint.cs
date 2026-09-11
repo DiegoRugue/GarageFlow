@@ -34,6 +34,7 @@ public static class GetCustomerByIdEndpoint
             FullName: result.FullName,
             Email: result.Email,
             PhoneNumber: result.PhoneNumber,
+            Status: result.Status,
             CreatedAt: result.CreatedAt,
             Vehicles: result.Vehicles?
                 .Select(vehicle => new CustomerVehicleResponse(

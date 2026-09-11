@@ -8,6 +8,10 @@ public interface ICustomerRepository
 {
     Task<Customer?> GetByIdAsync(CustomerId id, CancellationToken cancellationToken = default);
 
+    Task<Customer?> GetByTaxDocumentAsync(
+        TaxDocument taxDocument,
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<Customer> Items, int TotalCount)> ListAsync(
         int page,
         int pageSize,

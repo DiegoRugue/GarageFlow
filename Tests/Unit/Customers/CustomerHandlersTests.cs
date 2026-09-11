@@ -1,4 +1,5 @@
 using GarageFlow.Application.Customers.UseCases.CreateCustomer;
+using GarageFlow.Application.Customers.UseCases.ChangeCustomerStatus;
 using GarageFlow.Application.Customers.UseCases.DeleteCustomer;
 using GarageFlow.Application.Customers.UseCases.GetCustomerById;
 using GarageFlow.Application.Customers.UseCases.ListCustomers;
@@ -7,6 +8,7 @@ using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Customers.Entities;
+using GarageFlow.Domain.Customers.Enums;
 using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.Vehicles.Entities;
@@ -19,6 +21,57 @@ namespace GarageFlow.Tests.Unit.Customers;
 
 public class CustomerHandlersTests
 {
+    [Fact]
+    public async Task ChangeCustomerStatus_ShouldReturnSuspendedStatus_WhenTransitionIsValid()
+    {
+        var customer = new CustomerBuilder().Build();
+        var repositoryMock = CreateRepositoryMock([customer]);
+        var handler = new ChangeCustomerStatusHandler(repositoryMock.Object);
+
+        var result = await handler.Handle(
+            new ChangeCustomerStatusCommand(customer.Id.Value, "Suspended"),
+            CancellationToken.None);
+
+        Assert.Equal(customer.Id.Value, result.Id);
+        Assert.Equal("Suspended", result.Status);
+        Assert.Equal(CustomerStatus.Suspended, customer.Status);
+    }
+
+    [Theory]
+    [InlineData("active")]
+    [InlineData("1")]
+    [InlineData("Unknown")]
+    [InlineData("")]
+    public async Task ChangeCustomerStatus_ShouldThrowValidationException_WhenStatusIsNotAnExactName(string status)
+    {
+        var customer = new CustomerBuilder().Build();
+        var repositoryMock = CreateRepositoryMock([customer]);
+        var handler = new ChangeCustomerStatusHandler(repositoryMock.Object);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(
+            () => handler.Handle(
+                new ChangeCustomerStatusCommand(customer.Id.Value, status),
+                CancellationToken.None).AsTask());
+
+        Assert.Equal($"Customer status '{status}' is invalid.", exception.Message);
+        Assert.Equal(CustomerStatus.Active, customer.Status);
+    }
+
+    [Fact]
+    public async Task ChangeCustomerStatus_ShouldThrowNotFoundException_WhenCustomerDoesNotExist()
+    {
+        var repositoryMock = CreateRepositoryMock();
+        var handler = new ChangeCustomerStatusHandler(repositoryMock.Object);
+        var customerId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<NotFoundException>(
+            () => handler.Handle(
+                new ChangeCustomerStatusCommand(customerId, "Suspended"),
+                CancellationToken.None).AsTask());
+
+        Assert.Equal($"Customer with ID '{customerId}' was not found.", exception.Message);
+    }
+
     [Fact]
     public async Task Handle_ShouldCreateCustomer_WhenDataIsValid()
     {
@@ -63,6 +116,7 @@ public class CustomerHandlersTests
         Assert.Equal(customer.FullName.Value, result.FullName);
         Assert.Equal(customer.Email.Value, result.Email);
         Assert.Equal(customer.PhoneNumber.Value, result.PhoneNumber);
+        Assert.Equal("Active", result.Status);
         Assert.NotNull(result.Vehicles);
         Assert.Empty(result.Vehicles);
     }
@@ -133,6 +187,7 @@ public class CustomerHandlersTests
         Assert.Equal(2, result.TotalCount);
         Assert.Equal(1, result.Page);
         Assert.Equal(1, result.PageSize);
+        Assert.Equal("Active", result.Items[0].Status);
     }
 
     [Fact]

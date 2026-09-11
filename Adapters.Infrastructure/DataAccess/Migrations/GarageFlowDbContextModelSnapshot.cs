@@ -148,6 +148,13 @@ namespace GarageFlow.Adapters.Infrastructure.DataAccess.Migrations
                         .HasMaxLength(11)
                         .HasColumnType("character varying(11)");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(9)
+                        .HasColumnType("character varying(9)")
+                        .HasDefaultValue("Active");
+
                     b.Property<string>("TaxDocument")
                         .IsRequired()
                         .HasMaxLength(14)
@@ -161,7 +168,10 @@ namespace GarageFlow.Adapters.Infrastructure.DataAccess.Migrations
                     b.HasIndex("TaxDocument")
                         .IsUnique();
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Customers_Status", "\"Status\" IN ('Active', 'Suspended')");
+                        });
                 });
 
             modelBuilder.Entity("GarageFlow.Domain.InventoryItems.Entities.InventoryItem", b =>

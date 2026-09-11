@@ -1,12 +1,63 @@
 using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.Domain.Customers.Entities;
+using GarageFlow.Domain.Customers.Enums;
 using GarageFlow.Domain.Customers.Events;
 
 namespace GarageFlow.Tests.Unit.Customers;
 
 public class CustomerTests
 {
+    [Fact]
+    public void Create_ShouldInitializeActiveStatus()
+    {
+        var customer = new GarageFlow.Tests.Shared.Customers.CustomerBuilder().Build();
+
+        Assert.Equal(CustomerStatus.Active, customer.Status);
+    }
+
+    [Fact]
+    public void ChangeStatus_ShouldUpdateStatusAndRaiseEvent_WhenStatusChanges()
+    {
+        var customer = new GarageFlow.Tests.Shared.Customers.CustomerBuilder().Build();
+        var originalUpdatedAt = customer.UpdatedAt;
+
+        WaitUntilTimeAdvances(originalUpdatedAt);
+        customer.ChangeStatus(CustomerStatus.Suspended);
+
+        var statusChanged = Assert.Single(customer.DomainEvents.OfType<CustomerStatusChanged>());
+        Assert.Equal(customer.Id, statusChanged.CustomerId);
+        Assert.Equal(CustomerStatus.Active, statusChanged.PreviousStatus);
+        Assert.Equal(CustomerStatus.Suspended, statusChanged.Status);
+        Assert.Equal(CustomerStatus.Suspended, customer.Status);
+        Assert.True(customer.UpdatedAt > originalUpdatedAt);
+    }
+
+    [Fact]
+    public void ChangeStatus_ShouldNotMutateOrRaiseEvent_WhenStatusIsUnchanged()
+    {
+        var customer = new GarageFlow.Tests.Shared.Customers.CustomerBuilder().Build();
+        customer.ClearDomainEvents();
+        var originalUpdatedAt = customer.UpdatedAt;
+
+        customer.ChangeStatus(CustomerStatus.Active);
+
+        Assert.Equal(originalUpdatedAt, customer.UpdatedAt);
+        Assert.Empty(customer.DomainEvents);
+    }
+
+    [Fact]
+    public void ChangeStatus_ShouldThrowValidationException_WhenStatusIsUndefined()
+    {
+        var customer = new GarageFlow.Tests.Shared.Customers.CustomerBuilder().Build();
+
+        var exception = Assert.Throws<ValidationException>(
+            () => customer.ChangeStatus((CustomerStatus)999));
+
+        Assert.Equal("Customer status '999' is invalid.", exception.Message);
+        Assert.Equal(CustomerStatus.Active, customer.Status);
+    }
+
     [Fact]
     public void Create_ShouldRemoveBrazilCountryCode_WhenPhoneStartsWithPlus55()
     {

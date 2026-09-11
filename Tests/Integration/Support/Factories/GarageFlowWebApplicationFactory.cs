@@ -22,7 +22,9 @@ public sealed class GarageFlowWebApplicationFactory(
     string? snsTopicArn = null,
     IAmazonSimpleNotificationService? snsClient = null,
     string databaseProvider = "InMemory",
-    string? connectionString = null)
+    string? connectionString = null,
+    bool internalAuthEnabled = false,
+    string? internalAuthKey = null)
     : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = databaseName;
@@ -35,6 +37,8 @@ public sealed class GarageFlowWebApplicationFactory(
     private readonly IAmazonSimpleNotificationService? _snsClient = snsClient;
     private readonly string _databaseProvider = databaseProvider;
     private readonly string? _connectionString = connectionString;
+    private readonly bool _internalAuthEnabled = internalAuthEnabled;
+    private readonly string? _internalAuthKey = internalAuthKey;
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
@@ -61,7 +65,7 @@ public sealed class GarageFlowWebApplicationFactory(
                 services.AddSingleton(_snsClient);
             }
 
-            services.PostConfigureAll<JwtBearerOptions>(options =>
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 options.TokenValidationParameters.ValidIssuer = IntegrationTestAuthSettings.JwtIssuer;
                 options.TokenValidationParameters.ValidAudience = IntegrationTestAuthSettings.JwtAudience;
@@ -82,6 +86,8 @@ public sealed class GarageFlowWebApplicationFactory(
             ["Auth:Jwt:Audience"] = IntegrationTestAuthSettings.JwtAudience,
             ["Auth:Jwt:Key"] = IntegrationTestAuthSettings.JwtKey,
             ["Auth:Jwt:ExpiresMinutes"] = IntegrationTestAuthSettings.JwtExpiresMinutes.ToString(CultureInfo.InvariantCulture),
+            ["Auth:Internal:Enabled"] = _internalAuthEnabled.ToString(CultureInfo.InvariantCulture),
+            ["Auth:Internal:Key"] = _internalAuthKey,
             ["Auth:BootstrapAdmin:FullName"] = IntegrationTestAuthSettings.BootstrapAdminFullName,
             ["Auth:BootstrapAdmin:Email"] = IntegrationTestAuthSettings.BootstrapAdminEmail,
             ["Auth:BootstrapAdmin:BirthDate"] = IntegrationTestAuthSettings.BootstrapAdminBirthDate,

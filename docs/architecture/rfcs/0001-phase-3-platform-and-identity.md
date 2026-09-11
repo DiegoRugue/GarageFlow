@@ -1,6 +1,6 @@
 # RFC 0001 - Plataforma, repositórios e identidade da Fase 3
 
-Data: 11/09/2026. Status: proposta de implementação da Fase 3; contratos revisados, implementação pendente.
+Data: 11/09/2026. Status: em implementação; contratos de infraestrutura e base de autenticação na aplicação implementados, integração serverless e de nuvem pendente.
 
 Escopo: separação em quatro repositórios, infraestrutura como código, autenticação serverless por CPF, JWT, API Gateway e diagramas de integração previstos pelo Tech Challenge Fase 3. A direção arquitetural está registrada no [ADR 0001](../adrs/0001-four-repositories-on-aws-academy.md); a base executável e suas instruções estão no [README](../../../README.md). Este RFC especifica a evolução da solução e seus critérios de validação.
 
@@ -47,7 +47,7 @@ flowchart LR
     Platform --> Database[Database: RDS]
     Database --> App[Aplicação: migrations, Service e Deployment]
     Platform --> App
-    App --> Ingress[Ingress privado e TLS]
+    App --> Ingress[Ingress privado na VPC]
     Platform --> Ingress
     Ingress --> Serverless[Funções e aliases]
     Platform --> Serverless
@@ -72,10 +72,12 @@ O [JSON Schema](../../../contracts/infra-contract-v1.schema.json) documenta o fo
 | --- | --- | --- |
 | platform | `awsRegion`, `vpcId`, `publicSubnetIds`, `privateApplicationSubnetIds`, `databaseSubnetIds`, `clusterName`, `clusterSecurityGroupId`, `ecrRepositoryUrl`, `apiGatewayId`, `apiGatewayExecutionArn`, `jwtSecretArn`, `internalAuthSecretArn`, `bootstrapSecretArn`, `webhookSecretArn`, `snsTopicArn` | database, aplicação, ingress, serverless, edge |
 | database | `databaseHost`, `databasePort`, `databaseName`, `databaseSecretArn`, `databaseSecurityGroupId` | aplicação |
-| ingress | `listenerArn`, `internalApiBaseUrl`, `tlsServerName` | serverless e edge |
+| ingress (v1 implementado; evolução pendente) | `listenerArn`, `internalApiBaseUrl`, `tlsServerName` | serverless e edge |
 | serverless | `customerAuthenticationAliasArn`, `requestAuthorizerAliasArn` | edge |
 
 IDs, endpoints e ARNs são metadados; senhas, tokens, hashes e PEMs privados não entram no manifest. Consumidores recebem leitura dos contratos e acesso somente aos secrets necessários, sem exigir acesso ao arquivo completo do state de outro root. Políticas concretas precisam respeitar as roles disponíveis na Academy; restrições não verificadas não serão apresentadas como aplicadas.
+
+O schema v1 implementado exige `internalApiBaseUrl` HTTPS e `tlsServerName`. A decisão de transporte da seção 5 introduz HTTP privado na Academy e exige uma nova versão principal desse contrato. A evolução deve declarar explicitamente o transporte, exigir nome TLS apenas no modo HTTPS e atualizar produtores e consumidores antes de publicar manifests HTTP. O contrato v1 e sua validação continuam válidos até essa migração; a base de autenticação da aplicação não implementa essa mudança de infraestrutura.
 
 ## 4. Provisionamento temporário e transição da Fase 2
 
@@ -96,10 +98,12 @@ Os comandos definitivos de transferência dependem dos endereços reais do state
 
 ## 5. Autenticação do cliente
 
-### Decisões propostas
+A aplicação implementa a consulta privada de credenciais e o status do cliente. A alteração de status usa `PATCH /customers/{id}/status`, restrita a administradores ativos, com os valores exatos `Active` e `Suspended`. A migration preserva os cadastros existentes como ativos. As jornadas de OS do cliente consultam seu status atual; um token anterior à suspensão não conserva esse acesso. A função de emissão, o authorizer e a integração privada com o Gateway continuam como etapas posteriores desta implementação.
+
+### Decisões de autenticação
 
 - Receber **CPF e senha do portal**. CPF identifica o cadastro e a senha comprova a credencial já existente. OTP adicionaria entrega, expiração e retentativas e fica fora desta primeira implementação.
-- Manter o login de funcionário em `/auth/login` com e-mail/senha.
+- Manter o login de administradores e funcionários em `/auth/login` com e-mail/senha. A jornada CPF atende exclusivamente clientes: consulta de suas próprias OS e aprovação/rejeição de seus orçamentos, sem acesso administrativo.
 - Exigir usuário de portal vinculado ao cliente. Um cadastro de cliente sem usuário de portal não recebe credenciais automaticamente; continua usando o fluxo existente de ativação do portal.
 - Introduzir `CustomerStatus` com valores de contrato `Active` e `Suspended`. Regra no domínio; alteração por administrador, com evento e `UpdatedAt`. Migração dos clientes existentes para `Active` preserva comportamento atual. `MustChangePassword` continua separado.
 - A função valida CPF e consulta um caso de uso privado da aplicação, que verifica cadastro/status/senha na base. Somente a função emite o JWT dessa jornada. A aplicação mantém a propriedade do algoritmo de hash e das invariantes.
@@ -125,9 +129,17 @@ Não diferenciar mensagens externas para permitir enumeração de clientes. O ve
 
 `POST /internal/auth/customer-credentials/verify`, sem rota pública equivalente no API Gateway. Entrada: o mesmo `cpf` e `password`. Saída de sucesso: `userId` (UUID), `customerId` (UUID), `role` = `Customer`, `mustChangePassword` (boolean). Não retornar senha, hash ou token de usuário. Credenciais inválidas retornam `401` genérico. Esse caso de uso é leitura e não abre transação.
 
-Consumidor: exclusivamente a função de autenticação. Transporte HTTPS com validação de certificado e nome do servidor. Service identity: JWT de serviço assinado com **secret próprio**, diferente da chave de usuários, `iss` = `GarageFlow.Serverless`, `aud` = `GarageFlow.InternalAuth`, `sub` = `customer-auth-function`, `scope` = `customer-credentials:verify`, validade máxima de 60 segundos e algoritmo permitido HS256. A API usa esquema/política específicos para esse endpoint. JWT de cliente/funcionário não satisfaz essa política; token interno não autentica rotas de negócio.
+Consumidor: exclusivamente a função de autenticação, conectada à VPC e ao balanceador interno. Service identity: JWT de serviço assinado com **secret próprio**, diferente da chave de usuários, `iss` = `GarageFlow.Serverless`, `aud` = `GarageFlow.InternalAuth`, `sub` = `customer-auth-function`, `scope` = `customer-credentials:verify`, validade máxima de 60 segundos e algoritmo permitido HS256. A API usa esquema/política específicos para esse endpoint. JWT de cliente/funcionário não satisfaz essa política; token interno não autentica rotas de negócio.
 
-A implementação TLS e a conexão ao serviço privado são pré-requisitos do ingress na Academy. A fundação adota um único listener HTTPS compartilhado pela função e pela integração privada do HTTP API Gateway. Seu certificado deve apresentar uma cadeia confiável pelo API Gateway, e a função mantém a validação TLS normal. Antes do deploy, é necessário comprovar na Academy o domínio sob propriedade/controle do projeto, validar que `tlsServerName` corresponde a esse nome e ao certificado e confirmar que o certificado é compatível com o Gateway. O manifest não configura uma trust store do Gateway. Não desabilitar validação de certificado como atalho. Sem esses pré-requisitos, transporte seguro e ingress privado demonstrados, M2 não está concluído. Referência: [AWS - configuração TLS de integração](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-extensions-integration-tls-config.html).
+Para preservar o deploy da Fase 2 durante a integração, `Auth:Internal:Enabled` começa como `false`; nesse estado, a rota privada não é mapeada. A habilitação exige `Auth:Internal:Key` com pelo menos 32 bytes UTF-8, sem placeholder e diferente de `Auth:Jwt:Key`, além do ingresso privado e distribuição de segredo descritos neste RFC. O Host compõe o esquema JWT nomeado exclusivo definido em `Adapters.Api/Security`, que valida assinatura/algoritmo/emissor/audiência e exige `iat`, `nbf` e `exp` válidos, sem tolerância de relógio e com janela máxima de 60 segundos. A rota é excluída do OpenAPI público. Essa separação segue a [autenticação por esquema do ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/limitingidentitybyscheme?view=aspnetcore-10.0).
+
+### Transporte no laboratório sem domínio próprio
+
+A Academy usará o endereço padrão `https://{apiId}.execute-api.{region}.amazonaws.com`, cujo HTTPS é fornecido pelo API Gateway. Não provisionar domínio próprio nem certificado ACM do projeto para essa entrega. A Lambda de autenticação acessará um listener HTTP do balanceador interno pela VPC; as rotas de negócio do Gateway usarão o mesmo listener via VPC Link. A AWS oferece [endpoints HTTPS padrão](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-stages.html) e [integrações privadas HTTP](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-private.html).
+
+O trecho interno HTTP não criptografa CPF, senha ou token de serviço. Essa simplificação do laboratório exige balanceador sem acesso público, security groups permitindo somente os chamadores necessários e ausência de `/internal/*` nas rotas do Gateway. A identidade de serviço continua obrigatória; conectividade privada não a substitui. O preflight e os smoke tests devem comprovar essas restrições antes de habilitar a rota. TLS interno poderá ser adotado posteriormente com certificado e validação normais; não usar desativação de validação de certificado como atalho.
+
+Essa decisão substitui o requisito anterior de domínio/certificado para o listener interno. A implementação depende da evolução do contrato v1 descrita na seção 3 e do provisionamento de ingress, VPC Link e funções. M2 continua pendente até a jornada publicada e suas restrições de acesso serem demonstradas.
 
 As subnets privadas atuais não têm saída NAT definida. A função em VPC precisa de conectividade planejada para buscar secrets e para as integrações que usar: endpoints privados dos serviços suportados ou egress controlado conforme permitido no laboratório. Colocar uma Lambda em subnet pública, por si só, não lhe dá acesso à internet. Essa dependência entra no preflight de rede; o contrato não pressupõe que uma chamada ao Secrets Manager funcionará somente por atribuir subnets à função. Referência: [AWS - Lambda e VPC](https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html).
 
@@ -170,7 +182,7 @@ sequenceDiagram
     Customer->>Gateway: POST /auth/customers/token (CPF e senha)
     Gateway->>Login: Payload HTTP
     Login->>Login: Validar CPF
-    Login->>Api: HTTPS + token de serviço / verificar credenciais
+    Login->>Api: HTTP na VPC + token de serviço / verificar credenciais
     Api->>Db: Consultar cliente, status e usuário vinculado
     Db-->>Api: Dados para validação
     Api->>Api: Verificar status e hash da senha
@@ -211,7 +223,7 @@ sequenceDiagram
     Gateway-->>Staff: OS criada
 ```
 
-Os eventos de mudança de status usam o outbox existente para SNS; a sequência de criação não afirma que todo evento de criação já é uma notificação SNS. Na documentação final, incluir caminhos de 400/401/403/404/409 e indisponibilidade conforme os contratos implementados.
+Os eventos de mudança de status de OS usam o outbox existente para SNS; a sequência de criação não afirma que todo evento de criação já é uma notificação SNS. `CustomerStatusChanged` é um evento de domínio despachado após commit, sem contrato de publicação SNS nesta implementação. Na documentação final, incluir caminhos de 400/401/403/404/409 e indisponibilidade conforme os contratos implementados.
 
 Matriz de exposição: `/auth/login` e `/auth/customers/token` são públicas com throttling; rotas de negócio passam pelo authorizer e pelas políticas da API; troca de senha exige token mas não a política de senha já alterada; webhook conserva HMAC próprio; probes internos não são endpoints de negócio; `/internal/*` nunca é publicado por wildcard. Enumerar rotas explicitamente no root edge e testar ausência de bypass.
 
@@ -229,8 +241,8 @@ As credenciais e o ambiente têm duração de quatro horas. Preparar os artefato
 
 ## 8. Critérios de validação
 
-Validar a implantação durante uma sessão ativa da Academy. O ambiente deve subir pelas pipelines, com states sob donos únicos, contratos compatíveis, conectividade privada, HTTPS validado e capacidade para os ambientes isolados. Consultas e simulações de permissões apoiam o diagnóstico; a execução e os smoke tests verificam o caminho completo.
+Validar a implantação durante uma sessão ativa da Academy. O ambiente deve subir pelas pipelines, com states sob donos únicos, contratos compatíveis, conectividade privada restrita, HTTPS validado na borda e capacidade para os ambientes isolados. Consultas e simulações de permissões apoiam o diagnóstico; a execução e os smoke tests verificam o caminho completo.
 
 Entregar quatro repositórios com políticas verificadas e CI/CD reproduzível. Cobrir domínio/status do cliente, consulta privada, contrato HTTP, JWT entre emissores/validadores, autorização, migrations em PostgreSQL e jornada real pelo Gateway. A existência deste RFC não substitui essas verificações.
 
-Pontos que invalidam a opção de infraestrutura e exigem revisão: impossibilidade de configurar o ingress privado/TLS, ausência das permissões Lambda/VPC/PassRole necessárias, ou quota incapaz de suportar os ambientes exigidos. Não substituir silenciosamente banco isolado por compartilhado ou entrada privada por balanceador público.
+Pontos que invalidam a opção de infraestrutura e exigem revisão: impossibilidade de restringir o ingress à VPC, ausência das permissões Lambda/VPC/PassRole necessárias, ou quota incapaz de suportar os ambientes exigidos. Não substituir silenciosamente banco isolado por compartilhado ou entrada privada por balanceador público.

@@ -1,4 +1,5 @@
 using GarageFlow.Application.WorkOrders.Common;
+using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Application.Users.Ports;
 using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Domain.WorkOrders.ValueObjects;
@@ -8,16 +9,22 @@ namespace GarageFlow.Application.WorkOrders.UseCases.RejectMyEstimate;
 
 public sealed class RejectMyEstimateHandler(
     IUserRepository userRepository,
+    ICustomerRepository customerRepository,
     IWorkOrderRepository workOrderRepository,
     EstimateDecisionProcessor processor) : IRequestHandler<RejectMyEstimateCommand, Unit>
 {
     private readonly IUserRepository _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+    private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
     private readonly IWorkOrderRepository _workOrderRepository = workOrderRepository ?? throw new ArgumentNullException(nameof(workOrderRepository));
     private readonly EstimateDecisionProcessor _processor = processor ?? throw new ArgumentNullException(nameof(processor));
 
     public async ValueTask<Unit> Handle(RejectMyEstimateCommand request, CancellationToken cancellationToken)
     {
-        var customerId = await CustomerWorkOrderAccess.GetRequiredCustomerIdAsync(_userRepository, request.UserId, cancellationToken);
+        var customerId = await CustomerWorkOrderAccess.GetRequiredCustomerIdAsync(
+            _userRepository,
+            _customerRepository,
+            request.UserId,
+            cancellationToken);
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
         var workOrder = await CustomerWorkOrderAccess.GetRequiredEstimateMutationWorkOrderAsync(
             _workOrderRepository,

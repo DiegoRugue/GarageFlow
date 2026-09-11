@@ -21,6 +21,7 @@ using GarageFlow.SharedKernel.Domain.Exceptions;
 using GarageFlow.SharedKernel.Domain.ValueObjects;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Domain.Customers.Entities;
+using GarageFlow.Domain.Customers.Enums;
 using GarageFlow.Application.Customers.Ports;
 using GarageFlow.Domain.Customers.ValueObjects;
 using GarageFlow.Domain.InventoryItems.Entities;
@@ -657,6 +658,7 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderRepositoryMock.Object);
 
         var result = await handler.Handle(
@@ -711,6 +713,7 @@ public class WorkOrderHandlersTests
 
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderRepositoryMock.Object);
 
         var result = await handler.Handle(
@@ -748,6 +751,7 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new ApproveMyEstimateHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderRepositoryMock.Object);
 
         var exception = await Assert.ThrowsAsync<NotFoundException>(
@@ -787,6 +791,7 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderRepositoryMock.Object,
             CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
@@ -862,6 +867,7 @@ public class WorkOrderHandlersTests
 
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderRepositoryMock.Object,
             CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
@@ -895,6 +901,7 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderRepositoryMock.Object,
             CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
@@ -972,6 +979,7 @@ public class WorkOrderHandlersTests
         var workOrderQueriesMock = CreateWorkOrderQueriesMock(customerDetailsById: [details]);
         var handler = new GetMyWorkOrderByIdHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderQueriesMock.Object);
 
         var result = await handler.Handle(
@@ -1007,7 +1015,10 @@ public class WorkOrderHandlersTests
         var expectedWorkOrderId = pagedDetails[^1].Id;
         var userRepositoryMock = CreateUserRepositoryMock([user]);
         var workOrderQueriesMock = CreateWorkOrderQueriesMock(customerDetailsList: pagedDetails);
-        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderQueriesMock.Object);
+        var handler = new ListMyWorkOrdersHandler(
+            userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
+            workOrderQueriesMock.Object);
 
         var result = await handler.Handle(
             new ListMyWorkOrdersQuery(user.Id.Value, Page: 2, PageSize: 5),
@@ -1033,7 +1044,10 @@ public class WorkOrderHandlersTests
 
         var userRepositoryMock = CreateUserRepositoryMock([user]);
         var workOrderQueriesMock = CreateWorkOrderQueriesMock();
-        var handler = new ListMyWorkOrdersHandler(userRepositoryMock.Object, workOrderQueriesMock.Object);
+        var handler = new ListMyWorkOrdersHandler(
+            userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
+            workOrderQueriesMock.Object);
 
         var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
             async () => await handler.Handle(
@@ -1041,6 +1055,68 @@ public class WorkOrderHandlersTests
                 CancellationToken.None));
 
         Assert.Equal("Authenticated user is not a customer user.", exception.Message);
+        workOrderQueriesMock.Verify(
+            x => x.ListCustomerDetailsAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<CustomerId>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ListMyWorkOrders_ShouldThrowUnauthorizedAccessException_WhenLinkedCustomerIsMissing()
+    {
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(CustomerId.New())
+            .WithEmail("customer.missing@example.com")
+            .Build();
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock();
+        var handler = new ListMyWorkOrdersHandler(
+            userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock(customerExists: false).Object,
+            workOrderQueriesMock.Object);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => handler.Handle(
+                new ListMyWorkOrdersQuery(user.Id.Value),
+                CancellationToken.None).AsTask());
+
+        workOrderQueriesMock.Verify(
+            x => x.ListCustomerDetailsAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<CustomerId>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ListMyWorkOrders_ShouldThrowUnauthorizedAccessException_WhenCustomerIsSuspended()
+    {
+        var customer = new CustomerBuilder().Build();
+        customer.ChangeStatus(CustomerStatus.Suspended);
+        var user = new UserBuilder()
+            .WithRole(UserRole.Customer)
+            .WithCustomerId(customer.Id)
+            .WithEmail("customer.suspended@example.com")
+            .Build();
+
+        var userRepositoryMock = CreateUserRepositoryMock([user]);
+        var workOrderQueriesMock = CreateWorkOrderQueriesMock();
+        var handler = new ListMyWorkOrdersHandler(
+            userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock(customer).Object,
+            workOrderQueriesMock.Object);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => handler.Handle(
+                new ListMyWorkOrdersQuery(user.Id.Value),
+                CancellationToken.None).AsTask());
+
         workOrderQueriesMock.Verify(
             x => x.ListCustomerDetailsAsync(
                 It.IsAny<int>(),
@@ -1079,6 +1155,7 @@ public class WorkOrderHandlersTests
         var unitOfWorkMock = CreateUnitOfWorkMock();
         var handler = new RejectMyEstimateHandler(
             userRepositoryMock.Object,
+            CreateCustomerAccessRepositoryMock().Object,
             workOrderRepositoryMock.Object,
             CreateEstimateDecisionProcessor(inventoryItemRepositoryMock.Object));
 
@@ -1464,6 +1541,22 @@ public class WorkOrderHandlersTests
             .Setup(x => x.ExistsByTaxDocumentAsync(It.IsAny<TaxDocument>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((TaxDocument taxDocument, CancellationToken _) =>
                 customers.Any(customer => customer.TaxDocument.Value == taxDocument.Value));
+
+        return repositoryMock;
+    }
+
+    private static Mock<ICustomerRepository> CreateCustomerAccessRepositoryMock(
+        Customer? customer = null,
+        bool customerExists = true)
+    {
+        var accessibleCustomer = customerExists
+            ? customer ?? new CustomerBuilder().Build()
+            : null;
+        var repositoryMock = new Mock<ICustomerRepository>();
+
+        repositoryMock
+            .Setup(x => x.GetByIdAsync(It.IsAny<CustomerId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(accessibleCustomer);
 
         return repositoryMock;
     }

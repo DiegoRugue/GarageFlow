@@ -13,10 +13,14 @@ namespace GarageFlow.Tests.E2E.Support.Factories;
 
 public sealed class E2eWebApplicationFactory(
     string connectionString,
-    Action<IServiceCollection>? configureTestServices = null) : WebApplicationFactory<Program>
+    Action<IServiceCollection>? configureTestServices = null,
+    bool internalAuthEnabled = false,
+    string? internalAuthKey = null) : WebApplicationFactory<Program>
 {
     private readonly string _connectionString = connectionString;
     private readonly Action<IServiceCollection>? _configureTestServices = configureTestServices;
+    private readonly bool _internalAuthEnabled = internalAuthEnabled;
+    private readonly string? _internalAuthKey = internalAuthKey;
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
@@ -38,7 +42,7 @@ public sealed class E2eWebApplicationFactory(
 
         builder.ConfigureServices(services =>
         {
-            services.PostConfigureAll<JwtBearerOptions>(options =>
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
             {
                 options.TokenValidationParameters.ValidIssuer = E2eAuthSettings.JwtIssuer;
                 options.TokenValidationParameters.ValidAudience = E2eAuthSettings.JwtAudience;
@@ -61,6 +65,8 @@ public sealed class E2eWebApplicationFactory(
             ["Auth:Jwt:Audience"] = E2eAuthSettings.JwtAudience,
             ["Auth:Jwt:Key"] = E2eAuthSettings.JwtKey,
             ["Auth:Jwt:ExpiresMinutes"] = E2eAuthSettings.JwtExpiresMinutes.ToString(CultureInfo.InvariantCulture),
+            ["Auth:Internal:Enabled"] = _internalAuthEnabled.ToString(CultureInfo.InvariantCulture),
+            ["Auth:Internal:Key"] = _internalAuthKey,
             ["Auth:BootstrapAdmin:FullName"] = E2eAuthSettings.BootstrapAdminFullName,
             ["Auth:BootstrapAdmin:Email"] = E2eAuthSettings.BootstrapAdminEmail,
             ["Auth:BootstrapAdmin:BirthDate"] = E2eAuthSettings.BootstrapAdminBirthDate,
