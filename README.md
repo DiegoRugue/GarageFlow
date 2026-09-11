@@ -2,6 +2,7 @@
 
 ## Sumário
 
+- [Fase 3 — Segurança, serverless e observabilidade](#fase-3)
 - [Fase 2 — Cloud, Kubernetes e automação](#fase-2)
   - [Descrição da solução e objetivos](#descrição-da-solução-e-objetivos)
   - [Arquitetura proposta](#arquitetura-proposta)
@@ -21,6 +22,31 @@
   - [Credenciais locais](#credenciais-locais)
   - [Comandos de desenvolvimento](#comandos-de-desenvolvimento)
   - [Estrutura do repositório](#estrutura-do-repositório)
+
+## Fase 3
+
+A Fase 3 segue o documento **13SOAT - Fase 3 - Tech Challenge**, mantendo a **AWS Academy** e a aplicação modular existente.
+
+O [ADR 0001](docs/architecture/adrs/0001-four-repositories-on-aws-academy.md) define a separação por responsabilidade em quatro repositórios. O [RFC 0001](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md) especifica os contratos de infraestrutura, autenticação por CPF, JWT, Gateway e as sequências de integração.
+
+O [schema dos manifests de infraestrutura](contracts/infra-contract-v1.schema.json) e o [validador/publicador](scripts/infra_contract.py) implementam a interface de metadados entre os repositórios. O publicador recebe somente os outputs permitidos de cada produtor; valores de segredos e conteúdo de state não fazem parte dessa interface.
+
+Validação local dos contratos (Python 3.12):
+
+```bash
+python -m pip install --require-hashes -r scripts/requirements-test.txt
+python -m unittest discover -s scripts/tests -v
+python scripts/infra_contract.py validate --file platform.json --producer platform --environment homologation
+```
+
+Os caminhos do utilitário ficam restritos ao diretório de artefatos: `RUNNER_TEMP`, quando definido, ou o diretório temporário do sistema operacional. No exemplo, `platform.json` deve estar nessa área. Caminhos absolutos também precisam permanecer dentro dela; o utilitário rejeita caminhos ou links simbólicos que escapem desse limite. As dependências de teste têm versões e hashes fixados em `scripts/requirements-test.txt`; o utilitário em execução usa apenas a biblioteca padrão.
+
+Repositórios de infraestrutura desta fase:
+
+- [garageflow-infra-kubernetes](https://github.com/DiegoRugue/garageflow-infra-kubernetes): rede, EKS, ECR, SNS, segredos comuns, backend e HTTP API inicial.
+- [garageflow-infra-database](https://github.com/DiegoRugue/garageflow-infra-database): RDS PostgreSQL, acesso de rede e segredo do banco.
+
+Status: a fundação dos contratos e a extração da plataforma e do banco estão implementadas para revisão. A autenticação serverless por CPF, o ingresso privado, as rotas e a autorização do Gateway, o deploy da aplicação pelos novos contratos e a observabilidade ainda precisam ser implementados e demonstrados. O fluxo de provisionamento da Fase 2 permanece disponível durante essa transição. Na AWS Academy, executar a pipeline com uma sessão renovada recompõe o ambiente; as credenciais e a sessão do laboratório duram quatro horas.
 
 ## Fase 2
 
@@ -104,6 +130,8 @@ O detalhamento do ambiente local, seed e credenciais de desenvolvimento permanec
 #### Deploy em Kubernetes
 
 O caminho recomendado é o workflow [Deploy AWS Academy](.github/workflows/deploy-aws-academy.yml), que provisiona a infraestrutura, publica a imagem, aplica os manifests e executa as verificações finais.
+
+O laboratório opera em sessões de quatro horas, com credenciais temporárias e ambiente disponível durante essa janela. A retomada usa a pipeline de provisionamento existente, com o laboratório iniciado e as credenciais renovadas no GitHub Environment. Se o bucket de state ainda não existir na sessão/conta utilizada, execute primeiro o [bootstrap do backend S3](#provisionamento-com-terraform). A ausência de recursos entre sessões é compatível com esse ciclo de uso.
 
 Crie no GitHub o Environment protegido `aws-academy` com:
 
