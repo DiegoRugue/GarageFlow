@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - develop
 
 permissions:
   contents: read
@@ -72,6 +73,23 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate Infrastructure Contracts
+        shell: bash
+        env:
+          COVERAGE_FILE: ${{ runner.temp }}/garageflow-test-results/python/.coverage
+        run: |
+          set -Eeuo pipefail
+          python -m pip install -r scripts/requirements-test.txt
+          mkdir -p "${RUNNER_TEMP}/garageflow-test-results/python"
+          python -m coverage run --branch --source=scripts --omit='scripts/tests/*' -m unittest discover -s scripts/tests -v
+          python -m coverage xml -o "${RUNNER_TEMP}/garageflow-test-results/python/coverage.xml"
+          python -m coverage report --fail-under=80
+
       - name: Detect SonarQube configuration
         id: sonar-config
         shell: bash
@@ -118,10 +136,11 @@ jobs:
           /k:"${SONAR_PROJECT_KEY}"
           /d:sonar.host.url="${SONAR_HOST_URL}"
           /d:sonar.token="${SONAR_TOKEN}"
-          /d:sonar.cs.opencover.reportsPaths="TestResults/**/coverage.opencover.xml"
+          /d:sonar.cs.opencover.reportsPaths="${RUNNER_TEMP}/garageflow-test-results/**/coverage.opencover.xml"
           /d:sonar.python.version="3.12"
+          /d:sonar.python.coverage.reportPaths="${RUNNER_TEMP}/garageflow-test-results/python/coverage.xml"
           /d:sonar.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql"
-          /d:sonar.coverage.exclusions="**/Tests/E2E/**,**/Adapters.Infrastructure/DataAccess/Migrations/**,**/Adapters.Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Adapters.Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs"
+          /d:sonar.coverage.exclusions="**/Tests/E2E/**,**/scripts/tests/**,**/Adapters.Infrastructure/DataAccess/Migrations/**,**/Adapters.Infrastructure/DataAccess/GarageFlowDbContextFactory.cs,**/Adapters.Infrastructure/DataAccess/AutoMigrateGarageFlowExtensions.cs"
           /d:sonar.cpd.exclusions="**/Tests/E2E/**,**/scripts/seed-local.sql,**/Adapters.Infrastructure/DataAccess/Migrations/**"
           /d:sonar.qualitygate.wait=true
 
@@ -135,7 +154,7 @@ jobs:
           --settings coverlet.runsettings
           --filter "FullyQualifiedName~Architecture"
           --collect:"XPlat Code Coverage"
-          --results-directory TestResults/Architecture
+          --results-directory "${{ runner.temp }}/garageflow-test-results/Architecture"
 
       - name: Unit Tests
         run: >
@@ -144,7 +163,7 @@ jobs:
           --settings coverlet.runsettings
           --filter "FullyQualifiedName!~Architecture"
           --collect:"XPlat Code Coverage"
-          --results-directory TestResults/Unit
+          --results-directory "${{ runner.temp }}/garageflow-test-results/Unit"
 
       - name: Integration Tests
         run: >
@@ -152,7 +171,7 @@ jobs:
           --no-build
           --settings coverlet.runsettings
           --collect:"XPlat Code Coverage"
-          --results-directory TestResults/Integration
+          --results-directory "${{ runner.temp }}/garageflow-test-results/Integration"
           --
           RunConfiguration.MaxCpuCount=1
 
@@ -160,7 +179,7 @@ jobs:
         run: >
           dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj
           --no-build
-          --results-directory TestResults/E2E
+          --results-directory "${{ runner.temp }}/garageflow-test-results/E2E"
           --logger "trx;LogFileName=e2e.trx"
 
       - name: Upload E2E TRX
@@ -168,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-results
-          path: TestResults/E2E/e2e.trx
+          path: ${{ runner.temp }}/garageflow-test-results/E2E/e2e.trx
           if-no-files-found: ignore
 
       - name: Validate Coverage Threshold (80%)
@@ -181,9 +200,10 @@ jobs:
           import xml.etree.ElementTree as ET
 
           threshold = float(os.environ["COVERAGE_THRESHOLD"])
-          report_files = glob.glob("TestResults/**/coverage.opencover.xml", recursive=True)
+          report_pattern = os.path.join(os.environ["RUNNER_TEMP"], "garageflow-test-results", "**", "coverage.opencover.xml")
+          report_files = glob.glob(report_pattern, recursive=True)
           if not report_files:
-              raise SystemExit("No OpenCover reports found under TestResults/**/coverage.opencover.xml")
+              raise SystemExit("No OpenCover reports found in the runner temporary results directory")
 
           covered_points = set()
           total_points = set()

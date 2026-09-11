@@ -3,6 +3,14 @@
 ## Mission
 Guide Codex agents to evolve GarageFlow with maximum code quality, strict Clean Architecture boundaries, DDD tactical patterns, and consistent vertical-slice patterns across all modules.
 
+## Repository Content Policy
+
+- Keep application code, tests, infrastructure, automation, and required project configuration in the repository.
+- Keep only Tech Challenge delivery artifacts, READMEs, ADRs, and RFCs as project documentation. Preserve the published deliverables from earlier phases.
+- Store study notes, requirements tracking, implementation plans/specs, internal audits, agent briefs/reviews, and intermediate test or execution evidence outside the repository and every worktree, not merely in ignored folders.
+- This policy also applies when a skill suggests creating planning or evidence files inside the checkout. Use the external study workspace instead.
+- READMEs, ADRs, and RFCs must be self-contained and must not link to private work records or contain session transcripts, agent progress, or credential inventories.
+
 ## Core Engineering Principles
 - Domain-Driven Design with explicit invariants in value objects.
 - Vertical slice by module and use case.

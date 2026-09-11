@@ -2,10 +2,22 @@
 .superpowers/
 /docs/entrega-final/
 
+# Internal work records belong in an external study workspace.
+/docs/superpowers/
+/docs/phase-3/evidence/
+/docs/phase-3/requirements.md
+/docs/work-records/
+/docs/*-audit-*.md
+/docs/*checklist*.md
+
 # .NET build outputs
 **/bin/
 **/obj/
 TestResults/
+
+# Python tooling cache
+__pycache__/
+*.py[cod]
 
 # IDE/user files
 .vs/

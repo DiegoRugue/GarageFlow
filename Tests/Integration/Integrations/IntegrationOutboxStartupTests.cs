@@ -4,8 +4,12 @@ using GarageFlow.Adapters.Infrastructure.WorkOrders.Notifications;
 using GarageFlow.Application.WorkOrders.Ports;
 using GarageFlow.Tests.Integration.Support.Factories;
 using GarageFlow.Tests.Integration.Support.Fixtures;
+using GarageFlow.Tests.Integration.Support.Helpers;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 
 namespace GarageFlow.Tests.Integration.Integrations;
@@ -82,11 +86,20 @@ public sealed class IntegrationOutboxStartupTests
             snsTopicArn: topicArn,
             snsClient: snsClient.Object);
 
-        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        using var startupLogs = new StartupFailureLoggerProvider();
+        using var observedFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureLogging(logging => logging.AddProvider(startupLogs)));
 
+        Assert.ThrowsAny<Exception>(() => observedFactory.CreateClient());
+
+        // RunAsync can dispose the failed host before WebApplicationFactory observes
+        // its startup exception. Assert the original validation failure logged by Host.
+        var exception = Assert.Single(startupLogs.Exceptions.OfType<OptionsValidationException>());
+
+        Assert.Equal(typeof(AmazonSnsStatusNotificationOptions), exception.OptionsType);
         Assert.Contains(
             AmazonSnsStatusNotificationOptions.SectionName,
-            exception.ToString(),
+            exception.Message,
             StringComparison.Ordinal);
         snsClient.VerifyNoOtherCalls();
     }
