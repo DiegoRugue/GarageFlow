@@ -46,7 +46,21 @@ Repositórios de infraestrutura desta fase:
 - [garageflow-infra-kubernetes](https://github.com/DiegoRugue/garageflow-infra-kubernetes): rede, EKS, ECR, SNS, segredos comuns, backend e HTTP API inicial.
 - [garageflow-infra-database](https://github.com/DiegoRugue/garageflow-infra-database): RDS PostgreSQL, acesso de rede e segredo do banco.
 
-Status: a fundação dos contratos e a extração da plataforma e do banco estão implementadas para revisão. A autenticação serverless por CPF, o ingresso privado, as rotas e a autorização do Gateway, o deploy da aplicação pelos novos contratos e a observabilidade ainda precisam ser implementados e demonstrados. O fluxo de provisionamento da Fase 2 permanece disponível durante essa transição. Na AWS Academy, executar a pipeline com uma sessão renovada recompõe o ambiente; as credenciais e a sessão do laboratório duram quatro horas.
+### Base de autenticação do cliente
+
+O login existente de administradores e funcionários permanece em `/auth/login`, com e-mail e senha. A jornada por CPF é exclusiva do cliente para consultar suas próprias OS e aprovar ou rejeitar seus orçamentos. A API concentra as regras de cadastro, senha, situação e propriedade da OS; a Lambda valida o CPF, chama a API e emite o JWT após a verificação, conforme o requisito serverless da fase.
+
+Clientes possuem status `Active` ou `Suspended`, retornado nas consultas de cadastro. Novos clientes e cadastros anteriores à migration começam como `Active`. Um administrador ativo altera o status com `PATCH /customers/{id}/status`, enviando `{"status":"Suspended"}` ou `{"status":"Active"}`; a resposta contém `id` e `status`. A suspensão bloqueia o login do cliente e o acesso às suas ordens de serviço, inclusive com um JWT emitido antes da alteração. O login de funcionários e os fluxos de troca de senha permanecem disponíveis conforme suas políticas.
+
+O endpoint privado `POST /internal/auth/customer-credentials/verify` recebe `cpf` e `password`, consulta o cadastro e o usuário do portal e verifica a senha. No sucesso, retorna somente `userId`, `customerId`, `role` (`Customer`) e `mustChangePassword`. CPF inválido, CNPJ ou campos obrigatórios ausentes retornam `400`; cliente inexistente/suspenso, portal ausente ou senha incorreta retornam `401` com `detail: invalid_credentials`. A aplicação não emite o token dessa jornada: a emissão por CPF pertence à função serverless.
+
+A rota interna fica ausente por padrão. Para habilitá-la, configurar `Auth__Internal__Enabled=true` e fornecer `Auth__Internal__Key` pelo mecanismo de secrets do ambiente. A chave precisa ter pelo menos 32 bytes UTF-8, ser diferente da chave JWT de usuários e não ser um placeholder. Configuração inválida impede a inicialização quando a funcionalidade está habilitada.
+
+A chamada exige um JWT de serviço HS256 com chave própria, `iss=GarageFlow.Serverless`, `aud=GarageFlow.InternalAuth`, `sub=customer-auth-function`, `scope=customer-credentials:verify`, timestamps `iat`/`nbf`/`exp` e validade máxima de 60 segundos, sem tolerância de relógio. Tokens de usuários não acessam essa rota; tokens de serviço não autenticam rotas de negócio. Ela não aparece no OpenAPI público e não deve ser publicada nas rotas do Gateway. Antes de habilitar no ambiente, configurar o ingresso privado e a distribuição segura do segredo conforme o RFC.
+
+O desenho para a Academy usa o HTTPS padrão do API Gateway, sem domínio próprio nem certificado ACM do projeto, e HTTP somente dentro da VPC entre Lambda, balanceador interno e aplicação. Esse trecho não tem criptografia de transporte e exige restrição de acesso por security groups. A infraestrutura desse desenho ainda não está implementada: o contrato de ingress v1 exige TLS e precisará de uma evolução versionada antes do deploy, como detalhado no RFC.
+
+Status: os contratos, a extração da plataforma e do banco e a base de autenticação na aplicação estão implementados. A função serverless de CPF e seu endpoint público, o ingresso privado, as rotas e a autorização do Gateway, o deploy da aplicação pelos novos contratos e a observabilidade ainda precisam ser implementados e demonstrados. O fluxo de provisionamento da Fase 2 permanece disponível durante essa transição. Na AWS Academy, executar a pipeline com uma sessão renovada recompõe o ambiente; as credenciais e a sessão do laboratório duram quatro horas.
 
 ## Fase 2
 

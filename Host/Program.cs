@@ -40,6 +40,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks()
     .AddCheck<GarageFlowDatabaseHealthCheck>("garageflow-database", tags: ["ready"]);
 builder.AddGarageFlowAuthentication();
+builder.AddGarageFlowInternalAuthentication();
 builder.Services.AddGarageFlowInfrastructure(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
@@ -78,6 +79,10 @@ if (app.Environment.IsEnvironment("IntegrationTests"))
         (HttpContext _) => throw new InvalidOperationException("Integration test exception."));
 }
 app.MapAuthEndpoints();
+if (app.Configuration.GetValue<bool>($"{InternalAuth.SectionName}:Enabled"))
+{
+    app.MapInternalAuthEndpoints();
+}
 app.MapUserEndpoints();
 app.MapCustomerEndpoints();
 app.MapServiceEndpoints();

@@ -5,7 +5,19 @@ namespace GarageFlow.Adapters.Infrastructure.Auth;
 
 public sealed class PasswordHashService : IPasswordHashService
 {
-    private readonly PasswordHasher<object> _passwordHasher = new();
+    private static readonly Lazy<string> MissingUserHash = new(() =>
+        new PasswordHasher<object>().HashPassword(null!, Guid.NewGuid().ToString("N")));
+    private readonly IPasswordHasher<object> _passwordHasher;
+
+    public PasswordHashService() : this(new PasswordHasher<object>())
+    {
+    }
+
+    public PasswordHashService(IPasswordHasher<object> passwordHasher)
+    {
+        ArgumentNullException.ThrowIfNull(passwordHasher);
+        _passwordHasher = passwordHasher;
+    }
 
     public string Hash(string password)
     {
@@ -17,14 +29,17 @@ public sealed class PasswordHashService : IPasswordHashService
         return _passwordHasher.HashPassword(user: null!, password);
     }
 
-    public bool Verify(string password, string passwordHash)
+    public bool Verify(string password, string? passwordHash)
     {
-        if (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(passwordHash))
+        if (string.IsNullOrWhiteSpace(password))
         {
             return false;
         }
 
-        var verificationResult = _passwordHasher.VerifyHashedPassword(user: null!, passwordHash, password);
-        return verificationResult is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded;
+        var hasStoredHash = !string.IsNullOrWhiteSpace(passwordHash);
+        var verificationResult = _passwordHasher.VerifyHashedPassword(
+            user: null!, hasStoredHash ? passwordHash! : MissingUserHash.Value, password);
+        return hasStoredHash
+            && verificationResult is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded;
     }
 }
