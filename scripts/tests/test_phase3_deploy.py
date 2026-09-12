@@ -116,6 +116,55 @@ class Phase3DeploymentTests(unittest.TestCase):
             metrics.assert_not_called()
             workload.assert_not_called()
 
+    def test_kubectl_json_parser_accepts_single_list_and_concatenated_documents(self):
+        namespace = {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": "garageflow"}}
+        config_map = {"apiVersion": "v1", "kind": "ConfigMap", "metadata": {"name": "garageflow-config"}}
+        cases = [
+            ("single", json.dumps(namespace, indent=2), ["Namespace"]),
+            ("list", json.dumps({"apiVersion": "v1", "kind": "List", "items": [namespace, config_map]}, indent=2),
+             ["Namespace", "ConfigMap"]),
+            ("stream", f"{json.dumps(namespace, indent=2)}\n{json.dumps(config_map, indent=2)}\n",
+             ["Namespace", "ConfigMap"]),
+        ]
+
+        parser = getattr(self.module, "parse_kubectl_json_stream", None)
+        self.assertIsNotNone(parser, "deployment parser does not support kubectl JSON streams")
+        for name, payload, expected_kinds in cases:
+            with self.subTest(name=name):
+                objects = parser(payload)
+                self.assertEqual(expected_kinds, [item["kind"] for item in objects])
+
+    def test_malformed_kubectl_json_stream_stops_before_any_workload_apply(self):
+        fixtures = test_phase3_inputs.Phase3InputsTests()
+        values = dict(fixtures.credentials(), GITHUB_SHA="a" * 40, EXPECTED_AWS_ACCOUNT_ID="123456789012",
+                      AWS_REGION="us-east-1")
+        malformed_streams = [
+            '{"apiVersion":"v1","kind":"Namespace"}\n{"apiVersion":"apps/v1","kind":"Deployment"',
+            '{"apiVersion":"v1","kind":"Namespace"}\ntrailing-garbage',
+        ]
+
+        for payload in malformed_streams:
+            commands = []
+
+            def command(arguments, **kwargs):
+                commands.append(arguments)
+                if arguments[:3] == ["aws", "ecr", "get-login-password"]:
+                    return "PRIVATE-ECR"
+                if arguments[:2] == ["kubectl", "create"]:
+                    return payload
+                return "rendered-manifests"
+
+            with self.subTest(payload=payload), trusted_temp_directory() as directory, \
+                 patch.object(self.module, "verify_ecr_repository", return_value="123456789012.dkr.ecr.us-east-1.amazonaws.com/garageflow"), \
+                 patch.object(self.module, "run", side_effect=command):
+                error = None
+                try:
+                    self.module.deploy_workload(fixtures.contracts(), values, fixtures.secrets(), directory)
+                except ValueError as caught:
+                    error = caught
+                self.assertFalse(any(item[:2] == ["kubectl", "apply"] for item in commands))
+                self.assertIsInstance(error, self.module.DeploymentError)
+
     def test_workload_migrates_before_rollout_and_uses_safe_apply_transitions(self):
         fixtures = test_phase3_inputs.Phase3InputsTests()
         objects = [{"kind": kind, "data": {}} for kind in ["Namespace", "ConfigMap", "Service", "HorizontalPodAutoscaler"]]
@@ -128,7 +177,7 @@ class Phase3DeploymentTests(unittest.TestCase):
                 if arguments[:3] == ["aws", "ecr", "get-login-password"]:
                     return "PRIVATE-ECR"
                 if arguments[:2] == ["kubectl", "create"]:
-                    return json.dumps({"items": objects})
+                    return "\n".join(json.dumps(item, indent=2) for item in objects)
                 if arguments[:3] == ["kubectl", "set", "image"]:
                     return '{"kind":"Job"}'
                 if arguments[:5] == ["kubectl", "-n", "garageflow", "get", "deployment"]:
