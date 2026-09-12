@@ -595,3 +595,27 @@ GarageFlow/
 - O Dockerfile publica a API em modo `Release` e expõe a porta `8080`.
 - O ambiente local usa JWT com chave de desenvolvimento definida no `docker-compose.yml`.
 - Valores sensíveis devem ser alterados antes de qualquer uso fora do ambiente local.
+
+### Deploy da aplicação na Fase 3
+
+O workflow `Deploy Phase 3 Application` executa a qualidade do commit e implanta após push em `develop` (homologação) ou `main` (produção). Recuperação manual usa as mesmas branches e validações. O workflow manual da Fase 2 permanece separado; não o execute sobre recursos cuja propriedade já tenha sido transferida para os novos roots.
+
+Ordem de provisionamento: **platform → database e ingress → aplicação → serverless → edge**. A aplicação lê contratos platform v1, database v1 e ingress v2 do bucket protegido, confere conta AWS, VPC, EKS, banco privado, listener interno e regras de acesso ao ALB/NodePort antes de buscar os secrets. Falta de contrato ou ambiente expirado interrompe o deploy.
+
+Configurar os GitHub Environments `homologation` e `production` com secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `TF_STATE_BUCKET`; variáveis `AWS_ACCOUNT_ID`, `EKS_PUBLIC_ACCESS_CIDRS` (array JSON de CIDRs dos operadores) e, se necessário, `EKS_VERSION` (padrão `1.36`). O acesso temporário do runner ao EKS acrescenta somente seu IPv4 público `/32` aos CIDRs configurados e restaura os CIDRs protegidos ao terminar, inclusive em falhas. Sem CIDRs de operadores, a limpeza desabilita o endpoint público e mantém o privado. Um passo `always()` tenta novamente a limpeza após interrupção do script. A sessão Academy e as credenciais duram cerca de quatro horas; renovar as credenciais de cada Environment antes da execução.
+
+O overlay `k8s/phase3` reutiliza os manifests existentes e troca o Service para NodePort 30080. O ALB interno, gerenciado pela plataforma, é seu chamador externo autorizado. A pipeline habilita o verificador privado após validar essa rede e resolve os secrets em memória; valores entram no Kubernetes pelo stdin, sem arquivos versionados nem saída de logs. A chave de serviço é distinta da chave JWT de usuários. Publicação Docker, migrations, rollout, targets saudáveis e smoke privado precedem o sucesso da pipeline. O smoke usa um túnel local do `kubectl`, ativa a senha administrativa e cria dados sintéticos de estudo; a jornada pública pelo Gateway exige verificação posterior.
+
+O HTTPS público usa o endereço execute-api gerenciado. O trecho Lambda/ALB/API usa HTTP privado **sem criptografia nesse trecho**, com restrição por security groups e identidade de serviço. A aplicação continua responsável pelas senhas, status, perfis, troca obrigatória de senha e acesso do cliente às próprias OS.
+
+Antes de publicar a imagem, o destino ECR precisa corresponder à conta/região protegidas e ao repositório existente na AWS; todas as credenciais de bootstrap, incluindo a senha ativa distinta da inicial, são validadas. Na transição da Fase 2, o Secret usa `data` em base64 com aplicação no servidor e remoção verificada da antiga anotação `last-applied-configuration`. Os demais recursos continuam com aplicação pelo cliente, preservando as réplicas atuais do Deployment. A pipeline aguarda a API de métricas antes de aplicar o HPA.
+
+Para inspecionar o overlay localmente, mantendo o resultado fora do repositório:
+
+```bash
+kubectl kustomize k8s/phase3 --load-restrictor LoadRestrictionsNone > /tmp/garageflow-phase3.yaml
+python -m unittest discover -s scripts/tests -v
+bash -n scripts/deploy-phase3.sh
+```
+
+`LoadRestrictionsNone` permite que este overlay local reutilize os manifests no diretório pai; ele não referencia manifests remotos. A pipeline verifica os inputs reais antes de aplicar o resultado. Diagramas, contratos e a divisão entre os quatro repositórios estão no [RFC 0001](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md). Os testes locais e a existência da pipeline não comprovam implantação na AWS.

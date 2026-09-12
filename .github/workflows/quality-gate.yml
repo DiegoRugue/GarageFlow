@@ -1,6 +1,7 @@
 name: Quality Gate
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches:
@@ -77,6 +78,11 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
+
+      - name: Setup kubectl for offline overlay tests
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
+        with:
+          version: v1.36.0
 
       - name: Validate Infrastructure Contracts
         shell: bash

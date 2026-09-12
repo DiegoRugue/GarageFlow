@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garageflow-config
+  namespace: garageflow
+data:
+  Auth__Internal__Enabled: "true"

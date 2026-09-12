@@ -14,8 +14,8 @@ O resultado será uma plataforma com cada recurso sob um único dono, contratos 
 
 | Repositório | Dono de | Não gerencia |
 | --- | --- | --- |
-| `GarageFlow` | Solution principal; Domain/Application/Adapters/Host; Dockerfile; testes; migrations EF; Deployment, Service interno/ClusterIP, ConfigMap e HPA da aplicação | Ciclo de vida de EKS, RDS, Gateway e funções |
-| `garageflow-infra-kubernetes` | Backend S3 de estado e contratos; VPC e todas as subnets; EKS, ECR e SNS; secrets JWT, autenticação interna, bootstrap e webhook; ingress/controller/balanceador privado; API Gateway, VPC Link, rotas e authorizer de Gateway | Funções Lambda, RDS e migrations de negócio |
+| `GarageFlow` | Solution principal; Domain/Application/Adapters/Host; Dockerfile; testes; migrations EF; Deployment, Service NodePort restrito, ConfigMap e HPA da aplicação | Ciclo de vida de EKS, RDS, Gateway e funções |
+| `garageflow-infra-kubernetes` | Backend S3 de estado e contratos; VPC e todas as subnets; EKS, ECR e SNS; secrets JWT, autenticação interna, bootstrap e webhook; ALB privado e registro dos workers; API Gateway, VPC Link, rotas e authorizer de Gateway | Funções Lambda, RDS e migrations de negócio |
 | `garageflow-infra-database` | Instância PostgreSQL, DB subnet group que referencia subnets da plataforma, SG do banco, secret do banco e política de backup | VPC/subnets, tabelas de negócio e migrations EF |
 | `garageflow-serverless` | Solution independente; função de autenticação por CPF; função authorizer; testes; código e infraestrutura Lambda, aliases e permissões de invocação | Tabelas do domínio, recursos do Gateway e workloads da aplicação principal |
 
@@ -33,7 +33,7 @@ Um bucket pode armazenar os states em chaves distintas:
 | --- | --- | --- | --- |
 | `platform` | infra Kubernetes | `phase3/{environment}/platform.tfstate` | Backend previamente inicializado e parâmetros Academy |
 | `database` | infra banco | `phase3/{environment}/database.tfstate` | Contrato platform |
-| `ingress` | infra Kubernetes | `phase3/{environment}/ingress.tfstate` | Contrato platform; Service da aplicação já criado |
+| `ingress` | infra Kubernetes | `phase3/{environment}/ingress.tfstate` | Contrato platform; não depende do Service Kubernetes |
 | `serverless` | serverless | `phase3/{environment}/serverless.tfstate` | Contratos platform e ingress |
 | `edge` | infra Kubernetes | `phase3/{environment}/edge.tfstate` | Contratos platform, ingress e serverless |
 
@@ -47,9 +47,10 @@ flowchart LR
     Platform --> Database[Database: RDS]
     Database --> App[Aplicação: migrations, Service e Deployment]
     Platform --> App
-    App --> Ingress[Ingress privado na VPC]
+    Ingress --> App
+    Ingress[Ingress privado na VPC] --> Serverless[Funções e aliases]
     Platform --> Ingress
-    Ingress --> Serverless[Funções e aliases]
+    App --> Serverless
     Platform --> Serverless
     Serverless --> Edge[Rotas Gateway, integrações e authorizer]
     Ingress --> Edge
@@ -60,11 +61,15 @@ O pipeline da plataforma possui stages/jobs correspondentes, executados na ordem
 
 As rotas internas não dependem de um JWT de usuário nem da própria função de autenticação para validar uma chamada da função. Essa separação evita recursão no login.
 
+A sequência executável é **platform → database e ingress → aplicação → serverless → edge**. O root ingress cria diretamente o ALB interno, listener HTTP e target group `instance` na porta 30080; registra os Auto Scaling groups do managed node group. O overlay da aplicação usa NodePort 30080 com entrada permitida somente pelo SG do ALB. Não há instalação de ingress controller nem dependência circular de Service para provisionar o ALB. Após substituir managed node group/ASG, reconciliar ingress. A publicação de ingress verifica disponibilidade do balanceador; a pipeline da aplicação verifica targets saudáveis depois do rollout.
+
+A pipeline serverless chama o workflow reutilizável de edge da plataforma somente após publicar aliases. Edge não possui trigger independente de push que possa ultrapassar esses pré-requisitos. A recuperação manual continua restrita às branches de ambiente e aplica as mesmas validações. Na primeira implantação, reexecutar a pipeline cuja dependência ainda não existia; uma falha de pré-requisito não é sucesso de deploy.
+
 ## 3. Contrato de descoberta de infraestrutura
 
-Cada root publica um JSON em S3 depois de `apply` e das verificações daquele root. Caminho: `contracts/v1/{environment}/{producer}.json`; `producer` é `platform`, `database`, `ingress` ou `serverless`. Bucket e região são parâmetros de bootstrap nos quatro repositórios.
+Cada root publica um JSON em S3 depois de `apply` e das verificações daquele root. Platform, database e serverless usam `contracts/v1/{environment}/{producer}.json`; o novo ingress usa `contracts/v2/{environment}/ingress.json`. Bucket e região são parâmetros de bootstrap nos quatro repositórios.
 
-Campos comuns: `schemaVersion` = `1.0`, `environment`, `producer`, `sourceCommit` (SHA Git), `publishedAt` (UTC/RFC3339) e `outputs` (objeto). O consumidor valida versão, produtor, ambiente e presença/tipo dos campos antes de implantar. Campo adicional opcional é compatível; remoção, mudança de tipo ou de significado exige nova versão principal. Publicar primeiro a cópia imutável em `contracts/v1/{environment}/{producer}/revisions/{sourceCommit}/{runId}-{runAttempt}.json` e depois atualizar o caminho estável, permitindo auditoria e retorno de configuração.
+Campos comuns: `schemaVersion` (`1.0`, ou `2.0` para o novo ingress), `environment`, `producer`, `sourceCommit` (SHA Git), `publishedAt` (UTC/RFC3339) e `outputs` (objeto). O consumidor valida versão, produtor, ambiente e presença/tipo dos campos antes de implantar. Campo adicional opcional é compatível; remoção, mudança de tipo ou de significado exige nova versão principal. Publicar primeiro a cópia imutável em `contracts/v{major}/{environment}/{producer}/revisions/{sourceCommit}/{runId}-{runAttempt}.json` e depois atualizar o caminho estável, permitindo auditoria e retorno de configuração.
 
 O [JSON Schema](../../../contracts/infra-contract-v1.schema.json) documenta o formato e o [validador/publicador Python](../../../scripts/infra_contract.py) é executado antes de consumir ou publicar um manifest. A execução do utilitário usa apenas a biblioteca padrão; as dependências adicionais são exclusivas dos testes e têm versões e hashes fixados. Os scripts de deploy mantêm manifests temporários e planos Terraform em `RUNNER_TEMP`. O utilitário resolve seus caminhos dentro desse diretório, ou do diretório temporário do sistema na execução local, e rejeita travessia de diretórios e links simbólicos que saiam dessa área.
 
@@ -72,12 +77,12 @@ O [JSON Schema](../../../contracts/infra-contract-v1.schema.json) documenta o fo
 | --- | --- | --- |
 | platform | `awsRegion`, `vpcId`, `publicSubnetIds`, `privateApplicationSubnetIds`, `databaseSubnetIds`, `clusterName`, `clusterSecurityGroupId`, `ecrRepositoryUrl`, `apiGatewayId`, `apiGatewayExecutionArn`, `jwtSecretArn`, `internalAuthSecretArn`, `bootstrapSecretArn`, `webhookSecretArn`, `snsTopicArn` | database, aplicação, ingress, serverless, edge |
 | database | `databaseHost`, `databasePort`, `databaseName`, `databaseSecretArn`, `databaseSecurityGroupId` | aplicação |
-| ingress (v1 implementado; evolução pendente) | `listenerArn`, `internalApiBaseUrl`, `tlsServerName` | serverless e edge |
+| ingress v2 | `listenerArn`, `internalApiBaseUrl`, `transport`, `authenticationSecurityGroupId`, `vpcLinkSecurityGroupId`; `tlsServerName` somente para HTTPS | aplicação, serverless e edge |
 | serverless | `customerAuthenticationAliasArn`, `requestAuthorizerAliasArn` | edge |
 
 IDs, endpoints e ARNs são metadados; senhas, tokens, hashes e PEMs privados não entram no manifest. Consumidores recebem leitura dos contratos e acesso somente aos secrets necessários, sem exigir acesso ao arquivo completo do state de outro root. Políticas concretas precisam respeitar as roles disponíveis na Academy; restrições não verificadas não serão apresentadas como aplicadas.
 
-O schema v1 implementado exige `internalApiBaseUrl` HTTPS e `tlsServerName`. A decisão de transporte da seção 5 introduz HTTP privado na Academy e exige uma nova versão principal desse contrato. A evolução deve declarar explicitamente o transporte, exigir nome TLS apenas no modo HTTPS e atualizar produtores e consumidores antes de publicar manifests HTTP. O contrato v1 e sua validação continuam válidos até essa migração; a base de autenticação da aplicação não implementa essa mudança de infraestrutura.
+O schema v1 continua exigindo `internalApiBaseUrl` HTTPS e `tlsServerName`. O [schema ingress v2](../../../contracts/infra-contract-v2.schema.json) permite HTTP privado declarado explicitamente: em HTTP, `tlsServerName` deve estar ausente; em HTTPS, é obrigatório. URLs aceitam somente origem e porta padrão, sem credenciais, query ou fragmento. O publicador mantém versão 1 como padrão; ingress passa `--schema-version 2.0`. Platform, database e serverless preservam seus contratos v1.
 
 ## 4. Provisionamento temporário e transição da Fase 2
 
