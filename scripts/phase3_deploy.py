@@ -41,6 +41,33 @@ def aws(*arguments, timeout=900):
     return json.loads(run(["aws", *arguments, "--output", "json"], timeout=timeout))
 
 
+def parse_kubectl_json_stream(payload):
+    decoder = json.JSONDecoder()
+    objects = []
+    position = 0
+    try:
+        while position < len(payload):
+            while position < len(payload) and payload[position].isspace():
+                position += 1
+            if position == len(payload):
+                break
+            document, position = decoder.raw_decode(payload, position)
+            if not isinstance(document, dict):
+                raise DeploymentError("Kubectl manifest output must contain JSON objects")
+            if document.get("kind") == "List":
+                items = document.get("items")
+                if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+                    raise DeploymentError("Kubectl List output must contain manifest objects")
+                objects.extend(items)
+            else:
+                objects.append(document)
+    except json.JSONDecodeError:
+        raise DeploymentError("Kubectl manifest output is not valid JSON") from None
+    if not objects:
+        raise DeploymentError("Kubectl manifest output did not contain resources")
+    return objects
+
+
 def settings(environment):
     if any(not environment.get(name) for name in REQUIRED):
         raise DeploymentError("Required protected deployment inputs are missing")
@@ -247,7 +274,7 @@ def deploy_workload(contracts, values, secrets, workspace):
     run(["docker", "build", "--platform", "linux/amd64", "-t", image, "."])
     run(["docker", "push", image])
     rendered = run(["kubectl", "kustomize", "k8s/phase3", "--load-restrictor", "LoadRestrictionsNone"])
-    objects = json.loads(run(["kubectl", "create", "--dry-run=client", "--validate=false", "-f", "-", "-o", "json"], payload=rendered))["items"]
+    objects = parse_kubectl_json_stream(run(["kubectl", "create", "--dry-run=client", "--validate=false", "-f", "-", "-o", "json"], payload=rendered))
     by_kind = {item["kind"]: item for item in objects}
     by_kind["ConfigMap"]["data"]["Integrations__Sns__TopicArn"] = platform["snsTopicArn"]
     by_kind["Deployment"]["spec"]["template"]["spec"]["containers"][0]["image"] = image
