@@ -34,6 +34,7 @@ jobs:
       EXPECTED_AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
       DEPLOY_ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || 'homologation' }}
       EKS_PUBLIC_ACCESS_CIDRS: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS }}
+      OBSERVABILITY_ENABLED: ${{ vars.OBSERVABILITY_ENABLED || 'false' }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v5
