@@ -23,6 +23,7 @@ public static class ObservabilityExtensions
         var options = builder.Configuration.GetSection(ObservabilityOptions.SectionName).Get<ObservabilityOptions>() ?? new();
         if (!options.Enabled) return false;
         var endpoint = options.ValidateEndpoint();
+        builder.Services.AddHostedService<WorkOrderMetricsPublisher>();
         var environment = options.Environment ?? builder.Environment.EnvironmentName;
         if (string.IsNullOrWhiteSpace(environment) || environment.Length > 64 || environment.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-' && c != '_'))
             throw new InvalidOperationException("Observability:Environment must be a short environment name.");
@@ -73,7 +74,7 @@ public static class ObservabilityExtensions
                 .AddProcessor(new PrivacyTraceProcessor())
                 .AddOtlpExporter(exporter => ConfigureExporter(exporter, endpoint, "traces")))
             .WithMetrics(metrics => metrics
-                .AddMeter("Microsoft.AspNetCore.Hosting", "System.Net.Http")
+                .AddMeter("Microsoft.AspNetCore.Hosting", "System.Net.Http", WorkOrderMetricsPublisher.MeterName)
                 .AddRuntimeInstrumentation()
                 .AddView("http.server.request.duration", new MetricStreamConfiguration { TagKeys = ["http.request.method", "http.route", "http.response.status_code", "error.type"] })
                 .AddView("http.client.request.duration", new MetricStreamConfiguration { TagKeys = ["http.request.method", "http.response.status_code", "error.type"] })

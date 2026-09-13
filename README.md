@@ -37,7 +37,22 @@ O Host oferece OpenTelemetry opt-in para traces HTTP, métricas de duração/run
 
 Após implantar e verificar o coletor privado da plataforma, configure a variável protegida `OBSERVABILITY_ENABLED=true` no ambiente GitHub **antes do primeiro merge/deploy do novo commit da aplicação** pelo workflow existente. Implante a plataforma primeiro; o merge da aplicação inicia seu deploy automaticamente. O padrão é `false`. O ConfigMap recebe o ambiente explícito e `Observability__OtlpEndpoint=http://garageflow-otel.newrelic.svc.cluster.local:4318`. A chave New Relic fica somente no coletor. Para uso local, configure `Observability__Enabled`, `Observability__OtlpEndpoint` e, opcionalmente, `Observability__Environment`.
 
-Com a opção ativa, somente logs estruturados de conclusão HTTP são emitidos: método, template da rota, status, duração e IDs de trace/span. Mensagens de exceção, SQL, corpos, URLs brutas, query strings, credenciais e dados pessoais são excluídos. A plataforma deve excluir stdout da API da coleta para evitar duplicação com OTLP. Npgsql, Lambdas, métricas de negócio e backfill histórico não estão instrumentados. Falhas do coletor podem causar perda de telemetria, sem bloquear requisições; ausência de dados não comprova disponibilidade.
+Com a opção ativa, somente logs estruturados de conclusão HTTP são emitidos: método, template da rota, status, duração e IDs de trace/span. Mensagens de exceção, SQL, corpos, URLs brutas, query strings, credenciais e dados pessoais são excluídos. A plataforma deve excluir stdout da API da coleta para evitar duplicação com OTLP. Npgsql e Lambdas não estão instrumentados. Os indicadores de negócio abaixo usam os campos já persistidos nas OS. Falhas do coletor podem causar perda de telemetria, sem bloquear requisições; ausência de dados não comprova disponibilidade.
+
+#### Indicadores diários de ordens de serviço
+
+Com a observabilidade habilitada, o Host publica resumos do dia atual e dos seis dias anteriores, no fuso `America/Sao_Paulo`. A atualização ocorre a cada cinco minutos, com leitura inicial ao iniciar a aplicação. O [ADR 0003](docs/architecture/adrs/0003-work-order-business-metrics.md) detalha os cálculos, a publicação e os limites.
+
+- **Volume diário:** OS criadas no dia, usando `CreatedAt`.
+- **Tempo médio da OS:** `CompletedAt - StartedAt`, desde a aprovação do orçamento até a conclusão de todos os serviços. A amostra é uma OS, independentemente da quantidade de serviços.
+- **Quantidade concluída:** OS que compõem a média daquele dia de conclusão. Inclui OS já entregues com datas válidas; abertas, canceladas e registros sem datas válidas ficam fora. Sem amostras, não há média; isso difere de duração real igual a zero.
+
+Os resumos são gauges com `work_orders.date` e `work_orders.timezone`, sem identificadores pessoais. O dashboard usa `latest(...)` por data, com filtros de serviço e ambiente, para evitar somar o mesmo resumo publicado por várias réplicas. A janela de consulta da telemetria não representa a data de abertura/conclusão das OS. O dia atual é parcial e o horário da última atualização deve acompanhar os números.
+
+O template e o renderizador ficam no [repositório de plataforma](https://github.com/DiegoRugue/garageflow-infra-kubernetes), em `observability/dashboards/business.json` e `scripts/render_observability_dashboard.py`, selecionando `--dashboard business`. Depois do deploy, importe o JSON da conta/ambiente e confronte os valores com uma OS de duração conhecida. O acesso de consulta/admin do New Relic é separado da chave de ingestão existente no coletor.
+
+A consulta atual de tempo médio por serviço preserva seu contrato. Estes indicadores não medem diagnóstico nem espera pela retirada do veículo; alertas, falhas de integração e uptime têm validação separada.
+
 Validação local dos contratos (Python 3.12):
 
 ```bash
