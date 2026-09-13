@@ -41,7 +41,7 @@ Com a opção ativa, somente logs estruturados de conclusão HTTP são emitidos:
 
 #### Indicadores diários de ordens de serviço
 
-Com a observabilidade habilitada, o Host publica resumos do dia atual e dos seis dias anteriores, no fuso `America/Sao_Paulo`. A atualização ocorre a cada cinco minutos, com leitura inicial ao iniciar a aplicação. O [ADR 0003](docs/architecture/adrs/0003-work-order-business-metrics.md) detalha os cálculos, a publicação e os limites.
+Com a observabilidade habilitada, o Host publica resumos do dia atual e dos seis dias anteriores, no fuso `America/Sao_Paulo`. A atualização ocorre a cada cinco minutos, com leitura inicial ao iniciar a aplicação. A migração de banco acrescenta um índice em `CreatedAt` para a consulta periódica de volume; `CompletedAt` já possui índice. O [ADR 0003](docs/architecture/adrs/0003-work-order-business-metrics.md) detalha os cálculos, a publicação e os limites.
 
 - **Volume diário:** OS criadas no dia, usando `CreatedAt`.
 - **Tempo médio da OS:** `CompletedAt - StartedAt`, desde a aprovação do orçamento até a conclusão de todos os serviços. A amostra é uma OS, independentemente da quantidade de serviços.

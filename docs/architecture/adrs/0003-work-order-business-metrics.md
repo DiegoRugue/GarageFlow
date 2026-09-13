@@ -12,7 +12,7 @@ The existing AverageServiceTime query measures individual service lines. Changin
 
 ## Decision
 
-Compute daily summaries from the database through a side-effect-free Application query and an infrastructure query port implementation. The Application owns the reporting-day contract and UTC boundaries; EF Core/Npgsql executes aggregates over WorkOrder without joining service lines. No new public endpoint, schema migration, status history or change to the state machine is required.
+Compute daily summaries from the database through a side-effect-free Application query and an infrastructure query port implementation. The Application owns the reporting-day contract and UTC boundaries; EF Core/Npgsql executes aggregates over WorkOrder without joining service lines. Add a CreatedAt index through an EF migration for the recurring creation-window query; CompletedAt already has an index. No new public endpoint, business fields, status history or change to the state machine is required.
 
 - Creation volume counts orders with CreatedAt in the selected day, regardless of their later state.
 - Completion count and mean select Completed or Delivered orders by CompletedAt in that day, requiring both timestamps and CompletedAt greater than or equal to StartedAt.
@@ -43,7 +43,7 @@ The refresh start instant also determines the seven reporting dates. Ranking dat
 
 ## Consequences and boundaries
 
-Reading persisted rows lets a new process recover recent business totals after an Academy session interruption without replaying domain events or introducing leader election. The tradeoff is duplicated bounded polling and ingestion across replicas. Database aggregate latency and cardinality should be measured before increasing the lookback or refresh frequency.
+Reading persisted rows lets a new process recover recent business totals after an Academy session interruption without replaying domain events or introducing leader election. The tradeoff is duplicated bounded polling and ingestion across replicas. The CreatedAt index gives PostgreSQL an indexed access path for daily creation ranges instead of requiring a full table scan for every reporting date; the query planner may still choose a scan for small tables or unselective ranges. Index storage and write maintenance are the additional cost. Database aggregate latency and cardinality should be measured before increasing the lookback or refresh frequency.
 
 The dashboard's recent telemetry window is separate from its seven business dates. Missing data or stale refresh time must not be presented as zero activity or healthy uptime. The absence of a mean must not be converted to zero; use the latest completion count to distinguish a stale previous mean from a current summary with no eligible completions.
 
