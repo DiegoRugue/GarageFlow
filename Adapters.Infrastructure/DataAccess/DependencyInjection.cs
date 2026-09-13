@@ -85,6 +85,7 @@ public static class DependencyInjection
         services.AddScoped<IVehicleModelRepository, VehicleModelRepository>();
         services.AddScoped<IVehicleColorRepository, VehicleColorRepository>();
         services.AddScoped<IWorkOrderQueries, EfWorkOrderQueries>();
+        services.AddScoped<IWorkOrderMetricsQueries, EfWorkOrderMetricsQueries>();
         services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
         services.AddScoped<IWorkOrderIntakeRequestStore, WorkOrderIntakeRequestStore>();
         services.AddScoped<IEstimateDecisionInbox, EstimateDecisionInbox>();

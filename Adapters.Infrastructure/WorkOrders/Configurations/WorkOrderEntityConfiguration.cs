@@ -61,6 +61,7 @@ public sealed class WorkOrderEntityConfiguration : IEntityTypeConfiguration<Work
         builder.HasIndex(workOrder => workOrder.CustomerId);
         builder.HasIndex(workOrder => workOrder.VehicleId);
         builder.HasIndex(workOrder => workOrder.CompletedAt);
+        builder.HasIndex(workOrder => workOrder.CreatedAt);
 
         builder.HasOne<Customer>()
             .WithMany()
