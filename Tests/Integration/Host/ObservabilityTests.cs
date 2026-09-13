@@ -99,12 +99,12 @@ public sealed class ObservabilityTests
         collectorBuilder.Logging.ClearProviders();
         collectorBuilder.WebHost.UseUrls("http://127.0.0.1:0");
         await using var collector = collectorBuilder.Build();
-        collector.MapPost("/v1/{signal}", async (Microsoft.AspNetCore.Http.HttpContext context) =>
+        collector.MapPost("/v1/{signal}", async (Microsoft.AspNetCore.Http.HttpContext context, string signal) =>
         {
             using var body = new MemoryStream();
             await context.Request.Body.CopyToAsync(body);
-            payloads.Add((context.Request.Path.Value!, System.Text.Encoding.UTF8.GetString(body.ToArray())));
-            if (context.Request.Path == "/v1/logs") logReceived.TrySetResult();
+            payloads.Add(($"/v1/{signal}", System.Text.Encoding.UTF8.GetString(body.ToArray())));
+            if (signal == "logs") logReceived.TrySetResult();
             context.Response.ContentType = "application/x-protobuf";
         });
         await collector.StartAsync();

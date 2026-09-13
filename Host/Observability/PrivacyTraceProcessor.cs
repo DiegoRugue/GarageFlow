@@ -9,8 +9,8 @@ public sealed class PrivacyTraceProcessor : BaseProcessor<Activity>
 
     public override void OnEnd(Activity activity)
     {
-        foreach (var tag in activity.TagObjects.ToArray())
-            if (!AllowedTags.Contains(tag.Key)) activity.SetTag(tag.Key, null);
+        foreach (var tag in activity.TagObjects.Where(tag => !AllowedTags.Contains(tag.Key)).ToArray())
+            activity.SetTag(tag.Key, null);
         foreach (var baggage in activity.Baggage.ToArray()) activity.SetBaggage(baggage.Key, null);
         activity.TraceStateString = null;
         activity.SetStatus(activity.Status);

@@ -4,7 +4,9 @@ public sealed class ObservabilityOptions
 {
     public const string SectionName = "Observability";
     public bool Enabled { get; set; }
+#pragma warning disable S5332 // ADR 0002: private in-cluster OTLP receiver; the collector owns TLS to New Relic.
     public string OtlpEndpoint { get; set; } = "http://garageflow-otel.newrelic.svc.cluster.local:4318";
+#pragma warning restore S5332
     public string? Environment { get; set; }
 
     public Uri ValidateEndpoint()
