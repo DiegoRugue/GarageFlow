@@ -31,6 +31,13 @@ O [ADR 0001](docs/architecture/adrs/0001-four-repositories-on-aws-academy.md) de
 
 O [schema dos manifests de infraestrutura](contracts/infra-contract-v1.schema.json) e o [validador/publicador](scripts/infra_contract.py) implementam a interface de metadados entre os repositórios. O publicador recebe somente os outputs permitidos de cada produtor; valores de segredos e conteúdo de state não fazem parte dessa interface.
 
+### Observabilidade da API
+
+O Host oferece OpenTelemetry opt-in para traces HTTP, métricas de duração/runtime e logs JSON correlacionados. O [ADR 0002](docs/architecture/adrs/0002-private-api-opentelemetry.md) detalha privacidade, limites e operação. A instrumentação não altera Domain/Application nem a semântica das ordens de serviço.
+
+Após implantar e verificar o coletor privado da plataforma, configure a variável protegida `OBSERVABILITY_ENABLED=true` no ambiente GitHub **antes do primeiro merge/deploy do novo commit da aplicação** pelo workflow existente. Implante a plataforma primeiro; o merge da aplicação inicia seu deploy automaticamente. O padrão é `false`. O ConfigMap recebe o ambiente explícito e `Observability__OtlpEndpoint=http://garageflow-otel.newrelic.svc.cluster.local:4318`. A chave New Relic fica somente no coletor. Para uso local, configure `Observability__Enabled`, `Observability__OtlpEndpoint` e, opcionalmente, `Observability__Environment`.
+
+Com a opção ativa, somente logs estruturados de conclusão HTTP são emitidos: método, template da rota, status, duração e IDs de trace/span. Mensagens de exceção, SQL, corpos, URLs brutas, query strings, credenciais e dados pessoais são excluídos. A plataforma deve excluir stdout da API da coleta para evitar duplicação com OTLP. Npgsql, Lambdas, métricas de negócio e backfill histórico não estão instrumentados. Falhas do coletor podem causar perda de telemetria, sem bloquear requisições; ausência de dados não comprova disponibilidade.
 Validação local dos contratos (Python 3.12):
 
 ```bash

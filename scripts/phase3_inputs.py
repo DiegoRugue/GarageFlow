@@ -124,3 +124,13 @@ def runtime_secret(database, secrets, credentials):
     }
     return {"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "garageflow-secrets", "namespace": "garageflow"},
             "type": "Opaque", "data": {key: base64.b64encode(value.encode("utf-8")).decode("ascii") for key, value in values.items()}}
+
+
+def observability_config(values):
+    enabled = values.get("OBSERVABILITY_ENABLED", "false") or "false"
+    environment = values.get("DEPLOY_ENVIRONMENT")
+    if enabled not in ("true", "false") or environment not in ("production", "homologation"):
+        raise ValueError("Observability requires a boolean opt-in and protected deployment environment")
+    return {"Observability__Enabled": enabled,
+            "Observability__OtlpEndpoint": "http://garageflow-otel.newrelic.svc.cluster.local:4318",
+            "Observability__Environment": environment}

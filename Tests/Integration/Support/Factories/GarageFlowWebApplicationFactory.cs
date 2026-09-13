@@ -24,7 +24,8 @@ public sealed class GarageFlowWebApplicationFactory(
     string databaseProvider = "InMemory",
     string? connectionString = null,
     bool internalAuthEnabled = false,
-    string? internalAuthKey = null)
+    string? internalAuthKey = null,
+    IReadOnlyDictionary<string, string?>? additionalSettings = null)
     : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = databaseName;
@@ -102,6 +103,9 @@ public sealed class GarageFlowWebApplicationFactory(
         {
             settings["Database:AutoMigrate"] = "false";
         }
+
+        if (additionalSettings is not null)
+            foreach (var setting in additionalSettings) settings[setting.Key] = setting.Value;
 
         return settings;
     }

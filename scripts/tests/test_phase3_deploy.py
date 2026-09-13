@@ -192,7 +192,7 @@ class Phase3DeploymentTests(unittest.TestCase):
             repository_url = fixtures.contracts()["platform"]["outputs"]["ecrRepositoryUrl"]
             with trusted_temp_directory() as directory, patch.object(self.module, "run", side_effect=command), \
                  patch.object(self.module, "aws", return_value={"repositories": [{"repositoryUri": repository_url}]}), patch.dict(os.environ):
-                values = dict(fixtures.credentials(), GITHUB_SHA="a" * 40, EXPECTED_AWS_ACCOUNT_ID="123456789012", AWS_REGION="us-east-1")
+                values = dict(fixtures.credentials(), GITHUB_SHA="a" * 40, EXPECTED_AWS_ACCOUNT_ID="123456789012", AWS_REGION="us-east-1", DEPLOY_ENVIRONMENT="homologation", OBSERVABILITY_ENABLED="true")
                 if fail_migration:
                     with self.assertRaises(self.module.DeploymentError):
                         self.module.deploy_workload(fixtures.contracts(), values, fixtures.secrets(), directory)
@@ -202,6 +202,9 @@ class Phase3DeploymentTests(unittest.TestCase):
                     self.assertEqual(["Namespace", "Secret", "ConfigMap", "Job", "Service", "Deployment", "HorizontalPodAutoscaler"], [obj["kind"] for obj in applied])
                     self.assertIn(":", applied[-2]["spec"]["template"]["spec"]["containers"][0]["image"])
                     self.assertEqual(5, applied[-2]["spec"]["replicas"])
+                    self.assertEqual("true", applied[2]["data"]["Observability__Enabled"])
+                    self.assertEqual("homologation", applied[2]["data"]["Observability__Environment"])
+                    self.assertEqual("http://garageflow-otel.newrelic.svc.cluster.local:4318", applied[2]["data"]["Observability__OtlpEndpoint"])
                     apply_commands = [item for item in commands if item[:2] == ["kubectl", "apply"]]
                     self.assertNotIn("--server-side", apply_commands[0])
                     self.assertEqual(["kubectl", "apply", "--server-side", "--field-manager=garageflow-phase3",
@@ -213,7 +216,7 @@ class Phase3DeploymentTests(unittest.TestCase):
         fixtures = test_phase3_inputs.Phase3InputsTests()
         contracts = fixtures.contracts()
         repository_url = contracts["platform"]["outputs"]["ecrRepositoryUrl"]
-        values = dict(fixtures.credentials(), GITHUB_SHA="a" * 40, EXPECTED_AWS_ACCOUNT_ID="123456789012", AWS_REGION="us-east-1")
+        values = dict(fixtures.credentials(), GITHUB_SHA="a" * 40, EXPECTED_AWS_ACCOUNT_ID="123456789012", AWS_REGION="us-east-1", DEPLOY_ENVIRONMENT="homologation", OBSERVABILITY_ENABLED="true")
         for repositories in [[], [{"repositoryUri": repository_url + "-other"}]]:
             commands = []
             with self.subTest(repositories=repositories), trusted_temp_directory() as directory, \

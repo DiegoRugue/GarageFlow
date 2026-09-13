@@ -14,7 +14,7 @@ import time
 import urllib.request
 
 from infra_contract import load_contract
-from phase3_inputs import ecr_repository, runner_access, runtime_secret, validate_inputs, validate_network
+from phase3_inputs import observability_config, ecr_repository, runner_access, runtime_secret, validate_inputs, validate_network
 
 ROOT = Path(__file__).resolve().parents[1]
 METRICS_SHA256 = "4a672c4891902573a3ff753cece5de1bf1f55dd053403dfec39df9d1636b7ff1"
@@ -78,6 +78,7 @@ def settings(environment):
         raise DeploymentError("Invalid deployment commit or expected AWS account")
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", environment["TF_STATE_BUCKET"]):
         raise DeploymentError("Invalid protected state bucket")
+    observability_config(environment)
     return dict(environment)
 
 
@@ -276,6 +277,7 @@ def deploy_workload(contracts, values, secrets, workspace):
     rendered = run(["kubectl", "kustomize", "k8s/phase3", "--load-restrictor", "LoadRestrictionsNone"])
     objects = parse_kubectl_json_stream(run(["kubectl", "create", "--dry-run=client", "--validate=false", "-f", "-", "-o", "json"], payload=rendered))
     by_kind = {item["kind"]: item for item in objects}
+    by_kind["ConfigMap"]["data"].update(observability_config(values))
     by_kind["ConfigMap"]["data"]["Integrations__Sns__TopicArn"] = platform["snsTopicArn"]
     by_kind["Deployment"]["spec"]["template"]["spec"]["containers"][0]["image"] = image
     # A new pod template also reloads changed Secrets after an Academy session refresh.

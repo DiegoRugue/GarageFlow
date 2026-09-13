@@ -1,3 +1,4 @@
+using GarageFlow.Host.Observability;
 using GarageFlow.Adapters.Api.Auth;
 using GarageFlow.Adapters.Api.Customers;
 using GarageFlow.Adapters.Api.InventoryItems;
@@ -19,6 +20,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+var observabilityEnabled = builder.AddGarageFlowObservability();
 
 builder.Services.AddMediator(options =>
 {
@@ -56,6 +58,8 @@ await app.Services.AutoMigrateGarageFlowAsync(
     app.Configuration,
     app.Environment,
     app.Environment.ContentRootPath);
+app.UseRouting();
+if (observabilityEnabled) app.UseMiddleware<RequestTelemetryMiddleware>();
 app.UseGarageFlowExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
