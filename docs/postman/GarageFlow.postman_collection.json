@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "GarageFlow · Admin e Cliente",
-    "description": "Importe um Environment, preencha baseUrl/adminEmail/adminPassword localmente e execute a pasta 01 em ordem. Os dados são fictícios, mas as chamadas criam registros reais no ambiente selecionado. Tokens e IDs são capturados automaticamente. A pasta 02 contém todas as rotas públicas; use Send para alternativas, manutenção e exclusões. Login CPF exige API Gateway + Lambda. Não publique Environment preenchido.",
+    "description": "Importe um Environment, preencha baseUrl/adminEmail/adminPassword localmente e execute a pasta 01 em ordem. Os dados são fictícios, mas as chamadas criam registros reais no ambiente selecionado. Tokens e IDs são capturados automaticamente. A pasta 02 contém todas as rotas públicas; use Send para alternativas, manutenção e exclusões. Para estoque, prepare o perfil Atendente pela pasta 03. Login CPF exige API Gateway + Lambda. Não publique Environment preenchido.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -33,7 +33,7 @@
           "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
           "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
           "pm.environment.set('customerPassword', 'customer1990');",
-          "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
+          "for (const key of ['adminToken','customerToken','attendantToken','attendantEmail','attendantPassword','attendantUserId','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
           "",
           "}"
         ]
@@ -44,6 +44,11 @@
     {
       "key": "newCustomerPassword",
       "value": "GarageFlow!Demo2026",
+      "type": "string"
+    },
+    {
+      "key": "newAttendantPassword",
+      "value": "GarageFlow!Attendant2026",
       "type": "string"
     }
   ],
@@ -113,7 +118,7 @@
                   "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
                   "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
                   "pm.environment.set('customerPassword', 'customer1990');",
-                  "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
+                  "for (const key of ['adminToken','customerToken','attendantToken','attendantEmail','attendantPassword','attendantUserId','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
                   "for (const key of [\"adminEmail\", \"adminPassword\", \"adminEmail\", \"adminPassword\"]) {",
                   "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                   "}"
@@ -1299,7 +1304,7 @@
                       "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
                       "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
                       "pm.environment.set('customerPassword', 'customer1990');",
-                      "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
+                      "for (const key of ['adminToken','customerToken','attendantToken','attendantEmail','attendantPassword','attendantUserId','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
                       "for (const key of [\"adminEmail\", \"adminPassword\", \"adminEmail\", \"adminPassword\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
@@ -1441,7 +1446,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "const retainedAdminToken = pm.environment.get('adminToken');",
+                      "const retainedStaff = Object.fromEntries(['adminToken','attendantToken','attendantEmail','attendantPassword','attendantUserId'].map(k => [k, pm.environment.get(k)]));",
                       "const digits = Array.from({length: 9}, () => Math.floor(Math.random() * 10));",
                       "if (digits.every(d => d === digits[0])) digits[0] = (digits[0] + 1) % 10;",
                       "for (let length = 9; length <= 10; length++) {",
@@ -1459,9 +1464,9 @@
                       "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
                       "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
                       "pm.environment.set('customerPassword', 'customer1990');",
-                      "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
+                      "for (const key of ['adminToken','customerToken','attendantToken','attendantEmail','attendantPassword','attendantUserId','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
                       "",
-                      "pm.environment.set('adminToken', retainedAdminToken);",
+                      "for (const [key,value] of Object.entries(retainedStaff)) if(value) pm.environment.set(key,value);",
                       "for (const key of [\"adminToken\", \"demoCpf\", \"demoEmail\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
@@ -3564,12 +3569,12 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{adminToken}}",
+                      "value": "{{attendantToken}}",
                       "type": "string"
                     }
                   ]
                 },
-                "description": "`POST /inventory-items`. Create a new inventory item",
+                "description": "`POST /inventory-items`. Create a new inventory item Exige Atendente: execute a pasta 03 de preparação do atendente após o login de admin; o token será preenchido automaticamente.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Demo {{demoRunId}}\",\n  \"description\": \"Inspecao Postman {{demoRunId}}\",\n  \"type\": \"Part\",\n  \"cost\": 50,\n  \"price\": 150,\n  \"stockQuantity\": 10\n}",
@@ -3586,7 +3591,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"demoRunId\"]) {",
+                      "for (const key of [\"attendantToken\", \"demoRunId\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -3642,12 +3647,12 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{adminToken}}",
+                      "value": "{{attendantToken}}",
                       "type": "string"
                     }
                   ]
                 },
-                "description": "`GET /inventory-items`. List inventory items with pagination"
+                "description": "`GET /inventory-items`. List inventory items with pagination Exige Atendente: execute a pasta 03 de preparação do atendente após o login de admin; o token será preenchido automaticamente."
               },
               "event": [
                 {
@@ -3655,7 +3660,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\"]) {",
+                      "for (const key of [\"attendantToken\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -3699,12 +3704,12 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{adminToken}}",
+                      "value": "{{attendantToken}}",
                       "type": "string"
                     }
                   ]
                 },
-                "description": "`GET /inventory-items/{id}`. Get an inventory item by its unique identifier"
+                "description": "`GET /inventory-items/{id}`. Get an inventory item by its unique identifier Exige Atendente: execute a pasta 03 de preparação do atendente após o login de admin; o token será preenchido automaticamente."
               },
               "event": [
                 {
@@ -3712,7 +3717,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"inventoryItemId\"]) {",
+                      "for (const key of [\"attendantToken\", \"inventoryItemId\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -3760,12 +3765,12 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{adminToken}}",
+                      "value": "{{attendantToken}}",
                       "type": "string"
                     }
                   ]
                 },
-                "description": "`PUT /inventory-items/{id}`. Update an existing inventory item",
+                "description": "`PUT /inventory-items/{id}`. Update an existing inventory item Exige Atendente: execute a pasta 03 de preparação do atendente após o login de admin; o token será preenchido automaticamente.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"name\": \"Demo {{demoRunId}}\",\n  \"description\": \"Inspecao Postman {{demoRunId}}\",\n  \"type\": \"Part\",\n  \"cost\": 50,\n  \"price\": 150\n}",
@@ -3782,7 +3787,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"inventoryItemId\", \"demoRunId\"]) {",
+                      "for (const key of [\"attendantToken\", \"inventoryItemId\", \"demoRunId\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -3831,12 +3836,12 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{adminToken}}",
+                      "value": "{{attendantToken}}",
                       "type": "string"
                     }
                   ]
                 },
-                "description": "`PATCH /inventory-items/{id}/stock`. Update the stock quantity of an inventory item",
+                "description": "`PATCH /inventory-items/{id}/stock`. Update the stock quantity of an inventory item Exige Atendente: execute a pasta 03 de preparação do atendente após o login de admin; o token será preenchido automaticamente.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"stockQuantity\": 10\n}",
@@ -3853,7 +3858,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"inventoryItemId\"]) {",
+                      "for (const key of [\"attendantToken\", \"inventoryItemId\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -3897,12 +3902,12 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{adminToken}}",
+                      "value": "{{attendantToken}}",
                       "type": "string"
                     }
                   ]
                 },
-                "description": "`DELETE /inventory-items/{id}`. Delete an existing inventory item by ID Exclusão explícita: use somente o ID fictício criado neste teste; não integra a jornada guiada."
+                "description": "`DELETE /inventory-items/{id}`. Delete an existing inventory item by ID Exige Atendente: execute a pasta 03 de preparação do atendente após o login de admin; o token será preenchido automaticamente. Exclusão explícita: use somente o ID fictício criado neste teste; não integra a jornada guiada."
               },
               "event": [
                 {
@@ -3910,7 +3915,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"inventoryItemId\"]) {",
+                      "for (const key of [\"attendantToken\", \"inventoryItemId\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -4399,7 +4404,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "const retainedAdminToken = pm.environment.get('adminToken');",
+                      "const retainedStaff = Object.fromEntries(['adminToken','attendantToken','attendantEmail','attendantPassword','attendantUserId'].map(k => [k, pm.environment.get(k)]));",
                       "const digits = Array.from({length: 9}, () => Math.floor(Math.random() * 10));",
                       "if (digits.every(d => d === digits[0])) digits[0] = (digits[0] + 1) % 10;",
                       "for (let length = 9; length <= 10; length++) {",
@@ -4417,9 +4422,9 @@
                       "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
                       "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
                       "pm.environment.set('customerPassword', 'customer1990');",
-                      "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
+                      "for (const key of ['adminToken','customerToken','attendantToken','attendantEmail','attendantPassword','attendantUserId','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
                       "",
-                      "pm.environment.set('adminToken', retainedAdminToken);",
+                      "for (const [key,value] of Object.entries(retainedStaff)) if(value) pm.environment.set(key,value);",
                       "for (const key of [\"adminToken\", \"requestId\", \"demoCpf\", \"demoEmail\", \"demoPlate\", \"demoRunId\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
@@ -5609,6 +5614,284 @@
               "response": []
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "03 · Preparar atendente para estoque",
+      "description": "Após o login de admin, execute estes quatro passos uma vez para obter attendantToken. As operações /inventory-items exigem esse perfil; admin não tem acesso a elas. Novos logins de admin reiniciam os dados da demonstração: prepare o atendente novamente se reiniciar a jornada.",
+      "item": [
+        {
+          "name": "01 · Admin — criar atendente fictício",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "`POST /users`. Create a new user",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"GarageFlow Demo Attendant\",\n  \"email\": \"{{attendantEmail}}\",\n  \"birthDate\": \"1990-01-15\",\n  \"role\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('attendantEmail', 'attendant-'+pm.variables.replaceIn('{{$guid}}')+'@garageflow.local');",
+                  "pm.environment.set('attendantPassword','attendant1990');",
+                  "pm.environment.unset('attendantToken');",
+                  "if (!pm.variables.get('adminToken')) { pm.execution.skipRequest(); throw new Error('Execute primeiro o login de admin.'); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status esperado: 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "if (![201].includes(pm.response.code)) pm.execution.setNextRequest(null);",
+                  "if (pm.response.code < 300) pm.environment.set('attendantUserId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "02 · Atendente — primeiro login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "`POST /auth/login`. Authenticate user and issue JWT token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{attendantEmail}}\",\n  \"password\": \"{{attendantPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "for (const key of [\"attendantEmail\", \"attendantPassword\", \"attendantEmail\", \"attendantPassword\"]) {",
+                  "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status esperado: 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "if (![200].includes(pm.response.code)) pm.execution.setNextRequest(null);",
+                  "if (pm.response.code < 300) pm.environment.set('attendantToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "03 · Atendente — trocar senha inicial",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "password"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{attendantToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "`PUT /users/me/password`. Change authenticated user password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{attendantPassword}}\",\n  \"newPassword\": \"{{newAttendantPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "for (const key of [\"attendantToken\", \"attendantPassword\", \"newAttendantPassword\"]) {",
+                  "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status esperado: 204', () => pm.expect(pm.response.code).to.be.oneOf([204]));",
+                  "if (![204].includes(pm.response.code)) pm.execution.setNextRequest(null);",
+                  "if (pm.response.code === 204) pm.environment.set('attendantPassword', pm.variables.get('newAttendantPassword'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "04 · Atendente — login para operações de estoque",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "`POST /auth/login`. Authenticate user and issue JWT token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{attendantEmail}}\",\n  \"password\": \"{{attendantPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "for (const key of [\"attendantEmail\", \"attendantPassword\", \"attendantEmail\", \"attendantPassword\"]) {",
+                  "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status esperado: 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "if (![200].includes(pm.response.code)) pm.execution.setNextRequest(null);",
+                  "if (pm.response.code < 300) pm.environment.set('attendantToken', pm.response.json().token);",
+                  "pm.execution.setNextRequest(null);"
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ]
     }

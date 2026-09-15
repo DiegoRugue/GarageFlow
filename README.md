@@ -123,6 +123,8 @@ Importe a [coleção GarageFlow](docs/postman/GarageFlow.postman_collection.json
 2. Execute **01 · Jornada completa** pelo Runner ou envie seus 18 passos em ordem com **Send**. O primeiro login inicia um novo conjunto de dados fictícios. A jornada cria cliente, veículo, OS e orçamento; ativa o portal; troca a senha inicial; aprova, executa e entrega a OS. Tokens e IDs são preenchidos pelas respostas.
 3. Explore **02 · Catálogo público** com chamadas individuais: são 65 operações, incluindo login CPF na Lambda, cadastros, consultas, alterações, alternativas de orçamento, cancelamento, exclusões e webhook. Corpos e paginação estão preenchidos. Criações capturam IDs para as próximas solicitações; para cadastros isolados, crie marca/cor/modelo antes do veículo. Não execute o catálogo inteiro como uma jornada: rejeitar, cancelar e entregar são caminhos alternativos da máquina de estados.
 
+Para as seis operações de `/inventory-items`, execute antes **03 · Preparar atendente para estoque**, após o login do admin. Seus quatro passos criam um atendente fictício, fazem o primeiro login, trocam a senha inicial e salvam `attendantToken`; as chamadas de estoque usam esse token automaticamente. Um novo login de admin reinicia os dados da demonstração, então repita essa preparação quando necessário.
+
 O Runner interrompe a jornada diante de um status inesperado e termina antes do catálogo. Depois de uma falha, corrija a configuração e reinicie a pasta para obter novos dados. A coleção não apaga a OS concluída. As chamadas criam registros no ambiente selecionado e podem acionar a notificação SNS configurada nele.
 
 A senha inicial do cliente fictício `GarageFlow Demo Customer`, nascido em 1990, é `customer1990`; a troca usa `newCustomerPassword`, definido na coleção apenas para demonstração. Senhas, tokens e IDs capturados ficam no Environment local. Não exporte esses valores para o Git nem compartilhe o Environment preenchido.
@@ -167,6 +169,8 @@ bash -n scripts/deploy-phase3.sh
 ### Proteção das branches e homologação
 
 `main` representa produção e `develop` representa homologação. Configure proteção nas duas branches: PR obrigatório, CI aprovada no commit atualizado, conversas resolvidas, sem force push, exclusão ou bypass de administrador. O projeto permite zero aprovações humanas obrigatórias para viabilizar a manutenção individual; isso não dispensa PR nem CI. O check obrigatório deste repositório é **quality-gate**, vinculado ao GitHub Actions.
+
+O SonarQube Cloud analisa `main` e PRs destinados a `main`. Em `develop` e nos PRs destinados a ela, continuam obrigatórios build, testes de arquitetura, unitários, integração, E2E com PostgreSQL e cobertura mínima de 80%, além das validações de infraestrutura e container. O mesmo workflow de qualidade é reutilizado pelo deploy.
 
 O deploy de homologação exige a variável **de repositório** `HOMOLOGATION_DEPLOY_ENABLED=true`. Ausente ou `false`, a CI continua executando e os jobs de implantação são ignorados. Essa variável deve estar no repositório porque a condição do job é avaliada antes de carregar o Environment. Produção mantém o deploy automático após a qualidade do mesmo commit.
 
