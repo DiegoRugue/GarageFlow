@@ -2,7 +2,6 @@ using System.Text.Json;
 using GarageFlow.Application.Common.Integrations;
 using GarageFlow.Application.WorkOrders.Integrations;
 using GarageFlow.Application.WorkOrders.Ports;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
@@ -12,14 +11,8 @@ public sealed class IntegrationOutboxProcessor(
     IWorkOrderStatusNotificationPublisher publisher,
     IOptions<IntegrationOutboxOptions> options,
     TimeProvider timeProvider,
-    ILogger<IntegrationOutboxProcessor> logger) : IIntegrationOutboxProcessor
+    IntegrationOutboxTelemetry telemetry) : IIntegrationOutboxProcessor
 {
-    private static readonly Action<ILogger, Guid, ProcessingOutcome, Exception?> LogMessageOutcome =
-        LoggerMessage.Define<Guid, ProcessingOutcome>(
-            LogLevel.Information,
-            new EventId(1, nameof(LogMessageOutcome)),
-            "Integration outbox message {MessageId} completed with status {Status}.");
-
     private readonly IIntegrationOutboxRepository _repository =
         repository ?? throw new ArgumentNullException(nameof(repository));
     private readonly IWorkOrderStatusNotificationPublisher _publisher =
@@ -28,8 +21,8 @@ public sealed class IntegrationOutboxProcessor(
         options?.Value ?? throw new ArgumentNullException(nameof(options));
     private readonly TimeProvider _timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-    private readonly ILogger<IntegrationOutboxProcessor> _logger =
-        logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IntegrationOutboxTelemetry _telemetry =
+        telemetry ?? throw new ArgumentNullException(nameof(telemetry));
 
     public async Task<IntegrationOutboxProcessingResult> ProcessBatchAsync(
         CancellationToken cancellationToken = default)
@@ -48,16 +41,17 @@ public sealed class IntegrationOutboxProcessor(
         var ownershipLost = 0;
         foreach (var claim in claims)
         {
-            var outcome = await ProcessClaimAsync(claim, cancellationToken);
-            switch (outcome)
+            var completed = await ProcessClaimAsync(claim, cancellationToken);
+            _telemetry.RecordResult(completed.Outcome, completed.FailureKind, claim.CorrelationId);
+            switch (completed.Outcome)
             {
-                case ProcessingOutcome.Processed:
+                case OutboxOutcome.Processed:
                     processed++;
                     break;
-                case ProcessingOutcome.Rescheduled:
+                case OutboxOutcome.Rescheduled:
                     rescheduled++;
                     break;
-                case ProcessingOutcome.OwnershipLost:
+                case OutboxOutcome.OwnershipLost:
                     ownershipLost++;
                     break;
             }
@@ -66,7 +60,7 @@ public sealed class IntegrationOutboxProcessor(
         return new IntegrationOutboxProcessingResult(claims.Count, processed, rescheduled, ownershipLost);
     }
 
-    private async Task<ProcessingOutcome> ProcessClaimAsync(
+    private async Task<CompletedProcessing> ProcessClaimAsync(
         ClaimedIntegrationOutboxMessage claim,
         CancellationToken cancellationToken)
     {
@@ -78,6 +72,7 @@ public sealed class IntegrationOutboxProcessor(
             return await RescheduleAsync(
                 claim,
                 $"Unsupported integration event key '{claim.EventKey}'.",
+                OutboxFailureKind.UnsupportedEvent,
                 cancellationToken);
         }
 
@@ -92,6 +87,7 @@ public sealed class IntegrationOutboxProcessor(
             return await RescheduleAsync(
                 claim,
                 $"Malformed integration event payload for '{claim.EventKey}'.",
+                OutboxFailureKind.InvalidPayload,
                 cancellationToken);
         }
 
@@ -100,6 +96,7 @@ public sealed class IntegrationOutboxProcessor(
             return await RescheduleAsync(
                 claim,
                 $"Invalid integration event payload for '{claim.EventKey}'.",
+                OutboxFailureKind.InvalidPayload,
                 cancellationToken);
         }
 
@@ -116,6 +113,7 @@ public sealed class IntegrationOutboxProcessor(
             return await RescheduleAsync(
                 claim,
                 $"Publisher failure ({exception.GetType().Name}): {exception.Message}",
+                exception is OperationCanceledException ? OutboxFailureKind.Timeout : OutboxFailureKind.PublishFailed,
                 cancellationToken);
         }
 
@@ -124,14 +122,14 @@ public sealed class IntegrationOutboxProcessor(
             claim.LeaseId,
             _timeProvider.GetUtcNow().UtcDateTime,
             cancellationToken);
-        var outcome = marked ? ProcessingOutcome.Processed : ProcessingOutcome.OwnershipLost;
-        LogOutcome(claim.Id, outcome);
-        return outcome;
+        var outcome = marked ? OutboxOutcome.Processed : OutboxOutcome.OwnershipLost;
+        return new(outcome, OutboxFailureKind.None);
     }
 
-    private async Task<ProcessingOutcome> RescheduleAsync(
+    private async Task<CompletedProcessing> RescheduleAsync(
         ClaimedIntegrationOutboxMessage claim,
         string diagnostic,
+        OutboxFailureKind failureKind,
         CancellationToken cancellationToken)
     {
         var delay = OutboxRetrySchedule.ForAttempt(
@@ -147,9 +145,8 @@ public sealed class IntegrationOutboxProcessor(
             _timeProvider.GetUtcNow().UtcDateTime.Add(delay),
             boundedDiagnostic,
             cancellationToken);
-        var outcome = updated ? ProcessingOutcome.Rescheduled : ProcessingOutcome.OwnershipLost;
-        LogOutcome(claim.Id, outcome);
-        return outcome;
+        var outcome = updated ? OutboxOutcome.Rescheduled : OutboxOutcome.OwnershipLost;
+        return new(outcome, failureKind);
     }
 
     private static bool IsValid(
@@ -161,13 +158,5 @@ public sealed class IntegrationOutboxProcessor(
         && !string.IsNullOrWhiteSpace(notification.CurrentStatus)
         && notification.OccurredAt.Kind == DateTimeKind.Utc;
 
-    private void LogOutcome(Guid messageId, ProcessingOutcome outcome) =>
-        LogMessageOutcome(_logger, messageId, outcome, null);
-
-    private enum ProcessingOutcome
-    {
-        Processed,
-        Rescheduled,
-        OwnershipLost
-    }
+    private sealed record CompletedProcessing(OutboxOutcome Outcome, OutboxFailureKind FailureKind);
 }

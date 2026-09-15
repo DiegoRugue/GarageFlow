@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics.Metrics;
 using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 using GarageFlow.Application.WorkOrders.Integrations;
 using GarageFlow.Application.WorkOrders.Ports;
@@ -14,9 +15,112 @@ public sealed class IntegrationOutboxProcessorTests
 {
     private static readonly DateTime Now = new(2026, 7, 12, 12, 0, 0, DateTimeKind.Utc);
 
+    [Theory]
+    [InlineData("unsupported.v1", "{}", "ownership_lost", "unsupported_event")]
+    [InlineData(WorkOrderStatusChangedIntegrationEvent.EventKey, "{", "ownership_lost", "invalid_payload")]
+    public async Task ProcessBatchAsync_ShouldKeepFailureKindWhenRescheduleLosesOwnership(
+        string eventKey, string payload, string expectedOutcome, string expectedFailureKind)
+    {
+        using var metrics = new MetricRecorder();
+        using var telemetry = new IntegrationOutboxTelemetry(NullLogger<IntegrationOutboxTelemetry>.Instance);
+        var repository = new RecordingRepository(CreateClaim(1, payload, eventKey)) { UpdateResult = false };
+        var processor = CreateProcessor(repository, new RecordingPublisher(), telemetry: telemetry);
+
+        await processor.ProcessBatchAsync();
+
+        Assert.Contains(metrics.Measurements, item => item.Value == 1
+            && item.Tags["outbox.outcome"] == expectedOutcome
+            && item.Tags["outbox.failure.kind"] == expectedFailureKind);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldClassifyPublisherTimeoutWithoutLeakingException()
+    {
+        using var metrics = new MetricRecorder();
+        var logs = new RecordingLogger<IntegrationOutboxTelemetry>();
+        using var telemetry = new IntegrationOutboxTelemetry(logs);
+        var claim = CreateClaim(1, "{}", correlationId: "ABCDEF0123456789ABCDEF0123456789");
+        var processor = CreateProcessor(
+            new RecordingRepository(claim),
+            new RecordingPublisher(new OperationCanceledException("password=private-marker")),
+            telemetry: telemetry);
+
+        await processor.ProcessBatchAsync();
+
+        Assert.Contains(metrics.Measurements, item => item.Value == 1
+            && item.Tags["outbox.outcome"] == "rescheduled"
+            && item.Tags["outbox.failure.kind"] == "timeout");
+        var log = Assert.Single(logs.Entries);
+        Assert.Equal("OutboxResult", log["EventName"]);
+        Assert.Equal("abcdef0123456789abcdef0123456789", log["CorrelationId"]);
+        Assert.DoesNotContain("private-marker", string.Join(';', log));
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldRethrowShutdownCancellationWithoutTelemetry()
+    {
+        using var telemetry = new IntegrationOutboxTelemetry(NullLogger<IntegrationOutboxTelemetry>.Instance);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var repository = new RecordingRepository(CreateClaim(1, "{}"));
+        var processor = CreateProcessor(
+            repository,
+            new RecordingPublisher(new OperationCanceledException(cancellation.Token)),
+            telemetry: telemetry);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => processor.ProcessBatchAsync(cancellation.Token));
+
+        Assert.Empty(repository.Marked);
+        Assert.Empty(repository.Rescheduled);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldEmitNoResultWhenPersistenceThrows()
+    {
+        using var telemetry = new IntegrationOutboxTelemetry(NullLogger<IntegrationOutboxTelemetry>.Instance);
+        var repository = new RecordingRepository(CreateClaim(1, "{}")) { MarkException = new InvalidOperationException("private-marker") };
+        var processor = CreateProcessor(repository, new RecordingPublisher(), telemetry: telemetry);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => processor.ProcessBatchAsync());
+
+        Assert.Empty(repository.Marked);
+        Assert.Empty(repository.Rescheduled);
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldOmitMalformedCorrelationFromSafeLog()
+    {
+        var logs = new RecordingLogger<IntegrationOutboxTelemetry>();
+        using var telemetry = new IntegrationOutboxTelemetry(logs);
+        var processor = CreateProcessor(
+            new RecordingRepository(CreateClaim(1, "{}", correlationId: "correlation-private-marker")),
+            new RecordingPublisher(), telemetry: telemetry);
+
+        await processor.ProcessBatchAsync();
+
+        var log = Assert.Single(logs.Entries);
+        Assert.Null(log["CorrelationId"]);
+        Assert.DoesNotContain("private-marker", string.Join(';', log));
+    }
+
+    [Fact]
+    public async Task ProcessBatchAsync_ShouldOmitAllZeroCorrelationFromSafeLog()
+    {
+        var logs = new RecordingLogger<IntegrationOutboxTelemetry>();
+        using var telemetry = new IntegrationOutboxTelemetry(logs);
+        var processor = CreateProcessor(
+            new RecordingRepository(CreateClaim(1, "{}", correlationId: new string('0', 32))),
+            new RecordingPublisher(), telemetry: telemetry);
+
+        await processor.ProcessBatchAsync();
+
+        Assert.Null(Assert.Single(logs.Entries)["CorrelationId"]);
+    }
+
     [Fact]
     public async Task ProcessBatchAsync_ShouldPublishKnownEventThenMarkProcessed()
     {
+        using var metrics = new MetricRecorder();
         var workOrderId = Guid.NewGuid();
         var mapped = Assert.Single(new WorkOrderIntegrationOutboxMapper().Map(
             [new WorkOrderStatusChanged(
@@ -51,11 +155,15 @@ public sealed class IntegrationOutboxProcessorTests
         Assert.Equal((claim.Id, claim.LeaseId, Now), Assert.Single(repository.Marked));
         Assert.Equal(1, result.ProcessedCount);
         Assert.Equal(0, result.OwnershipLostCount);
+        Assert.Contains(metrics.Measurements, item => item.Value == 1
+            && item.Tags["outbox.outcome"] == "processed"
+            && item.Tags["outbox.failure.kind"] == "none");
     }
 
     [Fact]
     public async Task ProcessBatchAsync_ShouldUseClaimedAttemptForPublisherRetryAndBoundError()
     {
+        using var metrics = new MetricRecorder();
         var claim = CreateClaim(3, "{}");
         var repository = new RecordingRepository(claim);
         var publisher = new RecordingPublisher(new InvalidOperationException(new string('x', 2_000)));
@@ -67,11 +175,15 @@ public sealed class IntegrationOutboxProcessorTests
         Assert.Equal(Now.AddSeconds(20), retry.NextAttemptAt);
         Assert.Equal(1_024, retry.Error.Length);
         Assert.Equal(1, result.RescheduledCount);
+        Assert.Contains(metrics.Measurements, item => item.Value == 1
+            && item.Tags["outbox.outcome"] == "rescheduled"
+            && item.Tags["outbox.failure.kind"] == "publish_failed");
     }
 
     [Fact]
     public async Task ProcessBatchAsync_ShouldRescheduleSemanticallyInvalidKnownEvent()
     {
+        using var metrics = new MetricRecorder();
         var aggregateId = Guid.NewGuid();
         var payload = JsonSerializer.Serialize(new WorkOrderStatusChangedIntegrationEvent(
             Guid.Empty,
@@ -90,6 +202,9 @@ public sealed class IntegrationOutboxProcessorTests
             "Invalid integration event payload for 'work-order.status-changed.v1'.",
             Assert.Single(repository.Rescheduled).Error);
         Assert.Equal(1, result.RescheduledCount);
+        Assert.Contains(metrics.Measurements, item => item.Value == 1
+            && item.Tags["outbox.outcome"] == "rescheduled"
+            && item.Tags["outbox.failure.kind"] == "invalid_payload");
     }
 
     [Fact]
@@ -157,19 +272,21 @@ public sealed class IntegrationOutboxProcessorTests
     private static IntegrationOutboxProcessor CreateProcessor(
         IIntegrationOutboxRepository repository,
         IWorkOrderStatusNotificationPublisher publisher,
-        TimeProvider? timeProvider = null) =>
+        TimeProvider? timeProvider = null,
+        IntegrationOutboxTelemetry? telemetry = null) =>
         new(
             repository,
             publisher,
             Options.Create(new IntegrationOutboxOptions { Enabled = true }),
             timeProvider ?? new FixedTimeProvider(Now),
-            NullLogger<IntegrationOutboxProcessor>.Instance);
+            telemetry ?? new IntegrationOutboxTelemetry(NullLogger<IntegrationOutboxTelemetry>.Instance));
 
     private static ClaimedIntegrationOutboxMessage CreateClaim(
         int attemptCount,
         string payload,
         string eventKey = WorkOrderStatusChangedIntegrationEvent.EventKey,
-        Guid? aggregateId = null)
+        Guid? aggregateId = null,
+        string? correlationId = "correlation")
     {
         var resolvedAggregateId = aggregateId ?? Guid.NewGuid();
         if (payload == "{}")
@@ -179,7 +296,7 @@ public sealed class IntegrationOutboxProcessorTests
         }
 
         return new ClaimedIntegrationOutboxMessage(
-            Guid.NewGuid(), eventKey, resolvedAggregateId, payload, Now, "correlation", attemptCount, Guid.NewGuid(), Now.AddMinutes(5));
+            Guid.NewGuid(), eventKey, resolvedAggregateId, payload, Now, correlationId, attemptCount, Guid.NewGuid(), Now.AddMinutes(5));
     }
 
     private static string ValidPayload(Guid? workOrderId = null) =>
@@ -190,6 +307,7 @@ public sealed class IntegrationOutboxProcessorTests
         : IIntegrationOutboxRepository
     {
         public bool UpdateResult { get; init; } = true;
+        public Exception? MarkException { get; init; }
         public List<(Guid Id, Guid LeaseId, DateTime ProcessedAt)> Marked { get; } = [];
         public List<(Guid Id, Guid LeaseId, DateTime NextAttemptAt, string Error)> Rescheduled { get; } = [];
 
@@ -199,6 +317,7 @@ public sealed class IntegrationOutboxProcessorTests
 
         public Task<bool> MarkProcessedAsync(Guid id, Guid leaseId, DateTime processedAt, CancellationToken cancellationToken = default)
         {
+            if (MarkException is not null) return Task.FromException<bool>(MarkException);
             Marked.Add((id, leaseId, processedAt));
             return Task.FromResult(UpdateResult);
         }
@@ -236,5 +355,36 @@ public sealed class IntegrationOutboxProcessorTests
         public override DateTimeOffset GetUtcNow() => _utcNow;
 
         public void Advance(TimeSpan elapsed) => _utcNow = _utcNow.Add(elapsed);
+    }
+
+    private sealed class MetricRecorder : IDisposable
+    {
+        private readonly MeterListener _listener = new();
+        public List<(long Value, Dictionary<string, string?> Tags)> Measurements { get; } = [];
+        public MetricRecorder()
+        {
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == IntegrationOutboxTelemetry.MeterName) listener.EnableMeasurementEvents(instrument);
+            };
+            _listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+            {
+                var values = new Dictionary<string, string?>();
+                foreach (var tag in tags) values[tag.Key] = tag.Value?.ToString();
+                Measurements.Add((value, values));
+            });
+            _listener.Start();
+        }
+        public void Dispose() => _listener.Dispose();
+    }
+
+    private sealed class RecordingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
+    {
+        public List<Dictionary<string, string?>> Entries { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add(((IEnumerable<KeyValuePair<string, object?>>)(object)state!).ToDictionary(x => x.Key, x => x.Value?.ToString()));
     }
 }

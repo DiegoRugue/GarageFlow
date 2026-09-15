@@ -12,12 +12,47 @@ using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
+using Microsoft.Extensions.Options;
+using GarageFlow.Host.Observability;
 
 namespace GarageFlow.Tests.Integration.Host;
 
 [Collection(WebApplicationFactoryStartupTestGroup.Name)]
 public sealed class ObservabilityTests
 {
+    [Fact]
+    public void EnabledTelemetryWhitelistAdmitsOnlySafeApplicationCategories()
+    {
+        using var factory = new GarageFlowWebApplicationFactory(Guid.NewGuid().ToString(), additionalSettings: Settings(true, "http://127.0.0.1:1"));
+        using var client = factory.CreateClient();
+        var options = factory.Services.GetRequiredService<IOptions<LoggerFilterOptions>>().Value;
+        var rule = Assert.Single(options.Rules);
+        Assert.NotNull(rule.Filter);
+        Assert.True(rule.Filter!(null, typeof(IntegrationOutboxTelemetry).FullName!, LogLevel.Information));
+        Assert.True(rule.Filter!(null, typeof(RequestTelemetryMiddleware).FullName!, LogLevel.Information));
+        Assert.False(rule.Filter!(null, typeof(IntegrationOutboxProcessor).FullName!, LogLevel.Error));
+        Assert.False(rule.Filter!(null, "Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Error));
+    }
+
+    [Fact]
+    public void EnabledTelemetryExportsExactOutboxMeterAndBoundedTags()
+    {
+        var metrics = new MetricCapture();
+        using var factory = new GarageFlowWebApplicationFactory(Guid.NewGuid().ToString(), additionalSettings: Settings(true, "http://127.0.0.1:1"));
+        using var configured = factory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            services.ConfigureOpenTelemetryMeterProvider(provider => provider.AddReader(new BaseExportingMetricReader(metrics)))));
+        using var client = configured.CreateClient();
+        configured.Services.GetRequiredService<IntegrationOutboxTelemetry>().RecordSuccessfulPoll();
+        configured.Services.GetRequiredService<MeterProvider>().ForceFlush();
+
+        Assert.Contains(metrics.Items, item => item == "garageflow.integration.outbox.pollsoutbox.outcome=success");
+        Assert.Contains(metrics.Items, item => item.Contains("garageflow.integration.outbox.results")
+            && item.Contains("outbox.outcome=processed") && item.Contains("outbox.failure.kind=none"));
+        Assert.All(metrics.Items.Where(item => item.StartsWith("garageflow.integration.outbox", StringComparison.Ordinal)), item =>
+            Assert.DoesNotContain("CorrelationId", item));
+    }
+
     [Theory]
     [InlineData("http://private:password@localhost:4318")]
     [InlineData("http://localhost:4318/?password=secret")]

@@ -184,13 +184,13 @@ public sealed class OutboxConcurrencyE2eTests(OutboxLifecycleE2eFixture fixture)
             _fixture.Publisher,
             options,
             new FixedTimeProvider(now),
-            NullLogger<IntegrationOutboxProcessor>.Instance);
+            firstScope.ServiceProvider.GetRequiredService<IntegrationOutboxTelemetry>());
         var second = new IntegrationOutboxProcessor(
             secondScope.ServiceProvider.GetRequiredService<IIntegrationOutboxRepository>(),
             _fixture.Publisher,
             options,
             new FixedTimeProvider(now),
-            NullLogger<IntegrationOutboxProcessor>.Instance);
+            secondScope.ServiceProvider.GetRequiredService<IntegrationOutboxTelemetry>());
 
         var results = await Task.WhenAll(first.ProcessBatchAsync(), second.ProcessBatchAsync());
 
