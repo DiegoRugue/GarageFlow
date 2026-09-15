@@ -6,6 +6,8 @@ namespace GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 public sealed class IntegrationOutboxTelemetry : IDisposable
 {
     public const string MeterName = "GarageFlow.Integrations";
+    private const string OutcomeTagName = "outbox.outcome";
+    private const string FailureKindTagName = "outbox.failure.kind";
 
     private static readonly Action<ILogger, string, string, string, string?, Exception?> LogResult =
         LoggerMessage.Define<string, string, string, string?>(
@@ -35,21 +37,21 @@ public sealed class IntegrationOutboxTelemetry : IDisposable
         var outcomeValue = Value(outcome);
         var failureValue = Value(failureKind);
         _results.Add(1,
-            new KeyValuePair<string, object?>("outbox.outcome", outcomeValue),
-            new KeyValuePair<string, object?>("outbox.failure.kind", failureValue));
+            new KeyValuePair<string, object?>(OutcomeTagName, outcomeValue),
+            new KeyValuePair<string, object?>(FailureKindTagName, failureValue));
         LogResult(_logger, "OutboxResult", outcomeValue, failureValue, SafeCorrelationId(correlationId), null);
     }
 
     public void RecordSuccessfulPoll()
     {
         EmitResultZeros();
-        _polls.Add(0, new KeyValuePair<string, object?>("outbox.outcome", "failure"));
-        _polls.Add(1, new KeyValuePair<string, object?>("outbox.outcome", "success"));
+        _polls.Add(0, new KeyValuePair<string, object?>(OutcomeTagName, "failure"));
+        _polls.Add(1, new KeyValuePair<string, object?>(OutcomeTagName, "success"));
     }
 
     public void RecordFailedPoll()
     {
-        _polls.Add(1, new KeyValuePair<string, object?>("outbox.outcome", "failure"));
+        _polls.Add(1, new KeyValuePair<string, object?>(OutcomeTagName, "failure"));
         LogPollFailure(_logger, "OutboxPollFailure", "failure", "poll_failed", null, null);
     }
 
@@ -66,8 +68,8 @@ public sealed class IntegrationOutboxTelemetry : IDisposable
 
     private void AddZero(string outcome, string failureKind) =>
         _results.Add(0,
-            new KeyValuePair<string, object?>("outbox.outcome", outcome),
-            new KeyValuePair<string, object?>("outbox.failure.kind", failureKind));
+            new KeyValuePair<string, object?>(OutcomeTagName, outcome),
+            new KeyValuePair<string, object?>(FailureKindTagName, failureKind));
 
     private static string? SafeCorrelationId(string? value) =>
         value is { Length: 32 }
