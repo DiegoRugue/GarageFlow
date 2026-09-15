@@ -2,6 +2,7 @@ using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
 namespace GarageFlow.Tests.Integration.Integrations;
@@ -74,7 +75,7 @@ public sealed class IntegrationOutboxPublisherTests
         await using var services = BuildServices(recorder);
         var logs = new RecordingLogger<IntegrationOutboxTelemetry>();
         using var telemetry = new IntegrationOutboxTelemetry(logs);
-        var measurements = new List<(string Name, string? Unit, long Value, Dictionary<string, string?> Tags)>();
+        var measurements = new ConcurrentQueue<(string Name, string? Unit, long Value, Dictionary<string, string?> Tags)>();
         using var listener = new MeterListener();
         listener.InstrumentPublished = (instrument, current) =>
         {
@@ -84,7 +85,7 @@ public sealed class IntegrationOutboxPublisherTests
         {
             var values = new Dictionary<string, string?>();
             foreach (var tag in tags) values[tag.Key] = tag.Value?.ToString();
-            measurements.Add((instrument.Name, instrument.Unit, value, values));
+            measurements.Enqueue((instrument.Name, instrument.Unit, value, values));
         });
         listener.Start();
         var publisher = CreatePublisher(services, new IntegrationOutboxOptions { Enabled = true, PollingIntervalSeconds = 1 }, telemetry);
