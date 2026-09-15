@@ -1,6 +1,6 @@
 # RFC 0001 - Plataforma, repositórios e identidade da Fase 3
 
-Data: 11/09/2026. Status: em implementação; contratos de infraestrutura e base de autenticação na aplicação implementados, integração serverless e de nuvem pendente.
+Data da proposta: 11/09/2026. Status: direção arquitetural incorporada à implementação. Este RFC preserva o contexto e os critérios da proposta; os READMEs dos quatro projetos são a referência da arquitetura executável, dos diagramas e das instruções atuais. Requisitos operacionais de GitHub, homologação e observabilidade exigem verificação própria; não são comprovados pela aceitação deste RFC.
 
 Escopo: separação em quatro repositórios, infraestrutura como código, autenticação serverless por CPF, JWT, API Gateway e diagramas de integração previstos pelo Tech Challenge Fase 3. A direção arquitetural está registrada no [ADR 0001](../adrs/0001-four-repositories-on-aws-academy.md); a base executável e suas instruções estão no [README](../../../README.md). Este RFC especifica a evolução da solução e seus critérios de validação.
 

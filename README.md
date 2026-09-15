@@ -1,88 +1,208 @@
 # GarageFlow
 
+API de gestão de oficina: clientes, veículos, catálogo de serviços, estoque, orçamentos e ordens de serviço. Este README é a documentação principal da aplicação, dos seus fluxos e da execução no Kubernetes. As entregas anteriores estão preservadas nas seções Fase 2 e Fase 1; a configuração vigente em nuvem é a Fase 3.
+
 ## Sumário
 
-- [Fase 3 — Segurança, serverless e observabilidade](#fase-3)
-- [Fase 2 — Cloud, Kubernetes e automação](#fase-2)
-  - [Descrição da solução e objetivos](#descrição-da-solução-e-objetivos)
-  - [Arquitetura proposta](#arquitetura-proposta)
-  - [Execução local](#execução-local)
-  - [Deploy em Kubernetes](#deploy-em-kubernetes)
-  - [Provisionamento com Terraform](#provisionamento-com-terraform)
-- [Fase 1 — Aplicação e domínio](#fase-1)
-  - [Visão geral](#visão-geral)
-  - [Stack](#stack)
-  - [Justificativa do banco de dados](#justificativa-do-banco-de-dados)
-  - [Arquitetura](#arquitetura)
-  - [Documentação DDD](#documentação-ddd)
-  - [Análise de vulnerabilidades](#análise-de-vulnerabilidades)
-  - [Como subir com Docker Compose](#como-subir-com-docker-compose)
-  - [Seed local de dados](#seed-local-de-dados)
-  - [URLs úteis](#urls-úteis)
-  - [Credenciais locais](#credenciais-locais)
-  - [Comandos de desenvolvimento](#comandos-de-desenvolvimento)
-  - [Estrutura do repositório](#estrutura-do-repositório)
+- [Fase 3](#fase-3)
+  - [Mapa da documentação](#mapa-da-documentação)
+  - [Arquitetura da aplicação](#arquitetura-da-aplicação)
+  - [Autenticação e autorização](#autenticação-e-autorização)
+  - [Abertura e execução de OS](#abertura-e-execução-de-os)
+  - [Persistência e decisões](#persistência-e-decisões)
+  - [Observabilidade](#observabilidade)
+  - [Execução e documentação da API](#execução-e-documentação-da-api)
+  - [Deploy da aplicação](#deploy-da-aplicação)
+  - [Artefatos e verificação](#artefatos-e-verificação)
+- [Fase 2 — entrega anterior](#fase-2)
+- [Fase 1 — entrega anterior](#fase-1)
 
 ## Fase 3
 
-A Fase 3 segue o documento **13SOAT - Fase 3 - Tech Challenge**, mantendo a **AWS Academy** e a aplicação modular existente.
+A solução utiliza AWS Academy em `us-east-1`, API Gateway HTTP API, duas funções Lambda, ALB interno, EKS, PostgreSQL gerenciado e New Relic. O login administrativo continua na API; a autenticação por CPF atende exclusivamente o portal do cliente. A aplicação é um monólito modular em C#/.NET 10, ASP.NET Core Minimal APIs, Mediator, EF Core 10/Npgsql e JWT Bearer.
 
-O [ADR 0001](docs/architecture/adrs/0001-four-repositories-on-aws-academy.md) define a separação por responsabilidade em quatro repositórios. O [RFC 0001](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md) especifica os contratos de infraestrutura, autenticação por CPF, JWT, Gateway e as sequências de integração.
+### Mapa da documentação
 
-O [schema dos manifests de infraestrutura](contracts/infra-contract-v1.schema.json) e o [validador/publicador](scripts/infra_contract.py) implementam a interface de metadados entre os repositórios. O publicador recebe somente os outputs permitidos de cada produtor; valores de segredos e conteúdo de state não fazem parte dessa interface.
+Cada README concentra a arquitetura, os diagramas, os artefatos e a operação do seu projeto. ADRs registram decisões permanentes e RFCs preservam a fundamentação dos contratos.
 
-### Observabilidade da API
+| Projeto | Documentação de referência |
+| --- | --- |
+| **Aplicação — este repositório** | Módulos, políticas de acesso, abertura de OS, migrations, imagem Docker e workload Kubernetes |
+| [Serverless](https://github.com/DiegoRugue/garageflow-serverless#readme) | Componentes e sequência de CPF, JWT, authorizer, pacote Lambda e deploy |
+| [Plataforma Kubernetes](https://github.com/DiegoRugue/garageflow-infra-kubernetes#readme) | Visão de nuvem, rede, EKS, Gateway, ALB, contratos e dashboards |
+| [Banco gerenciado](https://github.com/DiegoRugue/garageflow-infra-database#readme) | PostgreSQL/RDS, justificativa, ER, relacionamentos, índices e backups |
 
-O Host oferece OpenTelemetry opt-in para traces HTTP, métricas de duração/runtime e logs JSON correlacionados. O [ADR 0002](docs/architecture/adrs/0002-private-api-opentelemetry.md) detalha privacidade, limites e operação. A instrumentação não altera Domain/Application nem a semântica das ordens de serviço.
+### Arquitetura da aplicação
 
-Após implantar e verificar o coletor privado da plataforma, configure a variável protegida `OBSERVABILITY_ENABLED=true` no ambiente GitHub **antes do primeiro merge/deploy do novo commit da aplicação** pelo workflow existente. Implante a plataforma primeiro; o merge da aplicação inicia seu deploy automaticamente. O padrão é `false`. O ConfigMap recebe o ambiente explícito e `Observability__OtlpEndpoint=http://garageflow-otel.newrelic.svc.cluster.local:4318`. A chave New Relic fica somente no coletor. Para uso local, configure `Observability__Enabled`, `Observability__OtlpEndpoint` e, opcionalmente, `Observability__Environment`.
+As setas abaixo representam dependências de código. O `Host` é o único executável e composition root; configura autenticação, middleware, observabilidade, banco e registro de endpoints. A API traduz HTTP para casos de uso, a aplicação orquestra e o domínio protege as invariantes.
 
-Com a opção ativa, somente logs estruturados de conclusão HTTP são emitidos: método, template da rota, status, duração e IDs de trace/span. Mensagens de exceção, SQL, corpos, URLs brutas, query strings, credenciais e dados pessoais são excluídos. A plataforma deve excluir stdout da API da coleta para evitar duplicação com OTLP. Npgsql e Lambdas não estão instrumentados. Os indicadores de negócio abaixo usam os campos já persistidos nas OS. Falhas do coletor podem causar perda de telemetria, sem bloquear requisições; ausência de dados não comprova disponibilidade.
-
-#### Indicadores diários de ordens de serviço
-
-Com a observabilidade habilitada, o Host publica resumos do dia atual e dos seis dias anteriores, no fuso `America/Sao_Paulo`. A atualização ocorre a cada cinco minutos, com leitura inicial ao iniciar a aplicação. A migração de banco acrescenta um índice em `CreatedAt` para a consulta periódica de volume; `CompletedAt` já possui índice. O [ADR 0003](docs/architecture/adrs/0003-work-order-business-metrics.md) detalha os cálculos, a publicação e os limites.
-
-- **Volume diário:** OS criadas no dia, usando `CreatedAt`.
-- **Tempo médio da OS:** `CompletedAt - StartedAt`, desde a aprovação do orçamento até a conclusão de todos os serviços. A amostra é uma OS, independentemente da quantidade de serviços.
-- **Quantidade concluída:** OS que compõem a média daquele dia de conclusão. Inclui OS já entregues com datas válidas; abertas, canceladas e registros sem datas válidas ficam fora. Sem amostras, não há média; isso difere de duração real igual a zero.
-
-Os resumos são gauges com `work_orders.date` e `work_orders.timezone`, sem identificadores pessoais. O dashboard usa `latest(...)` por data, com filtros de serviço e ambiente, para evitar somar o mesmo resumo publicado por várias réplicas. A janela de consulta da telemetria não representa a data de abertura/conclusão das OS. O dia atual é parcial e o horário da última atualização deve acompanhar os números.
-
-O template e o renderizador ficam no [repositório de plataforma](https://github.com/DiegoRugue/garageflow-infra-kubernetes), em `observability/dashboards/business.json` e `scripts/render_observability_dashboard.py`, selecionando `--dashboard business`. Depois do deploy, importe o JSON da conta/ambiente e confronte os valores com uma OS de duração conhecida. O acesso de consulta/admin do New Relic é separado da chave de ingestão existente no coletor.
-
-A consulta atual de tempo médio por serviço preserva seu contrato. Estes indicadores não medem diagnóstico nem espera pela retirada do veículo; alertas, falhas de integração e uptime têm validação separada.
-
-Validação local dos contratos (Python 3.12):
-
-```bash
-python -m pip install --require-hashes -r scripts/requirements-test.txt
-python -m unittest discover -s scripts/tests -v
-python scripts/infra_contract.py validate --file platform.json --producer platform --environment homologation
+```mermaid
+flowchart TB
+    Host[Host: composição e runtime] --> Api[Adapters.Api: Minimal APIs]
+    Host --> Infra[Adapters.Infrastructure: EF, JWT e SNS]
+    Host --> Application[Application: casos de uso e portas]
+    Host --> Shared[SharedKernel: primitivas]
+    Api --> Application
+    Infra --> Application
+    Infra --> Domain[Domain: agregados e invariantes]
+    Infra --> Shared
+    Application --> Domain
+    Application --> Shared
+    Domain --> Shared
 ```
 
-Os caminhos do utilitário ficam restritos ao diretório de artefatos: `RUNNER_TEMP`, quando definido, ou o diretório temporário do sistema operacional. No exemplo, `platform.json` deve estar nessa área. Caminhos absolutos também precisam permanecer dentro dela; o utilitário rejeita caminhos ou links simbólicos que escapem desse limite. As dependências de teste têm versões e hashes fixados em `scripts/requirements-test.txt`; o utilitário em execução usa apenas a biblioteca padrão.
+`Customers`, `Vehicles`, `Users`, `Services`, `InventoryItems` e `WorkOrders` seguem vertical slices por caso de uso. `Adapters.Api` e `Adapters.Infrastructure` não dependem entre si. Ports pertencem à Application e os adapters implementam a entrada HTTP e as integrações externas. A [linguagem ubíqua](docs/ddd/ubiquitous-language.md), os [agregados](docs/ddd/diagrams/images/aggregates.png) e a [máquina de estados](docs/ddd/diagrams/images/work-order-state-machine.png) complementam esta visão.
 
-Repositórios de infraestrutura desta fase:
+### Autenticação e autorização
 
-- [garageflow-infra-kubernetes](https://github.com/DiegoRugue/garageflow-infra-kubernetes): rede, EKS, ECR, SNS, segredos comuns, backend e HTTP API inicial.
-- [garageflow-infra-database](https://github.com/DiegoRugue/garageflow-infra-database): RDS PostgreSQL, acesso de rede e segredo do banco.
+| Consumidor | Entrada | Responsabilidade |
+| --- | --- | --- |
+| Administrador/funcionário | `POST /auth/login`, e-mail e senha | API verifica credenciais e emite JWT; políticas limitam operações por perfil |
+| Cliente | `POST /auth/customers/token`, CPF e senha | Lambda valida CPF, consulta API privada e emite JWT |
+| Lambda de autenticação | `POST /internal/auth/customer-credentials/verify` | API verifica senha, vínculo e status; resposta interna não contém JWT de usuário |
+| Cliente autenticado | `/me/work-orders` e decisões de orçamento | API exige cliente ativo e propriedade da OS |
+| Integração de orçamento | `POST /webhooks/estimate-decisions` | Validação HMAC e deduplicação da decisão |
 
-### Base de autenticação do cliente
+A [sequência de autenticação](https://github.com/DiegoRugue/garageflow-serverless#sequência-de-autenticação) fica no README serverless. O Gateway usa Lambda authorizer para validar o JWT nas rotas protegidas; a API valida novamente o token e aplica perfil, troca obrigatória de senha, situação do cliente e propriedade. Cliente suspenso perde acesso inclusive com token previamente emitido. CPF de cliente não concede abertura ou gestão administrativa de OS.
 
-O login existente de administradores e funcionários permanece em `/auth/login`, com e-mail e senha. A jornada por CPF é exclusiva do cliente para consultar suas próprias OS e aprovar ou rejeitar seus orçamentos. A API concentra as regras de cadastro, senha, situação e propriedade da OS; a Lambda valida o CPF, chama a API e emite o JWT após a verificação, conforme o requisito serverless da fase.
+O verificador interno é opt-in por `Auth__Internal__Enabled`; exige uma chave própria em `Auth__Internal__Key`, diferente da chave JWT de usuários. O JWT de serviço tem `iss=GarageFlow.Serverless`, `aud=GarageFlow.InternalAuth`, `sub=customer-auth-function`, `scope=customer-credentials:verify` e validade máxima de 60 segundos. A rota não entra no OpenAPI público nem no catálogo do Gateway. Configuração inválida impede a inicialização quando habilitada. O [RFC de identidade](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md) detalha os contratos.
 
-Clientes possuem status `Active` ou `Suspended`, retornado nas consultas de cadastro. Novos clientes e cadastros anteriores à migration começam como `Active`. Um administrador ativo altera o status com `PATCH /customers/{id}/status`, enviando `{"status":"Suspended"}` ou `{"status":"Active"}`; a resposta contém `id` e `status`. A suspensão bloqueia o login do cliente e o acesso às suas ordens de serviço, inclusive com um JWT emitido antes da alteração. O login de funcionários e os fluxos de troca de senha permanecem disponíveis conforme suas políticas.
+### Abertura e execução de OS
 
-O endpoint privado `POST /internal/auth/customer-credentials/verify` recebe `cpf` e `password`, consulta o cadastro e o usuário do portal e verifica a senha. No sucesso, retorna somente `userId`, `customerId`, `role` (`Customer`) e `mustChangePassword`. CPF inválido, CNPJ ou campos obrigatórios ausentes retornam `400`; cliente inexistente/suspenso, portal ausente ou senha incorreta retornam `401` com `detail: invalid_credentials`. A aplicação não emite o token dessa jornada: a emissão por CPF pertence à função serverless.
+Funcionários ativos podem abrir OS com cadastros existentes (`POST /work-orders`) ou com o payload de entrada completa (`POST /work-orders/intake`). A segunda opção resolve os cadastros necessários e usa recibo de idempotência. O fluxo abaixo descreve a primeira, sem pressupor que toda criação de OS gera uma notificação SNS.
 
-A rota interna fica ausente por padrão. Para habilitá-la, configurar `Auth__Internal__Enabled=true` e fornecer `Auth__Internal__Key` pelo mecanismo de secrets do ambiente. A chave precisa ter pelo menos 32 bytes UTF-8, ser diferente da chave JWT de usuários e não ser um placeholder. Configuração inválida impede a inicialização quando a funcionalidade está habilitada.
+```mermaid
+sequenceDiagram
+    actor Staff as Funcionário ativo
+    participant Gateway as API Gateway
+    participant Auth as Lambda authorizer
+    participant Api as API no EKS
+    participant App as Caso de uso e TransactionBehavior
+    participant Db as PostgreSQL
+    participant Events as Dispatcher de eventos
+    Staff->>Gateway: POST /work-orders + JWT
+    Gateway->>Auth: Validar token de usuário
+    alt Token inválido ou ausente
+        Gateway-->>Staff: 401 ou 403 conforme a etapa
+    else Token válido
+        Auth-->>Gateway: Permitir requisição
+        Gateway->>Api: VPC Link, ALB interno e NodePort
+        Api->>Api: Validar JWT e política ActiveStaff
+        alt Perfil não autorizado
+            Api-->>Staff: 403 via Gateway
+        else Funcionário autorizado
+            Api->>App: Criar OS com cliente e veículo
+            App->>Db: Consultar referências e persistir em transação
+            alt Validação ou regra rejeitada
+                App->>Db: Rollback se transação iniciada
+                Api-->>Staff: ProblemDetails conforme erro
+            else Persistência confirmada
+                Db-->>App: Commit concluído
+                App->>Events: Despachar eventos após commit
+                App-->>Api: Resultado
+                Api-->>Staff: 201 com OS, via Gateway
+            end
+        end
+    end
+```
 
-A chamada exige um JWT de serviço HS256 com chave própria, `iss=GarageFlow.Serverless`, `aud=GarageFlow.InternalAuth`, `sub=customer-auth-function`, `scope=customer-credentials:verify`, timestamps `iat`/`nbf`/`exp` e validade máxima de 60 segundos, sem tolerância de relógio. Tokens de usuários não acessam essa rota; tokens de serviço não autenticam rotas de negócio. Ela não aparece no OpenAPI público e não deve ser publicada nas rotas do Gateway. Antes de habilitar no ambiente, configurar o ingresso privado e a distribuição segura do segredo conforme o RFC.
+Os endpoints declaram os status esperados no [OpenAPI local](http://localhost:8080/openapi/v1.json). Validação, recurso inexistente e conflito são erros distintos; detalhes internos de exceções inesperadas não são devolvidos no `500`.
 
-O desenho para a Academy usa o HTTPS padrão do API Gateway, sem domínio próprio nem certificado ACM do projeto, e HTTP somente dentro da VPC entre Lambda, balanceador interno e aplicação. Esse trecho não tem criptografia de transporte e exige restrição de acesso por security groups. A infraestrutura desse desenho ainda não está implementada: o contrato de ingress v1 exige TLS e precisará de uma evolução versionada antes do deploy, como detalhado no RFC.
+O orçamento aprovado inicia `InProgress` e registra `StartedAt`; a conclusão dos serviços do orçamento aprovado leva a `Completed` e preenche `CompletedAt`. A entrega do veículo ocorre depois, em `Delivered`, preservando os timestamps. O indicador de execução da OS é **`CompletedAt − StartedAt`**, contado uma vez por ordem. Ele não mede separadamente Diagnóstico, Execução e Finalização nem o tempo de espera anterior à aprovação.
 
-Status: os contratos, a extração da plataforma e do banco e a base de autenticação na aplicação estão implementados. A função serverless de CPF e seu endpoint público, o ingresso privado, as rotas e a autorização do Gateway, o deploy da aplicação pelos novos contratos e a observabilidade ainda precisam ser implementados e demonstrados. O fluxo de provisionamento da Fase 2 permanece disponível durante essa transição. Na AWS Academy, executar a pipeline com uma sessão renovada recompõe o ambiente; as credenciais e a sessão do laboratório duram quatro horas.
+### Persistência e decisões
+
+O [README do banco](https://github.com/DiegoRugue/garageflow-infra-database#modelo-relacional) documenta o ER, cardinalidades, constraints, índices e justificativa do PostgreSQL. Este repositório é dono das [configurações EF](Adapters.Infrastructure) e [migrations](Adapters.Infrastructure/DataAccess/Migrations); Terraform provisiona a instância, não as tabelas.
+
+Commands passam por `TransactionBehavior`: begin, handler, save, coleta de eventos, commit e dispatch após commit. Queries são livres de efeitos colaterais. A outbox de integração armazena mensagens para publicação posterior no SNS, com retries e lease por processamento. A entrega é pelo menos uma vez: sucesso de publicação no SNS não comprova recebimento pelo destinatário. A inbox e o recibo de intake têm finalidades próprias de idempotência.
+
+| Registro | Decisão |
+| --- | --- |
+| [ADR 0001](docs/architecture/adrs/0001-four-repositories-on-aws-academy.md) | Quatro repositórios e continuidade na AWS Academy |
+| [ADR 0002](docs/architecture/adrs/0002-private-api-opentelemetry.md) | OpenTelemetry privado, privacidade e limites de coleta |
+| [ADR 0003](docs/architecture/adrs/0003-work-order-business-metrics.md) | Snapshots diários e duração calculada pelos timestamps persistidos |
+| [RFC 0001](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md) | Contratos, identidade, transporte e separação de responsabilidades |
+
+### Observabilidade
+
+O `Host` exporta traces, métricas e logs estruturados para o coletor privado da plataforma quando `Observability__Enabled=true`. Configure `Observability__OtlpEndpoint=http://garageflow-otel.newrelic.svc.cluster.local:4318` e ambiente explícito. A chave New Relic fica no coletor. A instrumentação usa `service.name=garageflow-api`; Lambda e Npgsql não são instrumentados.
+
+| Sinal | Origem e interpretação |
+| --- | --- |
+| Latência, volume HTTP e 5xx | Métricas HTTP da API; incluem probes |
+| Logs HTTP | Método, template da rota, status, duração, Trace ID e Span ID |
+| Volume diário e duração | Snapshots do banco, hoje e seis dias anteriores em São Paulo; atualização a cada cinco minutos |
+| Integrações | Resultados e polls da outbox, com categorias fixas e correlação sanitizada |
+| Saúde | `/health/live` verifica o processo; `/health/ready` inclui banco; `/health` responde estado básico |
+
+Os snapshots diários usam `latest` por data; somá-los entre réplicas duplicaria valores. As métricas de resultados/polls são counters e usam soma. A média fica vazia sem conclusões elegíveis; zero é uma duração zero registrada. Logs excluem CPF, credenciais, corpos, URLs brutas, SQL e mensagens de exceção. Traces podem ser amostrados; ausência de telemetria não prova uptime.
+
+Os [dashboards, consultas e condições de alerta](https://github.com/DiegoRugue/garageflow-infra-kubernetes#new-relic-observability) são artefatos da plataforma. Os templates de alerta são desabilitados por padrão. Probes internos, disponibilidade externa e ativação das notificações são verificações separadas.
+
+### Execução e documentação da API
+
+Pré-requisitos locais: Docker Desktop, .NET SDK definido em [global.json](global.json) e portas livres conforme [docker-compose.yml](docker-compose.yml).
+
+```bash
+docker compose up -d --build
+curl http://localhost:8080/health/ready
+```
+
+- [Scalar / referência interativa](http://localhost:8080/scalar/).
+- [OpenAPI JSON, importável no Postman](http://localhost:8080/openapi/v1.json).
+- [Contrato do login CPF, publicado pela Lambda](https://github.com/DiegoRugue/garageflow-serverless#contrato-http).
+- [Pipelines da aplicação](https://github.com/DiegoRugue/GarageFlow/actions).
+
+Na nuvem, descubra a URL HTTPS do ambiente pelo contrato da plataforma, conforme seu [README](https://github.com/DiegoRugue/garageflow-infra-kubernetes#acesso-e-documentação-das-apis). O Gateway não publica Scalar, OpenAPI, probes ou `/internal/*`. Para consultar a documentação de uma implantação, um operador com acesso autorizado ao cluster pode usar `kubectl -n garageflow port-forward service/garageflow-api 8080:80`. Não há promessa de endpoint permanente na Academy: sessão e credenciais duram cerca de quatro horas.
+
+O seed e os parâmetros de desenvolvimento estão na [seção local preservada](#como-subir-com-docker-compose). Para encerrar os containers sem remover os volumes: `docker compose down`.
+
+### Deploy da aplicação
+
+O workflow `Deploy Phase 3 Application` executa a qualidade do commit e implanta após push em `develop` (homologação) ou `main` (produção). Recuperação manual usa as mesmas branches e validações. O workflow manual da Fase 2 permanece separado; não o execute sobre recursos cuja propriedade já tenha sido transferida para os novos roots.
+
+Ordem de provisionamento: **platform → database e ingress → aplicação → serverless → edge**. A aplicação lê contratos platform v1, database v1 e ingress v2 do bucket protegido, confere conta AWS, VPC, EKS, banco privado, listener interno e regras de acesso ao ALB/NodePort antes de buscar os secrets. Falta de contrato ou ambiente expirado interrompe o deploy.
+
+Configurar os GitHub Environments `homologation` e `production` com secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `TF_STATE_BUCKET`; variáveis `AWS_ACCOUNT_ID`, `EKS_PUBLIC_ACCESS_CIDRS` (array JSON de CIDRs dos operadores) e, se necessário, `EKS_VERSION` (padrão `1.36`). O acesso temporário do runner ao EKS acrescenta somente seu IPv4 público `/32` aos CIDRs configurados e restaura os CIDRs protegidos ao terminar, inclusive em falhas. Sem CIDRs de operadores, a limpeza desabilita o endpoint público e mantém o privado. Um passo `always()` tenta novamente a limpeza após interrupção do script. A sessão Academy e as credenciais duram cerca de quatro horas; renovar as credenciais de cada Environment antes da execução.
+
+O overlay `k8s/phase3` reutiliza os manifests existentes e troca o Service para NodePort 30080. O ALB interno, gerenciado pela plataforma, é seu chamador externo autorizado. A pipeline habilita o verificador privado após validar essa rede e resolve os secrets em memória; valores entram no Kubernetes pelo stdin, sem arquivos versionados nem saída de logs. A chave de serviço é distinta da chave JWT de usuários. Publicação Docker, migrations, rollout, targets saudáveis e smoke privado precedem o sucesso da pipeline. O smoke usa um túnel local do `kubectl`, ativa a senha administrativa e cria dados sintéticos para validação; a jornada pública pelo Gateway exige verificação posterior.
+
+O HTTPS público usa o endereço execute-api gerenciado. O trecho Lambda/ALB/API usa HTTP privado **sem criptografia nesse trecho**, com restrição por security groups e identidade de serviço. A aplicação continua responsável pelas senhas, status, perfis, troca obrigatória de senha e acesso do cliente às próprias OS.
+
+Antes de publicar a imagem, o destino ECR precisa corresponder à conta/região protegidas e ao repositório existente na AWS; todas as credenciais de bootstrap, incluindo a senha ativa distinta da inicial, são validadas. Na transição da Fase 2, o Secret usa `data` em base64 com aplicação no servidor e remoção verificada da antiga anotação `last-applied-configuration`. Os demais recursos continuam com aplicação pelo cliente, preservando as réplicas atuais do Deployment. A pipeline aguarda a API de métricas antes de aplicar o HPA.
+
+Para inspecionar o overlay localmente, mantendo o resultado fora do repositório:
+
+```bash
+kubectl kustomize k8s/phase3 --load-restrictor LoadRestrictionsNone > /tmp/garageflow-phase3.yaml
+python -m unittest discover -s scripts/tests -v
+bash -n scripts/deploy-phase3.sh
+```
+
+`LoadRestrictionsNone` permite que este overlay local reutilize os manifests no diretório pai; ele não referencia manifests remotos. A pipeline verifica os inputs reais antes de aplicar o resultado. Diagramas, contratos e a divisão entre os quatro repositórios estão no [RFC 0001](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md). Os testes locais e a existência da pipeline não comprovam implantação na AWS.
+
+### Artefatos e verificação
+
+| Artefato | Uso |
+| --- | --- |
+| [Dockerfile](Dockerfile) | Imagem da API e processo de migrations |
+| [Overlay da Fase 3](k8s/phase3) | Workload privado; reutiliza Deployment, probes e HPA |
+| [HPA](k8s/hpa.yaml) | 2 a 6 réplicas, CPU alvo 60%, memória 70%; depende de Metrics Server e capacidade dos nós |
+| [Deploy](.github/workflows/deploy-phase3.yml) | Quality gate, imagem por SHA, migrations, rollout e smoke |
+| [Quality gate](.github/workflows/quality-gate.yml) | Build, testes, cobertura, análise e validação de imagem/manifests |
+| [Contratos](contracts) | Interface de metadados entre produtores e consumidores |
+
+```bash
+dotnet build GarageFlow.slnx
+dotnet test Tests/Unit/GarageFlow.Tests.Unit.csproj
+dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj
+dotnet test Tests/E2E/GarageFlow.Tests.E2E.csproj
+dotnet test GarageFlow.slnx
+```
+
+E2E usa PostgreSQL via Testcontainers e requer Docker. Os workflows mapeiam `develop` para `homologation` e `main` para `production`; criar as branches/Environments, configurar credenciais e aplicar proteção com PR/checks obrigatórios são pré-requisitos do setup do GitHub. O YAML não configura essas proteções.
+
+As seções seguintes preservam as entregas anteriores. Não executar o provisionamento monolítico da Fase 2 sobre recursos administrados pelos roots separados da Fase 3.
 
 ## Fase 2
 
@@ -617,27 +737,3 @@ GarageFlow/
 - O Dockerfile publica a API em modo `Release` e expõe a porta `8080`.
 - O ambiente local usa JWT com chave de desenvolvimento definida no `docker-compose.yml`.
 - Valores sensíveis devem ser alterados antes de qualquer uso fora do ambiente local.
-
-### Deploy da aplicação na Fase 3
-
-O workflow `Deploy Phase 3 Application` executa a qualidade do commit e implanta após push em `develop` (homologação) ou `main` (produção). Recuperação manual usa as mesmas branches e validações. O workflow manual da Fase 2 permanece separado; não o execute sobre recursos cuja propriedade já tenha sido transferida para os novos roots.
-
-Ordem de provisionamento: **platform → database e ingress → aplicação → serverless → edge**. A aplicação lê contratos platform v1, database v1 e ingress v2 do bucket protegido, confere conta AWS, VPC, EKS, banco privado, listener interno e regras de acesso ao ALB/NodePort antes de buscar os secrets. Falta de contrato ou ambiente expirado interrompe o deploy.
-
-Configurar os GitHub Environments `homologation` e `production` com secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `TF_STATE_BUCKET`; variáveis `AWS_ACCOUNT_ID`, `EKS_PUBLIC_ACCESS_CIDRS` (array JSON de CIDRs dos operadores) e, se necessário, `EKS_VERSION` (padrão `1.36`). O acesso temporário do runner ao EKS acrescenta somente seu IPv4 público `/32` aos CIDRs configurados e restaura os CIDRs protegidos ao terminar, inclusive em falhas. Sem CIDRs de operadores, a limpeza desabilita o endpoint público e mantém o privado. Um passo `always()` tenta novamente a limpeza após interrupção do script. A sessão Academy e as credenciais duram cerca de quatro horas; renovar as credenciais de cada Environment antes da execução.
-
-O overlay `k8s/phase3` reutiliza os manifests existentes e troca o Service para NodePort 30080. O ALB interno, gerenciado pela plataforma, é seu chamador externo autorizado. A pipeline habilita o verificador privado após validar essa rede e resolve os secrets em memória; valores entram no Kubernetes pelo stdin, sem arquivos versionados nem saída de logs. A chave de serviço é distinta da chave JWT de usuários. Publicação Docker, migrations, rollout, targets saudáveis e smoke privado precedem o sucesso da pipeline. O smoke usa um túnel local do `kubectl`, ativa a senha administrativa e cria dados sintéticos de estudo; a jornada pública pelo Gateway exige verificação posterior.
-
-O HTTPS público usa o endereço execute-api gerenciado. O trecho Lambda/ALB/API usa HTTP privado **sem criptografia nesse trecho**, com restrição por security groups e identidade de serviço. A aplicação continua responsável pelas senhas, status, perfis, troca obrigatória de senha e acesso do cliente às próprias OS.
-
-Antes de publicar a imagem, o destino ECR precisa corresponder à conta/região protegidas e ao repositório existente na AWS; todas as credenciais de bootstrap, incluindo a senha ativa distinta da inicial, são validadas. Na transição da Fase 2, o Secret usa `data` em base64 com aplicação no servidor e remoção verificada da antiga anotação `last-applied-configuration`. Os demais recursos continuam com aplicação pelo cliente, preservando as réplicas atuais do Deployment. A pipeline aguarda a API de métricas antes de aplicar o HPA.
-
-Para inspecionar o overlay localmente, mantendo o resultado fora do repositório:
-
-```bash
-kubectl kustomize k8s/phase3 --load-restrictor LoadRestrictionsNone > /tmp/garageflow-phase3.yaml
-python -m unittest discover -s scripts/tests -v
-bash -n scripts/deploy-phase3.sh
-```
-
-`LoadRestrictionsNone` permite que este overlay local reutilize os manifests no diretório pai; ele não referencia manifests remotos. A pipeline verifica os inputs reais antes de aplicar o resultado. Diagramas, contratos e a divisão entre os quatro repositórios estão no [RFC 0001](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md). Os testes locais e a existência da pipeline não comprovam implantação na AWS.
