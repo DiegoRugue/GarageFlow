@@ -30,6 +30,8 @@
           "pm.environment.set('demoEmail', `postman-${runId}@garageflow.local`);",
           "pm.environment.set('demoPlate', letter() + letter() + letter() + Math.floor(Math.random()*10) + letter() + String(Math.floor(Math.random()*100)).padStart(2, '0'));",
           "pm.environment.set('requestId', pm.variables.replaceIn('{{$guid}}'));",
+          "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
+          "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
           "pm.environment.set('customerPassword', 'customer1990');",
           "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
           "",
@@ -108,6 +110,8 @@
                   "pm.environment.set('demoEmail', `postman-${runId}@garageflow.local`);",
                   "pm.environment.set('demoPlate', letter() + letter() + letter() + Math.floor(Math.random()*10) + letter() + String(Math.floor(Math.random()*100)).padStart(2, '0'));",
                   "pm.environment.set('requestId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
+                  "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
                   "pm.environment.set('customerPassword', 'customer1990');",
                   "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
                   "for (const key of [\"adminEmail\", \"adminPassword\", \"adminEmail\", \"adminPassword\"]) {",
@@ -1160,7 +1164,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/work-orders/average-service-time?",
+              "raw": "{{baseUrl}}/work-orders/average-service-time?from={{fromDate}}&to={{toDate}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1172,12 +1176,12 @@
                 {
                   "key": "from",
                   "value": "{{fromDate}}",
-                  "disabled": true
+                  "disabled": false
                 },
                 {
                   "key": "to",
                   "value": "{{toDate}}",
-                  "disabled": true
+                  "disabled": false
                 },
                 {
                   "key": "serviceId",
@@ -1204,7 +1208,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "for (const key of [\"adminToken\", \"serviceId\"]) {",
+                  "for (const key of [\"adminToken\", \"fromDate\", \"toDate\"]) {",
                   "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                   "}"
                 ]
@@ -1261,7 +1265,7 @@
                 "auth": {
                   "type": "noauth"
                 },
-                "description": "`POST /auth/login`. Authenticate user and issue JWT token",
+                "description": "`POST /auth/login`. Authenticate user and issue JWT token Inicia novos dados fictícios e limpa IDs anteriores; execute as próximas chamadas com os novos IDs capturados.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
@@ -1278,6 +1282,24 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "const digits = Array.from({length: 9}, () => Math.floor(Math.random() * 10));",
+                      "if (digits.every(d => d === digits[0])) digits[0] = (digits[0] + 1) % 10;",
+                      "for (let length = 9; length <= 10; length++) {",
+                      "  const sum = digits.reduce((total, digit, i) => total + digit * (length + 1 - i), 0);",
+                      "  const remainder = sum % 11;",
+                      "  digits.push(remainder < 2 ? 0 : 11 - remainder);",
+                      "}",
+                      "const runId = pm.variables.replaceIn('{{$guid}}').replace(/-/g, '').slice(0, 10);",
+                      "const letter = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));",
+                      "pm.environment.set('demoCpf', digits.join(''));",
+                      "pm.environment.set('demoRunId', runId);",
+                      "pm.environment.set('demoEmail', `postman-${runId}@garageflow.local`);",
+                      "pm.environment.set('demoPlate', letter() + letter() + letter() + Math.floor(Math.random()*10) + letter() + String(Math.floor(Math.random()*100)).padStart(2, '0'));",
+                      "pm.environment.set('requestId', pm.variables.replaceIn('{{$guid}}'));",
+                      "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
+                      "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
+                      "pm.environment.set('customerPassword', 'customer1990');",
+                      "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
                       "for (const key of [\"adminEmail\", \"adminPassword\", \"adminEmail\", \"adminPassword\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
@@ -1402,7 +1424,7 @@
                     }
                   ]
                 },
-                "description": "`POST /customers`. Create a new customer",
+                "description": "`POST /customers`. Create a new customer Inicia novos dados fictícios e limpa IDs anteriores; execute as próximas chamadas com os novos IDs capturados.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"taxDocument\": \"{{demoCpf}}\",\n  \"fullName\": \"GarageFlow Demo Customer\",\n  \"email\": \"{{demoEmail}}\",\n  \"phoneNumber\": \"+5511999990000\"\n}",
@@ -1419,6 +1441,27 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "const retainedAdminToken = pm.environment.get('adminToken');",
+                      "const digits = Array.from({length: 9}, () => Math.floor(Math.random() * 10));",
+                      "if (digits.every(d => d === digits[0])) digits[0] = (digits[0] + 1) % 10;",
+                      "for (let length = 9; length <= 10; length++) {",
+                      "  const sum = digits.reduce((total, digit, i) => total + digit * (length + 1 - i), 0);",
+                      "  const remainder = sum % 11;",
+                      "  digits.push(remainder < 2 ? 0 : 11 - remainder);",
+                      "}",
+                      "const runId = pm.variables.replaceIn('{{$guid}}').replace(/-/g, '').slice(0, 10);",
+                      "const letter = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));",
+                      "pm.environment.set('demoCpf', digits.join(''));",
+                      "pm.environment.set('demoRunId', runId);",
+                      "pm.environment.set('demoEmail', `postman-${runId}@garageflow.local`);",
+                      "pm.environment.set('demoPlate', letter() + letter() + letter() + Math.floor(Math.random()*10) + letter() + String(Math.floor(Math.random()*100)).padStart(2, '0'));",
+                      "pm.environment.set('requestId', pm.variables.replaceIn('{{$guid}}'));",
+                      "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
+                      "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
+                      "pm.environment.set('customerPassword', 'customer1990');",
+                      "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
+                      "",
+                      "pm.environment.set('adminToken', retainedAdminToken);",
                       "for (const key of [\"adminToken\", \"demoCpf\", \"demoEmail\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
@@ -2620,7 +2663,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"vehicleBrandId\"]) {",
+                      "for (const key of [\"adminToken\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -2954,7 +2997,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"customerId\"]) {",
+                      "for (const key of [\"adminToken\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -4339,7 +4382,7 @@
                     }
                   ]
                 },
-                "description": "`POST /work-orders/intake`. Create a complete work-order intake",
+                "description": "`POST /work-orders/intake`. Create a complete work-order intake Inicia novos dados fictícios e limpa IDs anteriores; execute as próximas chamadas com os novos IDs capturados.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"requestId\": \"{{requestId}}\",\n  \"customer\": {\n    \"taxDocument\": \"{{demoCpf}}\",\n    \"fullName\": \"GarageFlow Demo Customer\",\n    \"email\": \"{{demoEmail}}\",\n    \"phoneNumber\": \"+5511999990000\"\n  },\n  \"vehicle\": {\n    \"plate\": \"{{demoPlate}}\",\n    \"year\": 2026,\n    \"brand\": \"GarageFlow Demo\",\n    \"model\": \"Postman\",\n    \"color\": \"Azul\"\n  },\n  \"services\": [\n    {\n      \"description\": \"Inspecao Postman {{demoRunId}}\",\n      \"price\": 150\n    }\n  ],\n  \"inventoryItems\": []\n}",
@@ -4356,6 +4399,27 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "const retainedAdminToken = pm.environment.get('adminToken');",
+                      "const digits = Array.from({length: 9}, () => Math.floor(Math.random() * 10));",
+                      "if (digits.every(d => d === digits[0])) digits[0] = (digits[0] + 1) % 10;",
+                      "for (let length = 9; length <= 10; length++) {",
+                      "  const sum = digits.reduce((total, digit, i) => total + digit * (length + 1 - i), 0);",
+                      "  const remainder = sum % 11;",
+                      "  digits.push(remainder < 2 ? 0 : 11 - remainder);",
+                      "}",
+                      "const runId = pm.variables.replaceIn('{{$guid}}').replace(/-/g, '').slice(0, 10);",
+                      "const letter = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));",
+                      "pm.environment.set('demoCpf', digits.join(''));",
+                      "pm.environment.set('demoRunId', runId);",
+                      "pm.environment.set('demoEmail', `postman-${runId}@garageflow.local`);",
+                      "pm.environment.set('demoPlate', letter() + letter() + letter() + Math.floor(Math.random()*10) + letter() + String(Math.floor(Math.random()*100)).padStart(2, '0'));",
+                      "pm.environment.set('requestId', pm.variables.replaceIn('{{$guid}}'));",
+                      "pm.environment.set('fromDate', new Date(Date.now() - 7*86400000).toISOString());",
+                      "pm.environment.set('toDate', new Date(Date.now() + 86400000).toISOString());",
+                      "pm.environment.set('customerPassword', 'customer1990');",
+                      "for (const key of ['adminToken','customerToken','customerId','vehicleId','workOrderId','estimateId','serviceLineId','serviceId','inventoryItemId','vehicleBrandId','vehicleModelId','vehicleColorId','userId']) pm.environment.unset(key);",
+                      "",
+                      "pm.environment.set('adminToken', retainedAdminToken);",
                       "for (const key of [\"adminToken\", \"requestId\", \"demoCpf\", \"demoEmail\", \"demoPlate\", \"demoRunId\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
@@ -4998,7 +5062,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"customerId\"]) {",
+                      "for (const key of [\"adminToken\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]
@@ -5028,7 +5092,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/work-orders/average-service-time?",
+                  "raw": "{{baseUrl}}/work-orders/average-service-time?from={{fromDate}}&to={{toDate}}",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -5040,12 +5104,12 @@
                     {
                       "key": "from",
                       "value": "{{fromDate}}",
-                      "disabled": true
+                      "disabled": false
                     },
                     {
                       "key": "to",
                       "value": "{{toDate}}",
-                      "disabled": true
+                      "disabled": false
                     },
                     {
                       "key": "serviceId",
@@ -5072,7 +5136,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "for (const key of [\"adminToken\", \"serviceId\"]) {",
+                      "for (const key of [\"adminToken\", \"fromDate\", \"toDate\"]) {",
                       "  if (!pm.variables.get(key)) { pm.execution.skipRequest(); throw new Error(`Preencha ${key} ou execute a etapa anterior que o captura.`); }",
                       "}"
                     ]

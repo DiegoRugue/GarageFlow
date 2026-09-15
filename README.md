@@ -127,7 +127,7 @@ O Runner interrompe a jornada diante de um status inesperado e termina antes do 
 
 A senha inicial do cliente fictício `GarageFlow Demo Customer`, nascido em 1990, é `customer1990`; a troca usa `newCustomerPassword`, definido na coleção apenas para demonstração. Senhas, tokens e IDs capturados ficam no Environment local. Não exporte esses valores para o Git nem compartilhe o Environment preenchido.
 
-O login CPF exige a integração API Gateway → Lambda → API; essa rota não existe no Host local. O Environment local atende ao catálogo da API e não executa a jornada completa de CPF. O webhook é opcional, exige `webhookSecret` local e orçamento aguardando decisão; seu script assina o corpo e timestamp automaticamente. Consultas de tempo médio aceitam filtros opcionais `fromDate`, `toDate` e `serviceId`, inicialmente desabilitados.
+O login CPF exige a integração API Gateway → Lambda → API; essa rota não existe no Host local. O Environment local atende ao catálogo da API e não executa a jornada completa de CPF. O webhook é opcional, exige `webhookSecret` local e orçamento aguardando decisão; seu script assina o corpo e timestamp automaticamente. A consulta de tempo médio envia `fromDate` e `toDate` preenchidos automaticamente para cobrir os últimos sete dias e a execução atual; `serviceId` é um filtro opcional, inicialmente desabilitado. As datas podem ser ajustadas no Environment após iniciar a jornada.
 
 Para executar pelo Newman, use a mesma pasta do Runner e um Environment preenchido **fora do repositório**:
 
