@@ -31,6 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Ensure complete Git history for SonarQube
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         shell: bash
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -98,6 +99,7 @@ jobs:
 
       - name: Detect SonarQube configuration
         id: sonar-config
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main')
         shell: bash
         run: |
           set -Eeuo pipefail
