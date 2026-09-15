@@ -115,6 +115,30 @@ Na nuvem, descubra a URL HTTPS do ambiente pelo contrato da plataforma, conforme
 
 O seed e os parâmetros de desenvolvimento estão na [seção local preservada](#como-subir-com-docker-compose). Para encerrar os containers sem remover os volumes: `docker compose down`.
 
+### Postman: jornada de admin e cliente
+
+Importe a [coleção GarageFlow](docs/postman/GarageFlow.postman_collection.json) e escolha um Environment: [produção](docs/postman/GarageFlow.production.postman_environment.json), [homologação](docs/postman/GarageFlow.homologation.postman_environment.json) ou [local](docs/postman/GarageFlow.local.postman_environment.json).
+
+1. No Environment selecionado, preencha somente `baseUrl` (sem barra final), `adminEmail` e `adminPassword`, usando valores locais que não serão compartilhados. A [plataforma](https://github.com/DiegoRugue/garageflow-infra-kubernetes#acesso-e-documentação-das-apis) explica como descobrir a URL HTTPS. O responsável pelo ambiente fornece o acesso de demonstração do admin por canal privado; a coleção não depende de entregar credenciais AWS ao avaliador.
+2. Execute **01 · Jornada completa** pelo Runner ou envie seus 18 passos em ordem com **Send**. O primeiro login inicia um novo conjunto de dados fictícios. A jornada cria cliente, veículo, OS e orçamento; ativa o portal; troca a senha inicial; aprova, executa e entrega a OS. Tokens e IDs são preenchidos pelas respostas.
+3. Explore **02 · Catálogo público** com chamadas individuais: são 65 operações, incluindo login CPF na Lambda, cadastros, consultas, alterações, alternativas de orçamento, cancelamento, exclusões e webhook. Corpos e paginação estão preenchidos. Criações capturam IDs para as próximas solicitações; para cadastros isolados, crie marca/cor/modelo antes do veículo. Não execute o catálogo inteiro como uma jornada: rejeitar, cancelar e entregar são caminhos alternativos da máquina de estados.
+
+O Runner interrompe a jornada diante de um status inesperado e termina antes do catálogo. Depois de uma falha, corrija a configuração e reinicie a pasta para obter novos dados. A coleção não apaga a OS concluída. As chamadas criam registros no ambiente selecionado e podem acionar a notificação SNS configurada nele.
+
+A senha inicial do cliente fictício `GarageFlow Demo Customer`, nascido em 1990, é `customer1990`; a troca usa `newCustomerPassword`, definido na coleção apenas para demonstração. Senhas, tokens e IDs capturados ficam no Environment local. Não exporte esses valores para o Git nem compartilhe o Environment preenchido.
+
+O login CPF exige a integração API Gateway → Lambda → API; essa rota não existe no Host local. O Environment local atende ao catálogo da API e não executa a jornada completa de CPF. O webhook é opcional, exige `webhookSecret` local e orçamento aguardando decisão; seu script assina o corpo e timestamp automaticamente. Consultas de tempo médio aceitam filtros opcionais `fromDate`, `toDate` e `serviceId`, inicialmente desabilitados.
+
+Para executar pelo Newman, use a mesma pasta do Runner e um Environment preenchido **fora do repositório**:
+
+```bash
+newman run docs/postman/GarageFlow.postman_collection.json \
+  --environment /caminho/privado/GarageFlow.postman_environment.json \
+  --folder "01 · Jornada completa — executar esta pasta" --bail
+```
+
+Os modelos de Environment estão vazios intencionalmente nos três campos de acesso remoto: após a configuração inicial, os demais valores da jornada são automáticos. A API na Academy depende da sessão de aproximadamente quatro horas; avise o avaliador sobre a janela combinada de demonstração.
+
 ### Deploy da aplicação
 
 O workflow `Deploy Phase 3 Application` executa a qualidade do commit e implanta após push em `develop` (homologação) ou `main` (produção). Recuperação manual usa as mesmas branches e validações. O workflow manual da Fase 2 permanece separado; não o execute sobre recursos cuja propriedade já tenha sido transferida para os novos roots.
@@ -138,6 +162,19 @@ bash -n scripts/deploy-phase3.sh
 ```
 
 `LoadRestrictionsNone` permite que este overlay local reutilize os manifests no diretório pai; ele não referencia manifests remotos. A pipeline verifica os inputs reais antes de aplicar o resultado. Diagramas, contratos e a divisão entre os quatro repositórios estão no [RFC 0001](docs/architecture/rfcs/0001-phase-3-platform-and-identity.md). Os testes locais e a existência da pipeline não comprovam implantação na AWS.
+
+
+### Proteção das branches e homologação
+
+`main` representa produção e `develop` representa homologação. Configure proteção nas duas branches: PR obrigatório, CI aprovada no commit atualizado, conversas resolvidas, sem force push, exclusão ou bypass de administrador. O projeto permite zero aprovações humanas obrigatórias para viabilizar a manutenção individual; isso não dispensa PR nem CI. O check obrigatório deste repositório é **quality-gate**, vinculado ao GitHub Actions.
+
+O deploy de homologação exige a variável **de repositório** `HOMOLOGATION_DEPLOY_ENABLED=true`. Ausente ou `false`, a CI continua executando e os jobs de implantação são ignorados. Essa variável deve estar no repositório porque a condição do job é avaliada antes de carregar o Environment. Produção mantém o deploy automático após a qualidade do mesmo commit.
+
+Para ativar homologação, prepare o Environment `homologation`, restrinja-o à branch `develop`, configure os inputs descritos neste README e credenciais Academy válidas, e habilite a variável. Execute os projetos na ordem plataforma/ingress → banco → aplicação → serverless/edge. Depois de uma validação temporária, desabilite a variável nos quatro repositórios antes da remoção dos recursos. Isso evita recriação por novos pushes; não cancela uma execução já iniciada.
+
+Estados e contratos de homologação usam seus próprios prefixos. Não execute o workflow legado de destruição da Fase 2 para remover a Fase 3. O [procedimento de encerramento de homologação](https://github.com/DiegoRugue/garageflow-infra-kubernetes#encerramento-de-homologação) descreve as dependências e os recursos compartilhados que devem permanecer.
+
+O avaliador `soat-architecture` deve ter acesso de leitura a este repositório. Em repositórios privados, o responsável deve conferir a aceitação do convite antes da entrega; o convite pendente não garante acesso. O README e os artefatos versionados permitem a revisão mesmo quando a sessão temporária da Academy estiver encerrada.
 
 ### Artefatos e verificação
 
