@@ -36,20 +36,9 @@ Cada README concentra a arquitetura, os diagramas, os artefatos e a operação d
 
 As setas abaixo representam dependências de código. O `Host` é o único executável e composition root; configura autenticação, middleware, observabilidade, banco e registro de endpoints. A API traduz HTTP para casos de uso, a aplicação orquestra e o domínio protege as invariantes.
 
-```mermaid
-flowchart TB
-    Host[Host: composição e runtime] --> Api[Adapters.Api: Minimal APIs]
-    Host --> Infra[Adapters.Infrastructure: EF, JWT e SNS]
-    Host --> Application[Application: casos de uso e portas]
-    Host --> Shared[SharedKernel: primitivas]
-    Api --> Application
-    Infra --> Application
-    Infra --> Domain[Domain: agregados e invariantes]
-    Infra --> Shared
-    Application --> Domain
-    Application --> Shared
-    Domain --> Shared
-```
+![Dependências entre as camadas da aplicação](docs/diagrams/architecture-dependencies.png)
+
+[Fonte editável do diagrama](docs/diagrams/architecture-dependencies.mmd).
 
 `Customers`, `Vehicles`, `Users`, `Services`, `InventoryItems` e `WorkOrders` seguem vertical slices por caso de uso. `Adapters.Api` e `Adapters.Infrastructure` não dependem entre si. Ports pertencem à Application e os adapters implementam a entrada HTTP e as integrações externas. A [linguagem ubíqua](docs/ddd/ubiquitous-language.md), os [agregados](docs/ddd/diagrams/images/aggregates.png) e a [máquina de estados](docs/ddd/diagrams/images/work-order-state-machine.png) complementam esta visão.
 
@@ -71,40 +60,9 @@ O verificador interno é opt-in por `Auth__Internal__Enabled`; exige uma chave p
 
 Funcionários ativos podem abrir OS com cadastros existentes (`POST /work-orders`) ou com o payload de entrada completa (`POST /work-orders/intake`). A segunda opção resolve os cadastros necessários e usa recibo de idempotência. O fluxo abaixo descreve a primeira, sem pressupor que toda criação de OS gera uma notificação SNS.
 
-```mermaid
-sequenceDiagram
-    actor Staff as Funcionário ativo
-    participant Gateway as API Gateway
-    participant Auth as Lambda authorizer
-    participant Api as API no EKS
-    participant App as Caso de uso e TransactionBehavior
-    participant Db as PostgreSQL
-    participant Events as Dispatcher de eventos
-    Staff->>Gateway: POST /work-orders + JWT
-    Gateway->>Auth: Validar token de usuário
-    alt Token inválido ou ausente
-        Gateway-->>Staff: 401 ou 403 conforme a etapa
-    else Token válido
-        Auth-->>Gateway: Permitir requisição
-        Gateway->>Api: VPC Link, ALB interno e NodePort
-        Api->>Api: Validar JWT e política ActiveStaff
-        alt Perfil não autorizado
-            Api-->>Staff: 403 via Gateway
-        else Funcionário autorizado
-            Api->>App: Criar OS com cliente e veículo
-            App->>Db: Consultar referências e persistir em transação
-            alt Validação ou regra rejeitada
-                App->>Db: Rollback se transação iniciada
-                Api-->>Staff: ProblemDetails conforme erro
-            else Persistência confirmada
-                Db-->>App: Commit concluído
-                App->>Events: Despachar eventos após commit
-                App-->>Api: Resultado
-                Api-->>Staff: 201 com OS, via Gateway
-            end
-        end
-    end
-```
+![Sequência de criação de uma ordem de serviço](docs/diagrams/work-order-creation.png)
+
+[Fonte editável do diagrama](docs/diagrams/work-order-creation.mmd).
 
 Os endpoints declaram os status esperados no [OpenAPI local](http://localhost:8080/openapi/v1.json). Validação, recurso inexistente e conflito são erros distintos; detalhes internos de exceções inesperadas não são devolvidos no `500`.
 
@@ -137,7 +95,7 @@ O `Host` exporta traces, métricas e logs estruturados para o coletor privado da
 
 Os snapshots diários usam `latest` por data; somá-los entre réplicas duplicaria valores. As métricas de resultados/polls são counters e usam soma. A média fica vazia sem conclusões elegíveis; zero é uma duração zero registrada. Logs excluem CPF, credenciais, corpos, URLs brutas, SQL e mensagens de exceção. Traces podem ser amostrados; ausência de telemetria não prova uptime.
 
-Os [dashboards, consultas e condições de alerta](https://github.com/DiegoRugue/garageflow-infra-kubernetes#new-relic-observability) são artefatos da plataforma. Os templates de alerta são desabilitados por padrão. Probes internos, disponibilidade externa e ativação das notificações são verificações separadas.
+Os [dashboards, consultas e condições de alerta](https://github.com/DiegoRugue/garageflow-infra-kubernetes#observabilidade-com-new-relic) são artefatos da plataforma. Os templates de alerta são desabilitados por padrão. Probes internos, disponibilidade externa e ativação das notificações são verificações separadas.
 
 ### Execução e documentação da API
 

@@ -1,0 +1,32 @@
+sequenceDiagram
+    actor Staff as Funcionário ativo
+    participant Gateway as API Gateway
+    participant Auth as Lambda authorizer
+    participant Api as API no EKS
+    participant App as Caso de uso e TransactionBehavior
+    participant Db as PostgreSQL
+    participant Events as Dispatcher de eventos
+    Staff->>Gateway: POST /work-orders + JWT
+    Gateway->>Auth: Validar token de usuário
+    alt Token inválido ou ausente
+        Gateway-->>Staff: 401 ou 403 conforme a etapa
+    else Token válido
+        Auth-->>Gateway: Permitir requisição
+        Gateway->>Api: VPC Link, ALB interno e NodePort
+        Api->>Api: Validar JWT e política ActiveStaff
+        alt Perfil não autorizado
+            Api-->>Staff: 403 via Gateway
+        else Funcionário autorizado
+            Api->>App: Criar OS com cliente e veículo
+            App->>Db: Consultar referências e persistir em transação
+            alt Validação ou regra rejeitada
+                App->>Db: Rollback se transação iniciada
+                Api-->>Staff: ProblemDetails conforme erro
+            else Persistência confirmada
+                Db-->>App: Commit concluído
+                App->>Events: Despachar eventos após commit
+                App-->>Api: Resultado
+                Api-->>Staff: 201 com OS, via Gateway
+            end
+        end
+    end

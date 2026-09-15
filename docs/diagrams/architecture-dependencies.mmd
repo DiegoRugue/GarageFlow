@@ -1,0 +1,12 @@
+flowchart TB
+    Host[Host: composição e runtime] --> Api[Adapters.Api: Minimal APIs]
+    Host --> Infra[Adapters.Infrastructure: EF, JWT e SNS]
+    Host --> Application[Application: casos de uso e portas]
+    Host --> Shared[SharedKernel: primitivas]
+    Api --> Application
+    Infra --> Application
+    Infra --> Domain[Domain: agregados e invariantes]
+    Infra --> Shared
+    Application --> Domain
+    Application --> Shared
+    Domain --> Shared
