@@ -92,6 +92,7 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationOutboxMapper, WorkOrderIntegrationOutboxMapper>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
         services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();
+        services.AddSingleton<IntegrationOutboxTelemetry>();
         services.AddSingleton<IValidateOptions<IntegrationOutboxOptions>, IntegrationOutboxOptionsValidator>();
         services.AddOptions<IntegrationOutboxOptions>()
             .Bind(configuration.GetSection(IntegrationOutboxOptions.SectionName))

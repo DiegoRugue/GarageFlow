@@ -6,6 +6,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 
 namespace GarageFlow.Host.Observability;
 
@@ -39,12 +40,15 @@ public static class ObservabilityExtensions
             options.QueueFullMode = ConsoleLoggerQueueFullMode.DropWrite;
         });
         // Framework messages and exception objects may contain SQL or user input.
-        // Only the fixed request-completion schema is admitted, even if log levels are overridden.
+        // Only fixed safe schemas are admitted, even if log levels are overridden.
         builder.Services.PostConfigure<LoggerFilterOptions>(options =>
         {
             options.Rules.Clear();
             options.Rules.Add(new LoggerFilterRule(null, null, LogLevel.Information,
-                (_, category, level) => category == typeof(RequestTelemetryMiddleware).FullName && level >= LogLevel.Information));
+                (_, category, level) =>
+                    (category == typeof(RequestTelemetryMiddleware).FullName
+                     || category == typeof(IntegrationOutboxTelemetry).FullName)
+                    && level >= LogLevel.Information));
         });
         builder.Logging.AddOpenTelemetry(logging =>
         {
@@ -74,10 +78,12 @@ public static class ObservabilityExtensions
                 .AddProcessor(new PrivacyTraceProcessor())
                 .AddOtlpExporter(exporter => ConfigureExporter(exporter, endpoint, "traces")))
             .WithMetrics(metrics => metrics
-                .AddMeter("Microsoft.AspNetCore.Hosting", "System.Net.Http", WorkOrderMetricsPublisher.MeterName)
+                .AddMeter("Microsoft.AspNetCore.Hosting", "System.Net.Http", WorkOrderMetricsPublisher.MeterName, IntegrationOutboxTelemetry.MeterName)
                 .AddRuntimeInstrumentation()
                 .AddView("http.server.request.duration", new MetricStreamConfiguration { TagKeys = ["http.request.method", "http.route", "http.response.status_code", "error.type"] })
                 .AddView("http.client.request.duration", new MetricStreamConfiguration { TagKeys = ["http.request.method", "http.response.status_code", "error.type"] })
+                .AddView("garageflow.integration.outbox.results", new MetricStreamConfiguration { TagKeys = ["outbox.outcome", "outbox.failure.kind"] })
+                .AddView("garageflow.integration.outbox.polls", new MetricStreamConfiguration { TagKeys = ["outbox.outcome"] })
                 .AddView(instrument => instrument.Name.StartsWith("http.", StringComparison.Ordinal) && instrument.Name is not "http.server.request.duration" and not "http.client.request.duration" ? MetricStreamConfiguration.Drop : null)
                 .AddOtlpExporter((exporter, reader) =>
                 {
