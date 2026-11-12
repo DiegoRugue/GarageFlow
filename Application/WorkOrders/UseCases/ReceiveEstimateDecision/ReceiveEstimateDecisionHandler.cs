@@ -10,7 +10,8 @@ public sealed class ReceiveEstimateDecisionHandler(
     IEstimateDecisionInbox inbox,
     IWorkOrderRepository workOrderRepository,
     EstimateDecisionProcessor processor,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ExecutionSchedulingSettings? executionScheduling = null)
     : IRequestHandler<ReceiveEstimateDecisionCommand, ReceiveEstimateDecisionResult>
 {
     private const string ApprovedDecision = "Approved";
@@ -58,7 +59,7 @@ public sealed class ReceiveEstimateDecisionHandler(
 
         if (input.Decision == ApprovedDecision)
         {
-            workOrder.ApproveEstimate(input.EstimateId);
+            workOrder.ApproveEstimate(input.EstimateId, executionScheduling?.Enabled == true);
         }
         else
         {

@@ -4,6 +4,7 @@ API de gestão de oficina: clientes, veículos, catálogo de serviços, estoque,
 
 ## Sumário
 
+- [Fase 4 — arquitetura e Saga da OS](#fase-4--arquitetura-e-saga-da-os)
 - [Fase 3](#fase-3)
   - [Mapa da documentação](#mapa-da-documentação)
   - [Arquitetura da aplicação](#arquitetura-da-aplicação)
@@ -16,6 +17,93 @@ API de gestão de oficina: clientes, veículos, catálogo de serviços, estoque,
   - [Artefatos e verificação](#artefatos-e-verificação)
 - [Fase 2 — entrega anterior](#fase-2)
 - [Fase 1 — entrega anterior](#fase-1)
+
+## Fase 4 — arquitetura e Saga da OS
+
+A Fase 4 distribui a jornada entre a API de Ordens de Serviço, Execução e Pagamentos. A API continua sendo a entrada de clientes e funcionários e o orquestrador da Saga. Ela decide quando o veículo pode ser entregue com base nos resultados persistidos na própria OS.
+
+| Projeto | Responsabilidade | Dados sob sua responsabilidade |
+| --- | --- | --- |
+| **API de Ordens de Serviço** | OS, orçamento aprovado, reservas de estoque, estado da Saga e autorização de entrega | PostgreSQL da oficina |
+| [Execução](https://github.com/DiegoRugue/GarageFlow.Execution#readme) | Agendamento, início e conclusão do reparo | DynamoDB exclusivo do serviço |
+| [Pagamentos](https://github.com/DiegoRugue/GarageFlow.Billing#readme) | Checkout, conciliação da order e publicação do estado financeiro | Banco PostgreSQL próprio |
+| [Plataforma Kubernetes](https://github.com/DiegoRugue/garageflow-infra-kubernetes#recursos-da-fase-4) | EKS compartilhado, filas, identidades, registries e entrada privada | States Terraform e recursos AWS do ambiente |
+
+![Arquitetura da Fase 4 com fronteiras de serviços e persistência](docs/diagrams/phase4-system.png)
+
+[Fonte editável da arquitetura](docs/diagrams/phase4-system.mmd) · [ADR da Saga orquestrada](docs/architecture/adrs/0004-orchestrated-work-order-saga.md)
+
+As setas de comandos e resultados representam as quatro filas SQS Standard. Cada serviço consulta seu próprio banco. A API mantém o orçamento e a reserva de estoque no mesmo modelo da OS para validar o valor aprovado e devolver os materiais na recusa do agendamento.
+
+### Jornada do orçamento à entrega
+
+![Sequência da Saga, recusa de agendamento e liberação da entrega](docs/diagrams/phase4-saga.png)
+
+[Fonte editável da sequência](docs/diagrams/phase4-saga.mmd)
+
+| Etapa | Fato que avança a Saga | Estado da OS |
+| --- | --- | --- |
+| Aprovação do orçamento | Aprovação pelo cliente dono da OS ou decisão assinada pelo webhook de orçamento. A API fixa o `executionId` e grava `execution.schedule.v1` na outbox. | `WaitingExecutionSchedule` |
+| Agendamento | Execução aceita a solicitação para a OS e o orçamento correspondentes. | `ExecutionScheduled` |
+| Início do reparo | A oficina solicita início. Execução confirma `execution.started.v1` e a API registra `StartedAt`. | `ExecutionStartRequested` → `InProgress` |
+| Conclusão técnica | Execução confirma `execution.completed.v1`. A API conclui as linhas aprovadas, registra `CompletedAt` e grava `billing.create-charge.v1`. | `ExecutionCompletionRequested` → `Completed` |
+| Checkout e confirmação | Pagamentos informa o checkout e depois o estado financeiro. A API registra a confirmação ao receber `paid` com valor integral ou `no_payment_required` para valor zero. | `Completed` |
+| Entrega | A oficina solicita a entrega com a OS concluída e a autorização de pagamento vigente. | `Delivered` |
+
+O tempo de reparo usa `CompletedAt - StartedAt`. No fluxo distribuído, `StartedAt` vem da confirmação de Execução. Nas OS criadas no fluxo local anterior, o horário registrado na aprovação continua sendo a referência histórica.
+
+### Contratos e pontos de entrada
+
+| Entrada | Acesso e resposta |
+| --- | --- |
+| `POST /me/work-orders/{workOrderId}/estimates/{estimateId}/approve` | Cliente ativo e proprietário da OS. Responde `204` após aceitar a aprovação local. |
+| `POST /work-orders/{id}/execution/start` e `/execution/complete` | Oficina autenticada. Responde `202` e indica a consulta de status. O evento de Execução confirma a transição. |
+| `GET /work-orders/{id}/status` | A oficina acompanha o estado da OS. |
+| `GET /work-orders/{id}/payment` e `GET /me/work-orders/{id}/payment` | Funcionário ativo ou cliente dono da OS, conforme a rota. Expõe o link quando o estado é `CheckoutAvailable`. |
+| `POST /work-orders/{id}/deliver` | A oficina registra a entrega com `204`. O pagamento pendente ou revogado antes da entrega causa `409`. |
+
+Na projeção financeira, `AwaitingRepairCompletion` precede o reparo concluído, `PendingCheckout` indica cobrança ainda sem link, `CheckoutAvailable` disponibiliza o checkout e `Confirmed` libera a entrega. `Revoked` remove a liberação. `Unavailable` sinaliza OS cancelada ou recusada no agendamento. Uma OS sem execução distribuída ou fora da propriedade do cliente retorna `404` na consulta financeira.
+
+A API usa o ID da OS como `correlationId`. O `executionId` também identifica a cobrança. Os três schemas versionados descrevem os envelopes, incluindo o `estimateId` da versão aprovada e os valores em centavos de BRL.
+
+- [Execução v1](contracts/execution-v1.schema.json) define os três comandos e os quatro resultados.
+- [Cobrança v1](contracts/billing-charge-v1.schema.json) leva o valor aprovado.
+- [Resultados de Pagamentos v1](contracts/billing-result-v1.schema.json) leva o checkout ou o estado financeiro com revisão.
+
+### Consistência, falhas e compensação
+
+| Ocorrência | Comportamento |
+| --- | --- |
+| Falha de envio após uma alteração local | A outbox da API conserva o comando para retry. O consumidor de resultados confirma o SQS após aplicar a transação local. |
+| Agendamento recusado definitivamente | A API grava `ExecutionScheduleRejected` e devolve as reservas ativas na mesma transação. Repetir a recusa preserva o saldo. |
+| Mensagem incompatível com a OS ou o orçamento | O consumidor rejeita o resultado. A política SQS controla reentrega e DLQ. |
+| Checkout sem confirmação ou valor divergente | A API mantém a OS em `Completed`. A confirmação exige vínculo e valor aprovados. |
+| Estorno anterior à entrega | A revisão mais nova revoga a autorização. Uma confirmação repetida com revisão antiga é ignorada. Uma entrega já registrada permanece no histórico. |
+
+### Verificação do fluxo
+
+O [cenário de integração da Saga](Tests/Integration/WorkOrders/ExecutionSchedulingSagaTests.cs) exercita a aprovação, os comandos da oficina e a aplicação de resultados controlados de Execução e Pagamentos. As asserções cobrem uma cobrança por conclusão, timestamps do reparo, `409` antes da confirmação, `204` após a confirmação, recusa com compensação e reenvio de resultado.
+
+```bash
+dotnet test Tests/Integration/GarageFlow.Tests.Integration.csproj --filter FullyQualifiedName~ExecutionSchedulingSagaTests
+```
+
+O OpenAPI da API e os schemas SQS são as referências para reproduzir o fluxo. O aceite distribuído em homologação usa os três processos, os bancos e filas do ambiente e uma order de teste no Mercado Pago. A evidência da Saga no New Relic será coletada nessa execução.
+
+### Preparação do deploy da Fase 4
+
+A API orquestra a Saga e mantém a invariante de entrega na mesma transação local da OS. A fila de resultados de cada serviço só confirma uma mensagem depois da transação. Execução grava sua decisão no DynamoDB antes de publicar o resultado. Pagamentos mantém as cobranças e a própria outbox em um banco PostgreSQL dedicado. Cada serviço usa sua própria identidade de workload.
+
+Para a entrega final, use o ambiente correspondente à branch e siga esta sequência.
+
+1. Prepare a plataforma e o RDS da Fase 3. O [root phase4-workloads](https://github.com/DiegoRugue/garageflow-infra-kubernetes/tree/main/infra/phase4-workloads) é dono das quatro filas com DLQ, da tabela DynamoDB, dos dois repositórios ECR e das associações de Pod Identity. Use o EKS e a conta do contrato do ambiente.
+2. Prepare o banco de Pagamentos com banco lógico e usuário próprios. O serviço inicializa suas tabelas ao iniciar. No namespace `garageflow`, crie o Secret `garageflow-billing-secrets` com `ConnectionStrings__Billing`, `MercadoPago__AccessToken` e `MercadoPago__WebhookSecret`. Em homologação, use credenciais de teste.
+3. Aplique os ConfigMaps do output `runtime_config` e associe a cada role a política correspondente de `workload_policies`. Preserve as permissões já usadas pela API, incluindo a publicação no tópico SNS do ambiente. Configure os Environments dos workers com a conta, o cluster, as credenciais temporárias e os nomes de `ecr_repository_names`.
+4. Na janela de entrega, execute os deploys manuais de Execução e Pagamentos e confirme os rollouts. Depois habilite `PHASE4_SAGA_ENABLED=true` no Environment da API e execute `Deploy Phase 3 Application` para aplicar a migration de pagamento e o overlay `k8s/phase4`. O script confere o ConfigMap da Saga antes de publicar a imagem e executar a migration.
+5. Habilite `PHASE4_SAGA_ENABLED=true` também no Environment da plataforma. Execute `Deploy Private Ingress or Edge` com `ingress`, confirme que o target de Pagamentos está saudável e então execute com `edge`. Cadastre a URL pública `/webhooks/mercado-pago/orders` no Mercado Pago. As rotas da oficina e do cliente usam JWT. A rota de callback usa a assinatura validada pelo serviço de Pagamentos.
+6. Em homologação, percorra aprovação, agendamento, início e conclusão, checkout, tentativa de entrega com `409`, pagamento e entrega. Confirme o fluxo de recusa de agendamento com devolução única do estoque. Registre a correlação da OS no New Relic e a evidência dos pipelines antes da demonstração.
+
+O teste `GivenPendingEstimate_WhenRepairCompletes_ThenOnlyVerifiedPaymentAllowsDelivery` exercita a Saga da API com resultados controlados de Execução e Pagamentos. A validação pela rede e o pagamento no sandbox fazem parte da homologação final.
 
 ## Fase 3
 

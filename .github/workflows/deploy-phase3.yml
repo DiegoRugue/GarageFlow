@@ -35,6 +35,7 @@ jobs:
       DEPLOY_ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || 'homologation' }}
       EKS_PUBLIC_ACCESS_CIDRS: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS }}
       OBSERVABILITY_ENABLED: ${{ vars.OBSERVABILITY_ENABLED || 'false' }}
+      PHASE4_SAGA_ENABLED: ${{ vars.PHASE4_SAGA_ENABLED || 'false' }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v5

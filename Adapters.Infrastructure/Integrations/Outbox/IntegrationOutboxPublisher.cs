@@ -1,3 +1,4 @@
+using GarageFlow.Application.WorkOrders.Common;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -7,7 +8,8 @@ namespace GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 public sealed class IntegrationOutboxPublisher(
     IServiceScopeFactory scopeFactory,
     IOptions<IntegrationOutboxOptions> options,
-    IntegrationOutboxTelemetry telemetry) : BackgroundService
+    IntegrationOutboxTelemetry telemetry,
+    ExecutionSchedulingSettings? executionScheduling = null) : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory =
         scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
@@ -18,7 +20,7 @@ public sealed class IntegrationOutboxPublisher(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.Enabled)
+        if (!_options.Enabled && executionScheduling?.Enabled != true)
         {
             return;
         }
