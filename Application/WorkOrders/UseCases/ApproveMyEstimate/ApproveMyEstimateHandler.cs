@@ -11,7 +11,8 @@ namespace GarageFlow.Application.WorkOrders.UseCases.ApproveMyEstimate;
 public sealed class ApproveMyEstimateHandler(
     IUserRepository userRepository,
     ICustomerRepository customerRepository,
-    IWorkOrderRepository workOrderRepository) : IRequestHandler<ApproveMyEstimateCommand, Unit>
+    IWorkOrderRepository workOrderRepository,
+    ExecutionSchedulingSettings? executionScheduling = null) : IRequestHandler<ApproveMyEstimateCommand, Unit>
 {
     private readonly IUserRepository _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
     private readonly ICustomerRepository _customerRepository = customerRepository ?? throw new ArgumentNullException(nameof(customerRepository));
@@ -31,7 +32,7 @@ public sealed class ApproveMyEstimateHandler(
             customerId,
             request.WorkOrderId,
             cancellationToken);
-        workOrder.ApproveEstimate(EstimateId.From(request.EstimateId));
+        workOrder.ApproveEstimate(EstimateId.From(request.EstimateId), executionScheduling?.Enabled == true);
         return Unit.Value;
     }
 }

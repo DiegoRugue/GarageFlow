@@ -1,3 +1,4 @@
+using GarageFlow.Application.WorkOrders.Common;
 using System.Text.Json;
 using System.Diagnostics.Metrics;
 using GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
@@ -269,6 +270,71 @@ public sealed class IntegrationOutboxProcessorTests
         Assert.Equal(1, result.OwnershipLostCount);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecutionOnlyPublisherClaimsScheduleAndRetainsItOnFailure(bool fail)
+    {
+        const string wirePayload = "{\"messageType\":\"execution.schedule.v1\"}";
+        var schedule = CreateClaim(1, wirePayload, ExecutionSchedulingContract.EventKey);
+        var status = CreateClaim(1, "{}");
+        var repository = new RecordingRepository(schedule, status);
+        var publisher = new RecordingExecutionPublisher(fail);
+        using var telemetry = new IntegrationOutboxTelemetry(NullLogger<IntegrationOutboxTelemetry>.Instance);
+        var processor = new IntegrationOutboxProcessor(
+            repository, null, Options.Create(new IntegrationOutboxOptions()), new FixedTimeProvider(Now),
+            telemetry, publisher);
+
+        var result = await processor.ProcessBatchAsync();
+
+        Assert.Equal(1, result.ClaimedCount);
+        Assert.Equal(wirePayload, Assert.Single(publisher.Published));
+        if (fail)
+        {
+            Assert.Empty(repository.Marked);
+            var retry = Assert.Single(repository.Rescheduled);
+            Assert.Equal(schedule.Id, retry.Id);
+            Assert.DoesNotContain("private-marker", retry.Error, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Equal(schedule.Id, Assert.Single(repository.Marked).Id);
+            Assert.Empty(repository.Rescheduled);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ChargeIsClaimedOnlyWhenItsQueueCanPublish(bool configured)
+    {
+        const string payload = "{\"messageType\":\"billing.create-charge.v1\"}";
+        var charge = CreateClaim(1, payload, BillingChargeContract.EventKey);
+        var repository = new RecordingRepository(charge);
+        var publisher = new RecordingBillingPublisher();
+        using var telemetry = new IntegrationOutboxTelemetry(NullLogger<IntegrationOutboxTelemetry>.Instance);
+        var processor = new IntegrationOutboxProcessor(
+            repository, new RecordingPublisher(), Options.Create(new IntegrationOutboxOptions()),
+            new FixedTimeProvider(Now), telemetry, billingPublisher: configured ? publisher : null);
+
+        var result = await processor.ProcessBatchAsync();
+
+        if (configured)
+        {
+            Assert.Equal(1, result.ProcessedCount);
+            Assert.Equal(charge.Id, Assert.Single(repository.Marked).Id);
+            Assert.Equal(payload, Assert.Single(publisher.Published));
+        }
+        else
+        {
+            Assert.Equal(0, result.ClaimedCount);
+            Assert.Empty(repository.Marked);
+            Assert.Empty(publisher.Published);
+        }
+
+        Assert.Empty(repository.Rescheduled);
+    }
+
     private static IntegrationOutboxProcessor CreateProcessor(
         IIntegrationOutboxRepository repository,
         IWorkOrderStatusNotificationPublisher publisher,
@@ -312,8 +378,12 @@ public sealed class IntegrationOutboxProcessorTests
         public List<(Guid Id, Guid LeaseId, DateTime NextAttemptAt, string Error)> Rescheduled { get; } = [];
 
         public Task<IReadOnlyList<ClaimedIntegrationOutboxMessage>> ClaimBatchAsync(
-            Guid leaseId, DateTime now, DateTime leaseExpiresAt, int batchSize, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ClaimedIntegrationOutboxMessage>>(claims);
+            Guid leaseId, DateTime now, DateTime leaseExpiresAt, int batchSize,
+            string[]? includeEventKeys = null, string[]? excludeEventKeys = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ClaimedIntegrationOutboxMessage>>(
+                claims.Where(claim => (includeEventKeys is null || includeEventKeys.Contains(claim.EventKey))
+                    && (excludeEventKeys is null || !excludeEventKeys.Contains(claim.EventKey))).ToArray());
 
         public Task<bool> MarkProcessedAsync(Guid id, Guid leaseId, DateTime processedAt, CancellationToken cancellationToken = default)
         {
@@ -326,6 +396,28 @@ public sealed class IntegrationOutboxProcessorTests
         {
             Rescheduled.Add((id, leaseId, nextAttemptAt, errorMessage));
             return Task.FromResult(UpdateResult);
+        }
+    }
+
+    private sealed class RecordingBillingPublisher : IBillingChargePublisher
+    {
+        public List<string> Published { get; } = [];
+
+        public Task PublishAsync(string payload, CancellationToken cancellationToken)
+        {
+            Published.Add(payload);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingExecutionPublisher(bool fail) : IExecutionCommandPublisher
+    {
+        public List<string> Published { get; } = [];
+
+        public Task PublishAsync(string payload, CancellationToken cancellationToken)
+        {
+            Published.Add(payload);
+            return fail ? Task.FromException(new InvalidOperationException("private-marker")) : Task.CompletedTask;
         }
     }
 

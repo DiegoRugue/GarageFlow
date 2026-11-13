@@ -2,7 +2,7 @@ name: Deploy Phase 3 Application
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -20,7 +20,7 @@ jobs:
 
   deploy:
     needs: quality-gate
-    if: github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/develop' && vars.HOMOLOGATION_DEPLOY_ENABLED == 'true')
+    if: (github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) || (github.ref == 'refs/heads/develop' && github.event_name == 'workflow_dispatch' && vars.HOMOLOGATION_DEPLOY_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: ${{ github.ref_name == 'main' && 'production' || 'homologation' }}
@@ -35,6 +35,7 @@ jobs:
       DEPLOY_ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || 'homologation' }}
       EKS_PUBLIC_ACCESS_CIDRS: ${{ vars.EKS_PUBLIC_ACCESS_CIDRS }}
       OBSERVABILITY_ENABLED: ${{ vars.OBSERVABILITY_ENABLED || 'false' }}
+      PHASE4_SAGA_ENABLED: ${{ vars.PHASE4_SAGA_ENABLED || 'false' }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v5

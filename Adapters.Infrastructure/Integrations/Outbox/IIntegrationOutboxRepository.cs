@@ -7,6 +7,8 @@ public interface IIntegrationOutboxRepository
         DateTime now,
         DateTime leaseExpiresAt,
         int batchSize,
+        string[]? includeEventKeys = null,
+        string[]? excludeEventKeys = null,
         CancellationToken cancellationToken = default);
 
     Task<bool> MarkProcessedAsync(

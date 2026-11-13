@@ -1,3 +1,4 @@
+using GarageFlow.Application.WorkOrders.Common;
 using System.Text.Json;
 using GarageFlow.Application.Common.Integrations;
 using GarageFlow.Application.WorkOrders.Integrations;
@@ -8,15 +9,24 @@ namespace GarageFlow.Adapters.Infrastructure.Integrations.Outbox;
 
 public sealed class IntegrationOutboxProcessor(
     IIntegrationOutboxRepository repository,
-    IWorkOrderStatusNotificationPublisher publisher,
+    IWorkOrderStatusNotificationPublisher? publisher,
     IOptions<IntegrationOutboxOptions> options,
     TimeProvider timeProvider,
-    IntegrationOutboxTelemetry telemetry) : IIntegrationOutboxProcessor
+    IntegrationOutboxTelemetry telemetry,
+    IExecutionCommandPublisher? executionPublisher = null,
+    IBillingChargePublisher? billingPublisher = null) : IIntegrationOutboxProcessor
 {
     private readonly IIntegrationOutboxRepository _repository =
         repository ?? throw new ArgumentNullException(nameof(repository));
-    private readonly IWorkOrderStatusNotificationPublisher _publisher =
-        publisher ?? throw new ArgumentNullException(nameof(publisher));
+    private readonly IWorkOrderStatusNotificationPublisher? _publisher = publisher;
+    private static readonly string[] ExecutionEventKeys =
+    [
+        ExecutionSchedulingContract.EventKey, ExecutionSchedulingContract.StartKey, ExecutionSchedulingContract.CompleteKey
+    ];
+    private static readonly string[] BillingEventKeys = [BillingChargeContract.EventKey];
+
+    private readonly IExecutionCommandPublisher? _executionPublisher = executionPublisher;
+    private readonly IBillingChargePublisher? _billingPublisher = billingPublisher;
     private readonly IntegrationOutboxOptions _options =
         options?.Value ?? throw new ArgumentNullException(nameof(options));
     private readonly TimeProvider _timeProvider =
@@ -29,11 +39,18 @@ public sealed class IntegrationOutboxProcessor(
     {
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var leaseId = Guid.NewGuid();
+        var executionKeys = _executionPublisher is null ? [] : ExecutionEventKeys;
+        var billingKeys = _billingPublisher is null ? [] : BillingEventKeys;
         var claims = await _repository.ClaimBatchAsync(
             leaseId,
             now,
             now.AddSeconds(_options.LeaseDurationSeconds),
             _options.BatchSize,
+            includeEventKeys: _publisher is null ? [.. executionKeys, .. billingKeys] : null,
+            excludeEventKeys: _publisher is null ? null : [
+                .. (_executionPublisher is null ? ExecutionEventKeys : []),
+                .. (_billingPublisher is null ? BillingEventKeys : [])
+            ],
             cancellationToken);
 
         var processed = 0;
@@ -64,10 +81,17 @@ public sealed class IntegrationOutboxProcessor(
         ClaimedIntegrationOutboxMessage claim,
         CancellationToken cancellationToken)
     {
-        if (!string.Equals(
-                claim.EventKey,
-                WorkOrderStatusChangedIntegrationEvent.EventKey,
-                StringComparison.Ordinal))
+        if (ExecutionEventKeys.Contains(claim.EventKey) && _executionPublisher is not null)
+        {
+            return await PublishAsync(claim, token => _executionPublisher.PublishAsync(claim.Payload, token), cancellationToken);
+        }
+
+        if (claim.EventKey == BillingChargeContract.EventKey && _billingPublisher is not null)
+        {
+            return await PublishAsync(claim, token => _billingPublisher.PublishAsync(claim.Payload, token), cancellationToken);
+        }
+
+        if (claim.EventKey != WorkOrderStatusChangedIntegrationEvent.EventKey || _publisher is null)
         {
             return await RescheduleAsync(
                 claim,
@@ -100,9 +124,17 @@ public sealed class IntegrationOutboxProcessor(
                 cancellationToken);
         }
 
+        return await PublishAsync(claim, token => _publisher.PublishAsync(notification, token), cancellationToken);
+    }
+
+    private async Task<CompletedProcessing> PublishAsync(
+        ClaimedIntegrationOutboxMessage claim,
+        Func<CancellationToken, Task> publish,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            await _publisher.PublishAsync(notification, cancellationToken);
+            await publish(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -112,7 +144,9 @@ public sealed class IntegrationOutboxProcessor(
         {
             return await RescheduleAsync(
                 claim,
-                $"Publisher failure ({exception.GetType().Name}): {exception.Message}",
+                claim.EventKey != WorkOrderStatusChangedIntegrationEvent.EventKey
+                    ? $"Publisher failure ({exception.GetType().Name})."
+                    : $"Publisher failure ({exception.GetType().Name}): {exception.Message}",
                 exception is OperationCanceledException ? OutboxFailureKind.Timeout : OutboxFailureKind.PublishFailed,
                 cancellationToken);
         }

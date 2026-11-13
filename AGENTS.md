@@ -11,6 +11,15 @@ Guide Codex agents to evolve GarageFlow with maximum code quality, strict Clean 
 - This policy also applies when a skill suggests creating planning or evidence files inside the checkout. Use the external study workspace instead.
 - READMEs, ADRs, and RFCs must be self-contained and must not link to private work records or contain session transcripts, agent progress, or credential inventories.
 
+## Repositories for New Services
+
+- Create a dedicated GitHub repository for each new deployable GarageFlow service.
+- Keep source, tests, the container image definition, versioned integration contracts, workload manifests, and the service README in its repository.
+- Match the GarageFlow CI/CD standards that apply to the service. Include a pull request quality gate with warnings as errors, tests against the service's datastore, an 80% coverage threshold, SonarQube Cloud configuration, and container and manifest verification.
+- Promote the image verified by CI to the service's ECR repository and deploy it by digest. Use `develop` for homologation and `main` for production, with GitHub environments for deployment configuration.
+- Protect main and develop with the service's pull request quality gate.
+- Keep shared AWS resource provisioning under its existing infrastructure ownership. Each service repository deploys its workload and documents its dependencies and environment configuration.
+
 ## Core Engineering Principles
 - Domain-Driven Design with explicit invariants in value objects.
 - Vertical slice by module and use case.

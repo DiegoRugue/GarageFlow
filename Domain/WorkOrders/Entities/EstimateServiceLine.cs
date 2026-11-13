@@ -46,16 +46,16 @@ public sealed class EstimateServiceLine : Entity<EstimateServiceLineId>
             unitPrice);
     }
 
-    internal void Start()
+    internal void Start(DateTime? occurredAt = null)
     {
-        var startedAt = DateTime.UtcNow;
+        var startedAt = occurredAt ?? DateTime.UtcNow;
         TransitionTo(EstimateServiceLineStatus.InProgress, startedAt);
         StartedAt = startedAt;
     }
 
-    internal void Complete()
+    internal void Complete(DateTime? occurredAt = null)
     {
-        var completedAt = DateTime.UtcNow;
+        var completedAt = occurredAt ?? DateTime.UtcNow;
         TransitionTo(EstimateServiceLineStatus.Completed, completedAt);
         CompletedAt = completedAt;
     }
