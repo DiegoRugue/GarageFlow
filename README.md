@@ -231,7 +231,7 @@ Os modelos de Environment estão vazios intencionalmente nos três campos de ace
 
 ### Deploy da aplicação
 
-O workflow `Deploy Phase 3 Application` executa a qualidade do commit e implanta após push em `develop` (homologação) ou `main` (produção). Recuperação manual usa as mesmas branches e validações. O workflow manual da Fase 2 permanece separado; não o execute sobre recursos cuja propriedade já tenha sido transferida para os novos roots.
+O workflow `Deploy Phase 3 Application` valida o commit antes de implantar. Em `develop`, o deploy de homologação exige acionamento manual. Em `main`, o deploy de produção roda após push ou por acionamento manual. Use o workflow da Fase 2 apenas para os recursos sob responsabilidade daquela fase.
 
 Ordem de provisionamento: **platform → database e ingress → aplicação → serverless → edge**. A aplicação lê contratos platform v1, database v1 e ingress v2 do bucket protegido, confere conta AWS, VPC, EKS, banco privado, listener interno e regras de acesso ao ALB/NodePort antes de buscar os secrets. Falta de contrato ou ambiente expirado interrompe o deploy.
 
@@ -260,7 +260,7 @@ bash -n scripts/deploy-phase3.sh
 
 O SonarQube Cloud analisa `main` e PRs destinados a `main`. Em `develop` e nos PRs destinados a ela, continuam obrigatórios build, testes de arquitetura, unitários, integração, E2E com PostgreSQL e cobertura mínima de 80%, além das validações de infraestrutura e container. O mesmo workflow de qualidade é reutilizado pelo deploy.
 
-O deploy de homologação exige a variável **de repositório** `HOMOLOGATION_DEPLOY_ENABLED=true`. Ausente ou `false`, a CI continua executando e os jobs de implantação são ignorados. Essa variável deve estar no repositório porque a condição do job é avaliada antes de carregar o Environment. Produção mantém o deploy automático após a qualidade do mesmo commit.
+Para implantar em homologação, defina a variável **de repositório** `HOMOLOGATION_DEPLOY_ENABLED=true` e acione o workflow manualmente em `develop`. A condição do job consulta a variável antes de carregar o Environment. Pushes em `develop` executam o Quality Gate.
 
 Para ativar homologação, prepare o Environment `homologation`, restrinja-o à branch `develop`, configure os inputs descritos neste README e credenciais Academy válidas, e habilite a variável. Execute os projetos na ordem plataforma/ingress → banco → aplicação → serverless/edge. Depois de uma validação temporária, desabilite a variável nos quatro repositórios antes da remoção dos recursos. Isso evita recriação por novos pushes; não cancela uma execução já iniciada.
 
