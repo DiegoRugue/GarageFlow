@@ -1,5 +1,8 @@
 using Amazon;
 using Amazon.SimpleNotificationService;
+using Amazon.SQS;
+using GarageFlow.Application.WorkOrders.Common;
+using GarageFlow.Adapters.Infrastructure.WorkOrders.Execution;
 using GarageFlow.Application.Auth.Abstractions;
 using GarageFlow.SharedKernel.Persistence;
 using GarageFlow.Application.Customers.Ports;
@@ -92,12 +95,34 @@ public static class DependencyInjection
         services.AddScoped<IIntegrationOutboxMapper, WorkOrderIntegrationOutboxMapper>();
         services.AddScoped<IOutboxWriter, EfOutboxWriter>();
         services.AddScoped<IIntegrationOutboxRepository, IntegrationOutboxRepository>();
+        var executionQueues = configuration.GetSection(ExecutionSchedulingQueueOptions.SectionName)
+            .Get<ExecutionSchedulingQueueOptions>() ?? new ExecutionSchedulingQueueOptions();
+        services.AddSingleton(new ExecutionSchedulingSettings(executionQueues.Enabled));
+        if (executionQueues.Enabled)
+        {
+            if (!executionQueues.HasValidQueues())
+            {
+                throw new InvalidOperationException("Execution scheduling requires distinct standard SQS queue URLs.");
+            }
+
+            services.AddSingleton(executionQueues);
+            services.AddSingleton<IAmazonSQS>(_ => new AmazonSQSClient());
+            services.AddScoped<IExecutionCommandPublisher, SqsExecutionCommandPublisher>();
+            services.AddHostedService<SqsWorkOrderResultConsumer>();
+            if (executionQueues.BillingCommandQueueUrl is { } billingQueueUrl)
+            {
+                services.AddScoped<IBillingChargePublisher>(provider =>
+                    new SqsBillingChargePublisher(provider.GetRequiredService<IAmazonSQS>(), billingQueueUrl));
+            }
+        }
+
         services.AddSingleton<IntegrationOutboxTelemetry>();
         services.AddSingleton<IValidateOptions<IntegrationOutboxOptions>, IntegrationOutboxOptionsValidator>();
         services.AddOptions<IntegrationOutboxOptions>()
             .Bind(configuration.GetSection(IntegrationOutboxOptions.SectionName))
             .ValidateOnStart();
-        if (configuration.GetValue<bool>($"{IntegrationOutboxOptions.SectionName}:Enabled"))
+        var snsEnabled = configuration.GetValue<bool>($"{IntegrationOutboxOptions.SectionName}:Enabled");
+        if (snsEnabled)
         {
             services.AddSingleton<IValidateOptions<AmazonSnsStatusNotificationOptions>,
                 AmazonSnsStatusNotificationOptionsValidator>();
@@ -108,7 +133,18 @@ public static class DependencyInjection
                 _ => new AmazonSimpleNotificationServiceClient(RegionEndpoint.USEast1));
             services.AddScoped<IWorkOrderStatusNotificationPublisher,
                 AmazonSnsWorkOrderStatusNotificationPublisher>();
-            services.AddScoped<IIntegrationOutboxProcessor, IntegrationOutboxProcessor>();
+        }
+
+        if (snsEnabled || executionQueues.Enabled)
+        {
+            services.AddScoped<IIntegrationOutboxProcessor>(provider => new IntegrationOutboxProcessor(
+                provider.GetRequiredService<IIntegrationOutboxRepository>(),
+                provider.GetService<IWorkOrderStatusNotificationPublisher>(),
+                provider.GetRequiredService<IOptions<IntegrationOutboxOptions>>(),
+                provider.GetRequiredService<TimeProvider>(),
+                provider.GetRequiredService<IntegrationOutboxTelemetry>(),
+                provider.GetService<IExecutionCommandPublisher>(),
+                provider.GetService<IBillingChargePublisher>()));
             services.AddHostedService<IntegrationOutboxPublisher>();
         }
         services.AddScoped<IPasswordHashService, PasswordHashService>();

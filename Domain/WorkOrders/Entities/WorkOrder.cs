@@ -19,6 +19,10 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
     public CustomerId CustomerId { get; private set; }
     public VehicleId VehicleId { get; private set; }
     public WorkOrderStatus Status { get; private set; }
+    public Guid? ExecutionId { get; private set; }
+    public string? CheckoutUrl { get; private set; }
+    public long BillingPaymentRevision { get; private set; }
+    public DateTime? PaymentConfirmedAt { get; private set; }
     public DateTime? StartedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
     public IReadOnlyCollection<Estimate> Estimates => _estimates.AsReadOnly();
@@ -147,7 +151,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             SubmittedAt: DateTime.UtcNow));
     }
 
-    public void ApproveEstimate(EstimateId estimateId)
+    public void ApproveEstimate(EstimateId estimateId, bool scheduleExecution = false)
     {
         EnsureNotFinalizedForContentChanges();
 
@@ -167,10 +171,26 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Only work orders waiting for approval can have an estimate approved.");
         }
 
+        if (scheduleExecution && (estimate.ServiceLines.Count is < 1 or > ExecutionSchedulingRequested.MaximumServiceLines))
+        {
+            throw new BusinessRuleViolationException("The approved estimate exceeds the supported execution scheduling limits.");
+        }
+
         var approvedAt = DateTime.UtcNow;
         estimate.Approve();
-        TransitionTo(WorkOrderStatus.InProgress, approvedAt);
-        StartedAt = approvedAt;
+        if (scheduleExecution)
+        {
+            var executionId = Guid.NewGuid();
+            ExecutionId = executionId;
+            TransitionTo(WorkOrderStatus.WaitingExecutionSchedule, approvedAt);
+            RaiseDomainEvent(new ExecutionSchedulingRequested(
+                Id, estimateId, executionId, estimate.ServiceLines.Select(line => line.Id.Value).ToArray(), approvedAt));
+        }
+        else
+        {
+            TransitionTo(WorkOrderStatus.InProgress, approvedAt);
+            StartedAt = approvedAt;
+        }
 
         UpdatedAt = approvedAt;
 
@@ -179,6 +199,130 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             EstimateId: estimate.Id,
             Status: estimate.Status,
             ApprovedAt: approvedAt));
+    }
+
+    public IReadOnlyList<InventoryReservation> ApplyExecutionScheduleDecision(
+        EstimateId estimateId, Guid executionId, bool accepted)
+    {
+        _ = GetMatchingExecutionEstimate(estimateId, executionId);
+        var resultingStatus = accepted ? WorkOrderStatus.ExecutionScheduled : WorkOrderStatus.ExecutionScheduleRejected;
+        if (Status == resultingStatus || (accepted && Status is (
+            WorkOrderStatus.ExecutionStartRequested or WorkOrderStatus.InProgress or
+            WorkOrderStatus.ExecutionCompletionRequested or WorkOrderStatus.Completed or WorkOrderStatus.Delivered)))
+        {
+            return [];
+        }
+
+        if (Status != WorkOrderStatus.WaitingExecutionSchedule)
+        {
+            throw new BusinessRuleViolationException("The work order is not waiting for an execution scheduling decision.");
+        }
+
+        var reservations = accepted ? [] : GetActiveReservations();
+        TransitionTo(resultingStatus);
+        return reservations;
+    }
+
+    public void RequestExecutionStart()
+    {
+        var executionId = GetDistributedExecutionId();
+        if (Status is WorkOrderStatus.ExecutionStartRequested or WorkOrderStatus.InProgress or
+            WorkOrderStatus.ExecutionCompletionRequested or WorkOrderStatus.Completed or WorkOrderStatus.Delivered)
+        {
+            return;
+        }
+
+        RequestExecutionTransition(executionId, WorkOrderStatus.ExecutionStartRequested, complete: false);
+    }
+
+    public void RequestExecutionCompletion()
+    {
+        var executionId = GetDistributedExecutionId();
+        if (Status is WorkOrderStatus.ExecutionCompletionRequested or WorkOrderStatus.Completed or WorkOrderStatus.Delivered)
+        {
+            return;
+        }
+
+        RequestExecutionTransition(executionId, WorkOrderStatus.ExecutionCompletionRequested, complete: true);
+    }
+
+    public void ApplyExecutionStarted(EstimateId estimateId, Guid executionId, DateTime startedAt)
+    {
+        var estimate = GetMatchingExecutionEstimate(estimateId, executionId);
+        if (Status is WorkOrderStatus.InProgress or WorkOrderStatus.ExecutionCompletionRequested or
+            WorkOrderStatus.Completed or WorkOrderStatus.Delivered)
+        {
+            return;
+        }
+
+        if (Status != WorkOrderStatus.ExecutionStartRequested || startedAt.Kind != DateTimeKind.Utc)
+        {
+            throw new BusinessRuleViolationException("Execution start does not match a pending start request.");
+        }
+
+        foreach (var line in estimate.ServiceLines)
+        {
+            line.Start(startedAt);
+        }
+
+        StartedAt = startedAt;
+        TransitionTo(WorkOrderStatus.InProgress, startedAt);
+    }
+
+    public void ApplyExecutionCompleted(EstimateId estimateId, Guid executionId, DateTime completedAt)
+    {
+        var estimate = GetMatchingExecutionEstimate(estimateId, executionId);
+        if (Status is WorkOrderStatus.Completed or WorkOrderStatus.Delivered)
+        {
+            return;
+        }
+
+        if (Status != WorkOrderStatus.ExecutionCompletionRequested || completedAt.Kind != DateTimeKind.Utc ||
+            StartedAt is not { } startedAt || completedAt < startedAt)
+        {
+            throw new BusinessRuleViolationException("Execution completion does not match a pending completion request.");
+        }
+
+        var amount = estimate.TotalAmount.Value;
+        foreach (var line in estimate.ServiceLines)
+        {
+            line.Complete(completedAt);
+        }
+
+        CompleteFromServiceLines(completedAt);
+        RaiseDomainEvent(new ExecutionChargeRequested(
+            Id, estimateId, executionId, Guid.NewGuid(), amount, completedAt));
+    }
+
+    private void RequestExecutionTransition(Guid executionId, WorkOrderStatus status, bool complete)
+    {
+        var estimate = GetSingleApprovedEstimateOrThrow();
+        var requestedAt = DateTime.UtcNow;
+        TransitionTo(status, requestedAt);
+        RaiseDomainEvent(new ExecutionLifecycleRequested(
+            Id, estimate.Id, executionId, Guid.NewGuid(), complete, requestedAt));
+    }
+
+    private Guid GetDistributedExecutionId() => ExecutionId ??
+        throw new BusinessRuleViolationException("The work order has no distributed execution.");
+
+    private Estimate GetMatchingExecutionEstimate(EstimateId estimateId, Guid executionId)
+    {
+        var estimate = GetSingleApprovedEstimateOrThrow();
+        if (ExecutionId != executionId || estimate.Id != estimateId)
+        {
+            throw new BusinessRuleViolationException("The execution result does not match the approved schedule.");
+        }
+
+        return estimate;
+    }
+
+    private void EnsureLocalExecution()
+    {
+        if (ExecutionId.HasValue)
+        {
+            throw new BusinessRuleViolationException("The execution service owns repair progress for this work order.");
+        }
     }
 
     public IReadOnlyList<InventoryReservation> RejectEstimate(EstimateId estimateId)
@@ -221,6 +365,8 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public void StartEstimateService(EstimateId estimateId, EstimateServiceLineId lineId)
     {
+        EnsureLocalExecution();
+
         EnsureNotFinalizedForContentChanges();
 
         var estimate = GetApprovedEstimateOrThrow(estimateId);
@@ -245,6 +391,8 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public void CompleteEstimateService(EstimateId estimateId, EstimateServiceLineId lineId)
     {
+        EnsureLocalExecution();
+
         if (Status != WorkOrderStatus.InProgress)
         {
             throw new BusinessRuleViolationException("Work order must be in progress before completing services.");
@@ -273,6 +421,8 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
     public void Complete()
     {
+        EnsureLocalExecution();
+
         CompleteFromServiceLines(null);
     }
 
@@ -295,6 +445,79 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         CompletedAt = occurredAt;
     }
 
+    public void ApplyBillingCheckout(EstimateId estimateId, Guid chargeId, decimal amountInMinorUnits, string checkoutUrl)
+    {
+        EnsureMatchingCharge(estimateId, chargeId, amountInMinorUnits);
+        if (amountInMinorUnits == 0 || !IsMercadoPagoCheckout(checkoutUrl))
+        {
+            throw new BusinessRuleViolationException("The checkout is invalid for this charge.");
+        }
+
+        if (string.Equals(CheckoutUrl, checkoutUrl, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (CheckoutUrl is not null)
+        {
+            throw new BusinessRuleViolationException("The charge already has a different checkout.");
+        }
+
+        CheckoutUrl = checkoutUrl;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ApplyBillingPayment(
+        EstimateId estimateId,
+        Guid chargeId,
+        decimal amountInMinorUnits,
+        long revision,
+        WorkOrderPaymentState state,
+        DateTime occurredAt)
+    {
+        EnsureMatchingCharge(estimateId, chargeId, amountInMinorUnits);
+        if (revision <= 0 || occurredAt.Kind != DateTimeKind.Utc || !IsPaymentStateValid(state, amountInMinorUnits))
+        {
+            throw new BusinessRuleViolationException("The payment state is invalid for this charge.");
+        }
+
+        if (revision <= BillingPaymentRevision)
+        {
+            return;
+        }
+
+        BillingPaymentRevision = revision;
+        PaymentConfirmedAt = state == WorkOrderPaymentState.Revoked ? null : occurredAt;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    private void EnsureMatchingCharge(EstimateId estimateId, Guid chargeId, decimal amountInMinorUnits)
+    {
+        var estimate = GetMatchingExecutionEstimate(estimateId, chargeId);
+        if (Status is not (WorkOrderStatus.Completed or WorkOrderStatus.Delivered) ||
+            estimate.TotalAmount.Value * 100m != amountInMinorUnits)
+        {
+            throw new BusinessRuleViolationException("The billing result does not match the completed work order.");
+        }
+    }
+
+    private static bool IsPaymentStateValid(WorkOrderPaymentState state, decimal amountInMinorUnits) =>
+        state switch
+        {
+            WorkOrderPaymentState.Paid or WorkOrderPaymentState.Revoked => amountInMinorUnits > 0,
+            WorkOrderPaymentState.NoPaymentRequired => amountInMinorUnits == 0,
+            _ => false
+        };
+
+    private static bool IsMercadoPagoCheckout(string value) =>
+        value is { Length: <= 2048 } &&
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        uri.IsDefaultPort &&
+        string.IsNullOrEmpty(uri.UserInfo) &&
+        (uri.Host is "www.mercadopago.com.br" or "sandbox.mercadopago.com.br") &&
+        uri.AbsolutePath.StartsWith("/checkout/", StringComparison.Ordinal);
+
     public void Deliver()
     {
         if (Status != WorkOrderStatus.Completed)
@@ -302,21 +525,30 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             throw new BusinessRuleViolationException("Only completed work orders can be delivered.");
         }
 
+        if (ExecutionId.HasValue && PaymentConfirmedAt is null)
+        {
+            throw new BusinessRuleViolationException("Payment confirmation is required before delivery.");
+        }
+
         TransitionTo(WorkOrderStatus.Delivered);
     }
 
     public IReadOnlyList<InventoryReservation> Cancel()
     {
-        if (Status == WorkOrderStatus.Cancelled)
+        if (Status is WorkOrderStatus.Cancelled or WorkOrderStatus.ExecutionScheduleRejected)
         {
             return [];
         }
 
-        var reservations = GroupInventoryReservations(_estimates.Where(estimate =>
-            estimate.Status is EstimateStatus.Draft or EstimateStatus.Pending or EstimateStatus.Approved));
+        EnsureLocalExecution();
+        var reservations = GetActiveReservations();
         TransitionTo(WorkOrderStatus.Cancelled);
         return reservations;
     }
+
+    private List<InventoryReservation> GetActiveReservations() =>
+        GroupInventoryReservations(_estimates.Where(estimate =>
+            estimate.Status is EstimateStatus.Draft or EstimateStatus.Pending or EstimateStatus.Approved));
 
     private static List<InventoryReservation> GroupInventoryReservations(IEnumerable<Estimate> estimates)
     {
@@ -398,6 +630,11 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         {
             throw new BusinessRuleViolationException("In-progress work orders cannot be changed.");
         }
+
+        if (ExecutionId.HasValue)
+        {
+            throw new BusinessRuleViolationException("Work orders with an approved execution cannot be changed.");
+        }
     }
 
     private void EnsureNotFinalizedForContentChanges()
@@ -463,8 +700,15 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
             (WorkOrderStatus.Received, WorkOrderStatus.Diagnosing) => true,
             (WorkOrderStatus.Diagnosing, WorkOrderStatus.WaitingApproval) => true,
             (WorkOrderStatus.WaitingApproval, WorkOrderStatus.InProgress) => true,
+            (WorkOrderStatus.WaitingApproval, WorkOrderStatus.WaitingExecutionSchedule) => true,
+            (WorkOrderStatus.WaitingExecutionSchedule, WorkOrderStatus.ExecutionScheduled) => true,
+            (WorkOrderStatus.WaitingExecutionSchedule, WorkOrderStatus.ExecutionScheduleRejected) => true,
             (WorkOrderStatus.WaitingApproval, WorkOrderStatus.Diagnosing) => true,
             (WorkOrderStatus.InProgress, WorkOrderStatus.Completed) => true,
+            (WorkOrderStatus.ExecutionScheduled, WorkOrderStatus.ExecutionStartRequested) => true,
+            (WorkOrderStatus.ExecutionStartRequested, WorkOrderStatus.InProgress) => true,
+            (WorkOrderStatus.InProgress, WorkOrderStatus.ExecutionCompletionRequested) => true,
+            (WorkOrderStatus.ExecutionCompletionRequested, WorkOrderStatus.Completed) => true,
             (WorkOrderStatus.Completed, WorkOrderStatus.Delivered) => true,
             (WorkOrderStatus.Received, WorkOrderStatus.Cancelled) => true,
             (WorkOrderStatus.Diagnosing, WorkOrderStatus.Cancelled) => true,
