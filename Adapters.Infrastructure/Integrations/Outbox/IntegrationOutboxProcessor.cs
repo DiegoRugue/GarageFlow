@@ -41,16 +41,15 @@ public sealed class IntegrationOutboxProcessor(
         var leaseId = Guid.NewGuid();
         var executionKeys = _executionPublisher is null ? [] : ExecutionEventKeys;
         var billingKeys = _billingPublisher is null ? [] : BillingEventKeys;
+        var excludedExecutionKeys = _executionPublisher is null ? ExecutionEventKeys : [];
+        var excludedBillingKeys = _billingPublisher is null ? BillingEventKeys : [];
         var claims = await _repository.ClaimBatchAsync(
             leaseId,
             now,
             now.AddSeconds(_options.LeaseDurationSeconds),
             _options.BatchSize,
             includeEventKeys: _publisher is null ? [.. executionKeys, .. billingKeys] : null,
-            excludeEventKeys: _publisher is null ? null : [
-                .. (_executionPublisher is null ? ExecutionEventKeys : []),
-                .. (_billingPublisher is null ? BillingEventKeys : [])
-            ],
+            excludeEventKeys: _publisher is null ? null : [.. excludedExecutionKeys, .. excludedBillingKeys],
             cancellationToken);
 
         var processed = 0;
