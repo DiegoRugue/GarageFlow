@@ -237,4 +237,68 @@ public sealed class WorkOrderLifecycleTests
         Assert.Equal(expectedPrevious, changed.PreviousStatus);
         Assert.Equal(expectedNew, changed.NewStatus);
     }
+
+    [Fact]
+    public void BillingCheckout_ShouldRaiseEventOnlyWhenFirstRecorded()
+    {
+        var order = BuildCompletedDistributedWorkOrder();
+        var estimateId = order.Estimates.Single().Id;
+        var chargeId = order.ExecutionId!.Value;
+        const string checkoutUrl = "https://sandbox.mercadopago.com.br/checkout/example";
+
+        order.ApplyBillingCheckout(estimateId, chargeId, 12000m, checkoutUrl);
+        order.ApplyBillingCheckout(estimateId, chargeId, 12000m, checkoutUrl);
+
+        var recorded = Assert.Single(order.DomainEvents.OfType<WorkOrderCheckoutRecorded>());
+        Assert.Equal(order.Id, recorded.WorkOrderId);
+        Assert.Equal(estimateId, recorded.EstimateId);
+        Assert.Equal(chargeId, recorded.ChargeId);
+        Assert.Equal(checkoutUrl, order.CheckoutUrl);
+        Assert.Equal(order.UpdatedAt, recorded.OccurredAt);
+    }
+
+    [Fact]
+    public void BillingPayment_ShouldRaiseEventForEachAppliedRevision()
+    {
+        var order = BuildCompletedDistributedWorkOrder();
+        var estimateId = order.Estimates.Single().Id;
+        var chargeId = order.ExecutionId!.Value;
+        var paidAt = order.CompletedAt!.Value.AddMinutes(1);
+        var revokedAt = paidAt.AddMinutes(1);
+
+        order.ApplyBillingPayment(estimateId, chargeId, 12000m, 1, WorkOrderPaymentState.Paid, paidAt);
+        order.ApplyBillingPayment(estimateId, chargeId, 12000m, 2, WorkOrderPaymentState.Revoked, revokedAt);
+        var updatedAt = order.UpdatedAt;
+        order.ApplyBillingPayment(estimateId, chargeId, 12000m, 2, WorkOrderPaymentState.Revoked, revokedAt);
+        order.ApplyBillingPayment(estimateId, chargeId, 12000m, 1, WorkOrderPaymentState.Paid, paidAt);
+
+        var applied = order.DomainEvents.OfType<WorkOrderPaymentRevisionApplied>().ToArray();
+        Assert.Equal([1L, 2L], applied.Select(notification => notification.Revision));
+        Assert.Equal([WorkOrderPaymentState.Paid, WorkOrderPaymentState.Revoked],
+            applied.Select(notification => notification.State));
+        Assert.Equal([paidAt, revokedAt], applied.Select(notification => notification.OccurredAt));
+        Assert.All(applied, notification =>
+        {
+            Assert.Equal(order.Id, notification.WorkOrderId);
+            Assert.Equal(estimateId, notification.EstimateId);
+            Assert.Equal(chargeId, notification.ChargeId);
+        });
+        Assert.Null(order.PaymentConfirmedAt);
+        Assert.Equal(updatedAt, order.UpdatedAt);
+    }
+
+    private static WorkOrder BuildCompletedDistributedWorkOrder()
+    {
+        var order = new WorkOrderBuilder().BuildWithPendingEstimate();
+        var estimateId = order.Estimates.Single().Id;
+        order.ApproveEstimate(estimateId, scheduleExecution: true);
+        var chargeId = order.ExecutionId!.Value;
+        order.ApplyExecutionScheduleDecision(estimateId, chargeId, accepted: true);
+        order.RequestExecutionStart();
+        var startedAt = DateTime.UtcNow;
+        order.ApplyExecutionStarted(estimateId, chargeId, startedAt);
+        order.RequestExecutionCompletion();
+        order.ApplyExecutionCompleted(estimateId, chargeId, startedAt.AddMinutes(1));
+        return order;
+    }
 }

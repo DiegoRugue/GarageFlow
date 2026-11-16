@@ -332,6 +332,50 @@ public sealed class WorkOrderRepositoryQueryTests
     }
 
     [Fact]
+    public async Task ListActiveDetailsAsync_ShouldKeepDistributedExecutionStatesAheadOfWaitingApproval()
+    {
+        await using var dbContext = CreateDbContext();
+        var builder = new WorkOrderBuilder();
+        var waitingApproval = builder.BuildWithPendingEstimate();
+        var awaitingSchedule = builder.BuildWithPendingEstimate();
+        var scheduled = builder.BuildWithPendingEstimate();
+        var starting = builder.BuildWithPendingEstimate();
+        var completing = builder.BuildWithPendingEstimate();
+        var rejected = builder.BuildWithPendingEstimate();
+        foreach (var order in new[] { awaitingSchedule, scheduled, starting, completing, rejected })
+        {
+            order.ApproveEstimate(order.Estimates.Single().Id, scheduleExecution: true);
+        }
+
+        foreach (var order in new[] { scheduled, starting, completing })
+        {
+            order.ApplyExecutionScheduleDecision(order.Estimates.Single().Id, order.ExecutionId!.Value, accepted: true);
+        }
+
+        starting.RequestExecutionStart();
+        completing.RequestExecutionStart();
+        completing.ApplyExecutionStarted(completing.Estimates.Single().Id, completing.ExecutionId!.Value, DateTime.UtcNow);
+        completing.RequestExecutionCompletion();
+        rejected.ApplyExecutionScheduleDecision(rejected.Estimates.Single().Id, rejected.ExecutionId!.Value, accepted: false);
+
+        dbContext.WorkOrders.AddRange(waitingApproval, awaitingSchedule, scheduled, starting, completing, rejected);
+        var createdAt = new DateTime(2026, 7, 10, 8, 0, 0, DateTimeKind.Utc);
+        SetCreatedAt(dbContext, waitingApproval, createdAt);
+        SetCreatedAt(dbContext, awaitingSchedule, createdAt.AddMinutes(1));
+        SetCreatedAt(dbContext, scheduled, createdAt.AddMinutes(2));
+        SetCreatedAt(dbContext, starting, createdAt.AddMinutes(3));
+        SetCreatedAt(dbContext, completing, createdAt.AddMinutes(4));
+        await dbContext.SaveChangesAsync();
+
+        var (items, totalCount) = await new EfWorkOrderQueries(dbContext)
+            .ListActiveDetailsAsync(1, 5, waitingApproval.CustomerId);
+
+        Assert.Equal(5, totalCount);
+        Assert.Equal([awaitingSchedule.Id.Value, scheduled.Id.Value, starting.Id.Value, completing.Id.Value, waitingApproval.Id.Value],
+            items.Select(item => item.Id));
+    }
+
+    [Fact]
     public async Task ListCustomerDetailsAsync_ShouldIncludeTerminalWorkOrders()
     {
         using var dbContext = CreateDbContext();
