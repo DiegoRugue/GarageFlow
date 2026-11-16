@@ -28,7 +28,7 @@ namespace GarageFlow.Tests.Integration.WorkOrders;
 public sealed class ExecutionSchedulingSagaTests
 {
     [Fact]
-    public async Task SchedulingOnlyConfigurationStartsTheOutboxPublisher()
+    public async Task Phase4ConfigurationStartsTheOutboxPublisherAndPollsBothResultQueues()
     {
         var polled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var processor = new Mock<IIntegrationOutboxProcessor>(MockBehavior.Strict);
@@ -39,22 +39,32 @@ public sealed class ExecutionSchedulingSagaTests
                 return new IntegrationOutboxProcessingResult(0, 0, 0, 0);
             });
 
+        const string executionResultQueue = "https://sqs.example.test/execution-results";
+        const string billingResultQueue = "https://sqs.example.test/billing-results";
+        var resultPolls = new Dictionary<string, TaskCompletionSource>
+        {
+            [executionResultQueue] = new(TaskCreationOptions.RunContinuationsAsynchronously),
+            [billingResultQueue] = new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
         var queue = new Mock<IAmazonSQS>(MockBehavior.Strict);
         queue.Setup(client => client.ReceiveMessageAsync(
                 It.IsAny<ReceiveMessageRequest>(), It.IsAny<CancellationToken>()))
-            .Returns(async (ReceiveMessageRequest _, CancellationToken token) =>
+            .Returns(async (ReceiveMessageRequest request, CancellationToken token) =>
             {
+                resultPolls[request.QueueUrl].TrySetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);
                 return new ReceiveMessageResponse();
             });
 
         using var factory = new GarageFlowWebApplicationFactory(
-            $"execution-only-{Guid.NewGuid():N}",
+            $"phase4-startup-{Guid.NewGuid():N}",
             additionalSettings: new Dictionary<string, string?>
             {
                 ["Integrations:ExecutionScheduling:Enabled"] = "true",
-                ["Integrations:ExecutionScheduling:CommandQueueUrl"] = "https://sqs.example.test/commands",
-                ["Integrations:ExecutionScheduling:ResultQueueUrl"] = "https://sqs.example.test/results"
+                ["Integrations:ExecutionScheduling:CommandQueueUrl"] = "https://sqs.example.test/execution-commands",
+                ["Integrations:ExecutionScheduling:ResultQueueUrl"] = executionResultQueue,
+                ["Integrations:ExecutionScheduling:BillingCommandQueueUrl"] = "https://sqs.example.test/billing-commands",
+                ["Integrations:ExecutionScheduling:BillingResultQueueUrl"] = billingResultQueue
             });
         using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
@@ -63,7 +73,7 @@ public sealed class ExecutionSchedulingSagaTests
         }));
 
         Assert.Contains(host.Services.GetServices<IHostedService>(), service => service is IntegrationOutboxPublisher);
-        await polled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.WhenAll(resultPolls.Values.Select(result => result.Task).Append(polled.Task)).WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     [Theory]

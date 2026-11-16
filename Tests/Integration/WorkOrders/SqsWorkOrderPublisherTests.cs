@@ -59,4 +59,25 @@ public sealed class SqsWorkOrderPublisherTests
                 Assert.Equal(billingPayload, request.MessageBody);
             });
     }
+
+    [Theory]
+    [InlineData("BillingCommandQueueUrl")]
+    [InlineData("BillingResultQueueUrl")]
+    public void Phase4Startup_ShouldRejectMissingBillingQueue(string missingQueue)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["Integrations:ExecutionScheduling:Enabled"] = "true",
+            ["Integrations:ExecutionScheduling:CommandQueueUrl"] = "https://sqs.example.test/execution-commands",
+            ["Integrations:ExecutionScheduling:ResultQueueUrl"] = "https://sqs.example.test/execution-results",
+            ["Integrations:ExecutionScheduling:BillingCommandQueueUrl"] = "https://sqs.example.test/billing-commands",
+            ["Integrations:ExecutionScheduling:BillingResultQueueUrl"] = "https://sqs.example.test/billing-results"
+        };
+        settings.Remove($"Integrations:ExecutionScheduling:{missingQueue}");
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        var environment = Mock.Of<IHostEnvironment>(host => host.EnvironmentName == "IntegrationTests");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            new ServiceCollection().AddGarageFlowInfrastructure(configuration, environment));
+    }
 }

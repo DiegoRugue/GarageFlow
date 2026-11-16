@@ -33,7 +33,7 @@ A Fase 4 distribui a jornada entre a API de Ordens de Serviço, Execução e Pag
 
 [Fonte editável da arquitetura](docs/diagrams/phase4-system.mmd) · [ADR da Saga orquestrada](docs/architecture/adrs/0004-orchestrated-work-order-saga.md)
 
-As setas de comandos e resultados representam as quatro filas SQS Standard. Cada serviço consulta seu próprio banco. A API mantém o orçamento e a reserva de estoque no mesmo modelo da OS para validar o valor aprovado e devolver os materiais na recusa do agendamento.
+As setas de comandos e resultados representam as quatro filas SQS Standard. Quando a Saga está habilitada, a API exige quatro URLs de filas distintas para iniciar. Cada serviço consulta seu próprio banco. A API mantém o orçamento e a reserva de estoque no mesmo modelo da OS para validar o valor aprovado e devolver os materiais na recusa do agendamento.
 
 ### Jornada do orçamento à entrega
 
@@ -231,7 +231,7 @@ Os modelos de Environment estão vazios intencionalmente nos três campos de ace
 
 ### Deploy da aplicação
 
-O workflow `Deploy Phase 3 Application` valida o commit antes de implantar. Em `develop`, o deploy de homologação exige acionamento manual. Em `main`, o deploy de produção roda após push ou por acionamento manual. Use o workflow da Fase 2 apenas para os recursos sob responsabilidade daquela fase.
+Acione manualmente o workflow `Deploy Phase 3 Application` em `develop` para homologação ou em `main` para produção. O workflow valida o commit antes de implantar. Pushes nas duas branches executam o Quality Gate. Use o workflow da Fase 2 apenas para os recursos sob responsabilidade daquela fase.
 
 Ordem de provisionamento: **platform → database e ingress → aplicação → serverless → edge**. A aplicação lê contratos platform v1, database v1 e ingress v2 do bucket protegido, confere conta AWS, VPC, EKS, banco privado, listener interno e regras de acesso ao ALB/NodePort antes de buscar os secrets. Falta de contrato ou ambiente expirado interrompe o deploy.
 

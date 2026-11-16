@@ -14,13 +14,10 @@ internal sealed partial class SqsWorkOrderResultConsumer(
     ExecutionSchedulingQueueOptions options,
     ILogger<SqsWorkOrderResultConsumer> logger) : BackgroundService
 {
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        var execution = PollAsync(options.ResultQueueUrl, ExecutionResultMessage.ReadCommand, stoppingToken);
-        return options.BillingResultQueueUrl is { } billingQueue
-            ? Task.WhenAll(execution, PollAsync(billingQueue, BillingResultMessage.ReadCommand, stoppingToken))
-            : execution;
-    }
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        Task.WhenAll(
+            PollAsync(options.ResultQueueUrl, ExecutionResultMessage.ReadCommand, stoppingToken),
+            PollAsync(options.BillingResultQueueUrl, BillingResultMessage.ReadCommand, stoppingToken));
 
     private async Task PollAsync(string queueUrl, Func<string, ICommand> decode, CancellationToken stoppingToken)
     {
@@ -52,9 +49,7 @@ internal sealed partial class SqsWorkOrderResultConsumer(
         ApplyAsync(message, options.ResultQueueUrl, ExecutionResultMessage.ReadCommand, cancellationToken);
 
     internal Task ApplyBillingAndAcknowledgeAsync(Message message, CancellationToken cancellationToken) =>
-        ApplyAsync(message, options.BillingResultQueueUrl
-            ?? throw new InvalidOperationException("The billing result queue is not configured."),
-            BillingResultMessage.ReadCommand, cancellationToken);
+        ApplyAsync(message, options.BillingResultQueueUrl, BillingResultMessage.ReadCommand, cancellationToken);
 
     private async Task ApplyAsync(
         Message message, string queueUrl, Func<string, ICommand> decode, CancellationToken cancellationToken)

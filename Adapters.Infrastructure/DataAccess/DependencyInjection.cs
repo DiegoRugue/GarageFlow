@@ -102,18 +102,15 @@ public static class DependencyInjection
         {
             if (!executionQueues.HasValidQueues())
             {
-                throw new InvalidOperationException("Execution scheduling requires distinct standard SQS queue URLs.");
+                throw new InvalidOperationException("The work order saga requires four distinct standard SQS queue URLs for execution and billing.");
             }
 
             services.AddSingleton(executionQueues);
             services.AddSingleton<IAmazonSQS>(_ => new AmazonSQSClient());
             services.AddScoped<IExecutionCommandPublisher, SqsExecutionCommandPublisher>();
             services.AddHostedService<SqsWorkOrderResultConsumer>();
-            if (executionQueues.BillingCommandQueueUrl is { } billingQueueUrl)
-            {
-                services.AddScoped<IBillingChargePublisher>(provider =>
-                    new SqsBillingChargePublisher(provider.GetRequiredService<IAmazonSQS>(), billingQueueUrl));
-            }
+            services.AddScoped<IBillingChargePublisher>(provider =>
+                new SqsBillingChargePublisher(provider.GetRequiredService<IAmazonSQS>(), executionQueues.BillingCommandQueueUrl));
         }
 
         services.AddSingleton<IntegrationOutboxTelemetry>();

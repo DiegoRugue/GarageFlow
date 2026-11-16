@@ -465,6 +465,7 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
 
         CheckoutUrl = checkoutUrl;
         UpdatedAt = DateTime.UtcNow;
+        RaiseDomainEvent(new WorkOrderCheckoutRecorded(Id, estimateId, chargeId) { OccurredAt = UpdatedAt });
     }
 
     public void ApplyBillingPayment(
@@ -489,6 +490,10 @@ public sealed class WorkOrder : Entity<WorkOrderId>, IAggregateRoot
         BillingPaymentRevision = revision;
         PaymentConfirmedAt = state == WorkOrderPaymentState.Revoked ? null : occurredAt;
         UpdatedAt = DateTime.UtcNow;
+        RaiseDomainEvent(new WorkOrderPaymentRevisionApplied(Id, estimateId, chargeId, revision, state)
+        {
+            OccurredAt = occurredAt
+        });
     }
 
     private void EnsureMatchingCharge(EstimateId estimateId, Guid chargeId, decimal amountInMinorUnits)
