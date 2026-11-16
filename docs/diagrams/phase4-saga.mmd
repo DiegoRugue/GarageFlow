@@ -1,0 +1,31 @@
+sequenceDiagram
+    actor Client as Cliente
+    actor Staff as Oficina
+    participant OS as API de OS
+    participant Execution as Execução
+    participant Billing as Pagamentos
+
+    Client->>OS: Aprovar orçamento
+    OS->>OS: Registrar aprovação e comando na outbox
+    OS->>Execution: SQS execution.schedule.v1
+    alt Agendamento recusado
+        Execution-->>OS: execution.schedule-rejected.v1
+        OS->>OS: Registrar recusa e devolver reserva ativa
+    else Agendamento aceito
+        Execution-->>OS: execution.scheduled.v1
+        Staff->>OS: Solicitar início
+        OS->>Execution: SQS execution.start.v1
+        Execution-->>OS: execution.started.v1
+        Staff->>OS: Solicitar conclusão
+        OS->>Execution: SQS execution.complete.v1
+        Execution-->>OS: execution.completed.v1
+        OS->>Billing: SQS billing.create-charge.v1
+        Billing-->>OS: billing.checkout-created.v1
+        Client->>OS: Consultar checkout
+        Staff->>OS: Tentar registrar entrega
+        OS-->>Staff: 409 enquanto aguarda pagamento
+        Note over Client,Billing: O cliente paga no checkout do Mercado Pago
+        Billing-->>OS: billing.payment-state.v1 paid
+        Staff->>OS: Registrar entrega
+        OS-->>Staff: 204 Delivered
+    end

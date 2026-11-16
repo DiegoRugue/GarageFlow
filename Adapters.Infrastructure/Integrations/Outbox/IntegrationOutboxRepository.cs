@@ -15,17 +15,24 @@ public sealed class IntegrationOutboxRepository(GarageFlowDbContext dbContext) :
         DateTime now,
         DateTime leaseExpiresAt,
         int batchSize,
+        string[]? includeEventKeys = null,
+        string[]? excludeEventKeys = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseExpiresAt, now);
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var includeAll = includeEventKeys is null;
+        var included = includeEventKeys ?? [];
+        var excluded = excludeEventKeys ?? [];
         var entities = await _dbContext.IntegrationOutboxMessages
             .FromSqlInterpolated($$"""
                 SELECT *
                 FROM "IntegrationOutboxMessages"
                 WHERE "ProcessedAt" IS NULL
+                  AND ({{includeAll}} OR "EventKey" = ANY ({{included}}))
+                  AND NOT ("EventKey" = ANY ({{excluded}}))
                   AND "NextAttemptAt" <= {{now}}
                   AND ("LeaseExpiresAt" IS NULL OR "LeaseExpiresAt" <= {{now}})
                 ORDER BY "NextAttemptAt", "OccurredAt", "Id"

@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "title": "GarageFlow Billing result events v1",
+  "required": [
+    "schemaVersion",
+    "messageType",
+    "messageId",
+    "correlationId",
+    "occurredAt",
+    "workOrderId",
+    "estimateId",
+    "chargeId",
+    "payload"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "messageId": {
+      "$ref": "#/$defs/id"
+    },
+    "correlationId": {
+      "$ref": "#/$defs/id"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]([.][0-9]{1,7})?(Z|[+-](0[0-9]|1[0-4]):[0-5][0-9])$"
+    },
+    "workOrderId": {
+      "$ref": "#/$defs/id"
+    },
+    "estimateId": {
+      "$ref": "#/$defs/id"
+    },
+    "messageType": {
+      "enum": [
+        "billing.checkout-created.v1",
+        "billing.payment-state.v1"
+      ]
+    },
+    "chargeId": {
+      "$ref": "#/$defs/id"
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "not": {
+        "const": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "messageType": {
+            "const": "billing.checkout-created.v1"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": [
+              "amountInMinorUnits",
+              "currency",
+              "checkoutUrl"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "amountInMinorUnits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "currency": {
+                "const": "BRL"
+              },
+              "checkoutUrl": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2048
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "messageType": {
+            "const": "billing.payment-state.v1"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": [
+              "amountInMinorUnits",
+              "currency",
+              "revision",
+              "state"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "amountInMinorUnits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "currency": {
+                "const": "BRL"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "state": {
+                "enum": [
+                  "paid",
+                  "revoked",
+                  "no_payment_required"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

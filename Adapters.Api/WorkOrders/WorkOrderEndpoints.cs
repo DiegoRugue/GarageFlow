@@ -12,12 +12,15 @@ using GarageFlow.Adapters.Api.WorkOrders.GetAverageServiceTime;
 using GarageFlow.Adapters.Api.WorkOrders.GetMyWorkOrderById;
 using GarageFlow.Adapters.Api.WorkOrders.GetWorkOrderById;
 using GarageFlow.Adapters.Api.WorkOrders.GetWorkOrderStatus;
+using GarageFlow.Adapters.Api.WorkOrders.GetWorkOrderPayment;
 using GarageFlow.Adapters.Api.WorkOrders.ListMyWorkOrders;
 using GarageFlow.Adapters.Api.WorkOrders.ListWorkOrders;
 using GarageFlow.Adapters.Api.WorkOrders.RejectMyEstimate;
 using GarageFlow.Adapters.Api.WorkOrders.StartDiagnosis;
 using GarageFlow.Adapters.Api.WorkOrders.StartEstimateService;
 using GarageFlow.Adapters.Api.WorkOrders.SubmitEstimate;
+using GarageFlow.Adapters.Api.WorkOrders.StartExecution;
+using GarageFlow.Adapters.Api.WorkOrders.CompleteExecution;
 
 namespace GarageFlow.Adapters.Api.WorkOrders;
 
@@ -34,6 +37,7 @@ public static class WorkOrderEndpoints
         staffRoutes.MapGetAverageServiceTimeEndpoint();
         staffRoutes.MapGetWorkOrderByIdEndpoint();
         staffRoutes.MapGetWorkOrderStatusEndpoint();
+        staffRoutes.MapGetWorkOrderPaymentEndpoint();
         staffRoutes.MapCreateEstimateEndpoint();
         staffRoutes.MapAddEstimateInventoryItemEndpoint();
         staffRoutes.MapAddEstimateServiceEndpoint();
@@ -41,6 +45,8 @@ public static class WorkOrderEndpoints
         staffRoutes.MapStartDiagnosisEndpoint();
         staffRoutes.MapStartEstimateServiceEndpoint();
         staffRoutes.MapCompleteEstimateServiceEndpoint();
+        staffRoutes.MapStartExecutionEndpoint();
+        staffRoutes.MapCompleteExecutionEndpoint();
         staffRoutes.MapDeliverWorkOrderEndpoint();
         staffRoutes.MapCancelWorkOrderEndpoint();
 
@@ -49,6 +55,7 @@ public static class WorkOrderEndpoints
 
         customerRoutes.MapListMyWorkOrdersEndpoint();
         customerRoutes.MapGetMyWorkOrderByIdEndpoint();
+        customerRoutes.MapGetMyWorkOrderPaymentEndpoint();
         customerRoutes.MapApproveMyEstimateEndpoint();
         customerRoutes.MapRejectMyEstimateEndpoint();
 

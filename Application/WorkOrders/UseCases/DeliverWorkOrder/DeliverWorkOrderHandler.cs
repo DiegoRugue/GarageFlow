@@ -13,7 +13,7 @@ public sealed class DeliverWorkOrderHandler(
     public async ValueTask<Unit> Handle(DeliverWorkOrderCommand request, CancellationToken cancellationToken)
     {
         var workOrderId = WorkOrderId.From(request.WorkOrderId);
-        var workOrder = await _workOrderRepository.GetByIdAsync(workOrderId, cancellationToken);
+        var workOrder = await _workOrderRepository.GetByIdForEstimateMutationAsync(workOrderId, cancellationToken);
         if (workOrder is null)
         {
             throw new NotFoundException($"Work order with ID '{request.WorkOrderId}' was not found.");

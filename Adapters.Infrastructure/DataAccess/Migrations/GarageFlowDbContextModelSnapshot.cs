@@ -541,6 +541,13 @@ namespace GarageFlow.Adapters.Infrastructure.DataAccess.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<long>("BillingPaymentRevision")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -549,6 +556,12 @@ namespace GarageFlow.Adapters.Infrastructure.DataAccess.Migrations
 
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PaymentConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("StartedAt")
                         .HasColumnType("timestamp with time zone");

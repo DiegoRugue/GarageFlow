@@ -40,6 +40,11 @@ public sealed class WorkOrderEntityConfiguration : IEntityTypeConfiguration<Work
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(workOrder => workOrder.ExecutionId);
+        builder.Property(workOrder => workOrder.CheckoutUrl).HasMaxLength(2048);
+        builder.Property(workOrder => workOrder.BillingPaymentRevision);
+        builder.Property(workOrder => workOrder.PaymentConfirmedAt);
+
         builder.Property(workOrder => workOrder.StartedAt);
 
         builder.Property(workOrder => workOrder.CompletedAt);

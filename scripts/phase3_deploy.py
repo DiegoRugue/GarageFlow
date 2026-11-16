@@ -264,7 +264,28 @@ def verify_ecr_repository(platform, values):
     return url
 
 
+def validate_phase4_config(values):
+    payload = run(["kubectl", "-n", "garageflow", "get", "configmap", "garageflow-saga-config", "-o", "json"])
+    data = json.loads(payload).get("data", {})
+    region = values["AWS_REGION"]
+    prefix = f'https://sqs.{region}.amazonaws.com/{values["EXPECTED_AWS_ACCOUNT_ID"]}/garageflow-{values["DEPLOY_ENVIRONMENT"]}'
+    namespace = "Integrations__ExecutionScheduling__"
+    expected = {
+        "AWS_REGION": region,
+        f"{namespace}Enabled": "true",
+        f"{namespace}CommandQueueUrl": f"{prefix}-execution-commands",
+        f"{namespace}ResultQueueUrl": f"{prefix}-execution-results",
+        f"{namespace}BillingCommandQueueUrl": f"{prefix}-billing-commands",
+        f"{namespace}BillingResultQueueUrl": f"{prefix}-billing-results",
+    }
+    if data != expected:
+        raise DeploymentError("Phase 4 ConfigMap differs from the queue configuration for this environment")
+
+
 def deploy_workload(contracts, values, secrets, workspace):
+    phase4 = values.get("PHASE4_SAGA_ENABLED") == "true"
+    if phase4:
+        validate_phase4_config(values)
     platform = contracts["platform"]["outputs"]
     repository = verify_ecr_repository(platform, values)
     image = f'{repository}:{values["GITHUB_SHA"]}'
@@ -274,7 +295,7 @@ def deploy_workload(contracts, values, secrets, workspace):
     run(["docker", "login", "--username", "AWS", "--password-stdin", registry], payload=password)
     run(["docker", "build", "--platform", "linux/amd64", "-t", image, "."])
     run(["docker", "push", image])
-    rendered = run(["kubectl", "kustomize", "k8s/phase3", "--load-restrictor", "LoadRestrictionsNone"])
+    rendered = run(["kubectl", "kustomize", "k8s/phase4" if phase4 else "k8s/phase3", "--load-restrictor", "LoadRestrictionsNone"])
     objects = parse_kubectl_json_stream(run(["kubectl", "create", "--dry-run=client", "--validate=false", "-f", "-", "-o", "json"], payload=rendered))
     by_kind = {item["kind"]: item for item in objects}
     by_kind["ConfigMap"]["data"].update(observability_config(values))
@@ -283,6 +304,8 @@ def deploy_workload(contracts, values, secrets, workspace):
     # A new pod template also reloads changed Secrets after an Academy session refresh.
     by_kind["Deployment"]["spec"]["template"].setdefault("metadata", {}).setdefault("annotations", {})["garageflow/deployment"] = str(time.time_ns())
     apply(by_kind["Namespace"])
+    if phase4:
+        apply(by_kind["ServiceAccount"])
     apply(runtime_secret(contracts["database"]["outputs"], secrets, values))
     apply(by_kind["ConfigMap"])
     migration = run(["kubectl", "set", "image", "--local", "-f", "k8s/migration-job.yaml", f"migration={image}", "-o", "json"])

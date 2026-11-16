@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garageflow-api
+  namespace: garageflow
+spec:
+  template:
+    spec:
+      serviceAccountName: garageflow-api
+      containers:
+        - name: api
+          envFrom:
+            - configMapRef:
+                name: garageflow-config
+            - configMapRef:
+                name: garageflow-saga-config
+            - secretRef:
+                name: garageflow-secrets

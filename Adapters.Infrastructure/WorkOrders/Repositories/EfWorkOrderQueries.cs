@@ -12,6 +12,15 @@ namespace GarageFlow.Adapters.Infrastructure.WorkOrders.Repositories;
 
 public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrderQueries
 {
+    private static readonly WorkOrderStatus[] ActiveExecutionStatuses =
+    [
+        WorkOrderStatus.WaitingExecutionSchedule,
+        WorkOrderStatus.ExecutionScheduled,
+        WorkOrderStatus.ExecutionStartRequested,
+        WorkOrderStatus.InProgress,
+        WorkOrderStatus.ExecutionCompletionRequested
+    ];
+
     private readonly GarageFlowDbContext _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
 
     public async Task<WorkOrderDetailsReadModel?> GetDetailsByIdAsync(
@@ -65,7 +74,7 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
     {
         var query = CreateWorkOrderDetailsQuery()
             .Where(workOrder =>
-                workOrder.Status == WorkOrderStatus.InProgress ||
+                ActiveExecutionStatuses.Contains(workOrder.Status) ||
                 workOrder.Status == WorkOrderStatus.WaitingApproval ||
                 workOrder.Status == WorkOrderStatus.Diagnosing ||
                 workOrder.Status == WorkOrderStatus.Received);
@@ -77,10 +86,9 @@ public sealed class EfWorkOrderQueries(GarageFlowDbContext dbContext) : IWorkOrd
 
         var totalCount = await query.CountAsync(cancellationToken);
         var orderedQuery = query
-            .OrderBy(workOrder => workOrder.Status == WorkOrderStatus.InProgress ? 0
-                : workOrder.Status == WorkOrderStatus.WaitingApproval ? 1
-                : workOrder.Status == WorkOrderStatus.Diagnosing ? 2
-                : 3)
+            .OrderByDescending(workOrder => ActiveExecutionStatuses.Contains(workOrder.Status))
+            .ThenByDescending(workOrder => workOrder.Status == WorkOrderStatus.WaitingApproval)
+            .ThenByDescending(workOrder => workOrder.Status == WorkOrderStatus.Diagnosing)
             .ThenBy(workOrder => workOrder.CreatedAt);
         var stableQuery = _dbContext.Database.IsInMemory()
             ? orderedQuery.ThenBy(workOrder => workOrder.Id.Value)

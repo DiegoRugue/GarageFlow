@@ -63,6 +63,42 @@ class Phase3DeploymentTests(unittest.TestCase):
         self.assertNotIn("kind: Secret", result.stdout)
         self.assertIn("type: LoadBalancer", (ROOT / "k8s/service.yaml").read_text())
 
+    def test_phase4_overlay_adds_workload_identity_and_saga_config(self):
+        result = subprocess.run(["kubectl", "kustomize", "k8s/phase4", "--load-restrictor", "LoadRestrictionsNone"],
+                                cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("serviceAccountName: garageflow-api", result.stdout)
+        self.assertIn("kind: ServiceAccount", result.stdout)
+        self.assertIn("name: garageflow-saga-config", result.stdout)
+        self.assertIn("name: garageflow-config", result.stdout)
+        self.assertIn("name: garageflow-secrets", result.stdout)
+        self.assertIn("nodePort: 30080", result.stdout)
+
+    def test_phase4_config_requires_four_environment_specific_queues(self):
+        values = dict(AWS_REGION="us-east-1", EXPECTED_AWS_ACCOUNT_ID="123456789012", DEPLOY_ENVIRONMENT="homologation")
+        prefix = "https://sqs.us-east-1.amazonaws.com/123456789012/garageflow-homologation"
+        key = "Integrations__ExecutionScheduling__"
+        data = {
+            "AWS_REGION": "us-east-1",
+            f"{key}Enabled": "true",
+            f"{key}CommandQueueUrl": f"{prefix}-execution-commands",
+            f"{key}ResultQueueUrl": f"{prefix}-execution-results",
+            f"{key}BillingCommandQueueUrl": f"{prefix}-billing-commands",
+            f"{key}BillingResultQueueUrl": f"{prefix}-billing-results",
+        }
+        with patch.object(self.module, "run", return_value=json.dumps({"data": data})):
+            self.module.validate_phase4_config(values)
+
+        for invalid in (
+            {**data, f"{key}BillingResultQueueUrl": f"{prefix}-execution-results"},
+            {**data, "AWS_REGION": "us-west-2"},
+            {**data, "Auth__Jwt__Key": "unexpected"},
+        ):
+            with self.subTest(fields=list(invalid)), \
+                    patch.object(self.module, "run", return_value=json.dumps({"data": invalid})):
+                with self.assertRaises(self.module.DeploymentError):
+                    self.module.validate_phase4_config(values)
+
     def test_deployment_validates_network_before_secret_reads_and_requires_targets(self):
         contracts = test_phase3_inputs.Phase3InputsTests().contracts()
         fixtures = test_phase3_inputs.Phase3InputsTests()

@@ -1,0 +1,13 @@
+flowchart TD
+    Actors["Cliente e oficina"] -->|"HTTP + JWT"| OS["API de Ordens de Serviço"]
+    OS --> OSDB[("PostgreSQL da OS")]
+    OS <-->|"Comandos e resultados via SQS"| Execution["Execução"]
+    OS <-->|"Cobrança e resultados via SQS"| Billing["Pagamentos"]
+    Execution --> Dynamo[("DynamoDB de Execução")]
+    Billing --> BillingDB[("PostgreSQL de Pagamentos")]
+    Billing <-->|"Orders API e webhook"| Provider["Mercado Pago"]
+
+    classDef workload fill:#e7eff9,stroke:#295882,color:#102840
+    classDef data fill:#e5f4ed,stroke:#2d7756,color:#153d2c
+    class OS,Execution,Billing workload
+    class OSDB,Dynamo,BillingDB data
