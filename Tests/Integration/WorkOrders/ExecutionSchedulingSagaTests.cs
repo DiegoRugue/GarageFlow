@@ -19,6 +19,7 @@ using Mediator;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -61,7 +62,7 @@ public sealed class ExecutionSchedulingSagaTests
             services.AddSingleton(processor.Object);
         }));
 
-        _ = host.Services;
+        Assert.Contains(host.Services.GetServices<IHostedService>(), service => service is IntegrationOutboxPublisher);
         await polled.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
