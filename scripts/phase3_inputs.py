@@ -64,7 +64,7 @@ def validate_network(contracts, network, *, phase4_enabled=False):
     allowed_callers = {ingress["authenticationSecurityGroupId"], ingress["vpcLinkSecurityGroupId"]}
     actual_callers = set()
     node_ports = {30080, 30081} if phase4_enabled else {30080}
-    destinations = {port: set() for port in node_ports}
+    destinations = {30080: set()}
     for group_id in alb["SecurityGroups"]:
         for permission in groups[group_id]["IpPermissions"]:
             if (permission.get("IpRanges") or permission.get("Ipv6Ranges") or permission.get("PrefixListIds")
@@ -76,7 +76,7 @@ def validate_network(contracts, network, *, phase4_enabled=False):
                     or permission.get("IpProtocol") != "tcp" or permission.get("FromPort") not in node_ports
                     or permission.get("FromPort") != permission.get("ToPort")):
                 raise ValueError("ALB has an unexpected egress rule")
-            destinations[permission["FromPort"]].update(pair["GroupId"] for pair in permission.get("UserIdGroupPairs", []))
+            destinations.setdefault(permission["FromPort"], set()).update(pair["GroupId"] for pair in permission.get("UserIdGroupPairs", []))
     if any(targets != {platform["clusterSecurityGroupId"]} for targets in destinations.values()):
         raise ValueError("ALB egress must target only the application node group")
     if actual_callers != allowed_callers:
@@ -88,7 +88,9 @@ def validate_network(contracts, network, *, phase4_enabled=False):
                 if permission.get("IpRanges") or permission.get("Ipv6Ranges") or permission.get("PrefixListIds"):
                     raise ValueError("NodePort must not accept CIDR ingress")
                 node_callers.update(pair["GroupId"] for pair in permission.get("UserIdGroupPairs", []))
-        if not set(alb["SecurityGroups"]).issubset(node_callers) or node_callers - {*alb["SecurityGroups"], platform["clusterSecurityGroupId"]}:
+        if node_callers - {*alb["SecurityGroups"], platform["clusterSecurityGroupId"]}:
+            raise ValueError("NodePort is not restricted to its ALB and cluster")
+        if port in destinations and not set(alb["SecurityGroups"]).issubset(node_callers):
             raise ValueError("NodePort is not restricted to its ALB and cluster")
 
 

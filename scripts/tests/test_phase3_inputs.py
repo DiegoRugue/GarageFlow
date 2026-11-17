@@ -110,7 +110,11 @@ class Phase3InputsTests(unittest.TestCase):
         groups = network["groups"]
         egress = groups[0]["IpPermissionsEgress"]
         ingress = groups[1]["IpPermissions"]
+        # The API can start before the optional Billing ingress has been provisioned.
+        self.module.validate_network(contracts, network, phase4_enabled=True)
         egress.append(dict(egress[0], FromPort=30081, ToPort=30081))
+        with self.assertRaises(ValueError):
+            self.module.validate_network(contracts, network, phase4_enabled=True)
         ingress.append(dict(ingress[0], FromPort=30081, ToPort=30081))
         self.module.validate_network(contracts, network, phase4_enabled=True)
         with self.assertRaises(ValueError):
