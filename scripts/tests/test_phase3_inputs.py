@@ -105,6 +105,34 @@ class Phase3InputsTests(unittest.TestCase):
             with self.subTest(permission=permission), self.assertRaises(ValueError):
                 self.module.validate_network(contracts, network)
 
+    def test_phase4_validates_both_node_ports_independently(self):
+        contracts, network = self.network()
+        groups = network["groups"]
+        egress = groups[0]["IpPermissionsEgress"]
+        ingress = groups[1]["IpPermissions"]
+        # The API can start before the optional Billing ingress has been provisioned.
+        self.module.validate_network(contracts, network, phase4_enabled=True)
+        egress.append(dict(egress[0], FromPort=30081, ToPort=30081))
+        with self.assertRaises(ValueError):
+            self.module.validate_network(contracts, network, phase4_enabled=True)
+        ingress.append(dict(ingress[0], FromPort=30081, ToPort=30081))
+        self.module.validate_network(contracts, network, phase4_enabled=True)
+        with self.assertRaises(ValueError):
+            self.module.validate_network(contracts, network)
+
+        for group, rules, index, change in [
+            (0, "IpPermissionsEgress", 0, {"UserIdGroupPairs": []}),
+            (0, "IpPermissionsEgress", 1, {"UserIdGroupPairs": [{"GroupId": "sg-other"}]}),
+            (0, "IpPermissionsEgress", 1, {"FromPort": 30080}),
+            (0, "IpPermissionsEgress", 1, {"FromPort": 30082, "ToPort": 30082}),
+            (1, "IpPermissions", 1, {"IpRanges": [{"CidrIp": "0.0.0.0/0"}]}),
+            (1, "IpPermissions", 1, {"UserIdGroupPairs": [{"GroupId": "sg-other"}]}),
+        ]:
+            with self.subTest(group=group, change=change), self.assertRaises(ValueError):
+                candidate = copy.deepcopy(network)
+                candidate["groups"][group][rules][index].update(change)
+                self.module.validate_network(contracts, candidate, phase4_enabled=True)
+
     def test_network_identity_requires_private_alb_and_exact_caller_groups(self):
         contracts, network = self.network()
         self.module.validate_network(contracts, network)

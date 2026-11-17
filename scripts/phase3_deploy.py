@@ -82,7 +82,7 @@ def settings(environment):
     return dict(environment)
 
 
-def inspect_network(contracts):
+def inspect_network(contracts, *, phase4_enabled=False):
     platform, ingress, database = (contracts[key]["outputs"] for key in ("platform", "ingress", "database"))
     cluster = aws("eks", "describe-cluster", "--name", platform["clusterName"])["cluster"]
     listener = aws("elbv2", "describe-listeners", "--listener-arns", ingress["listenerArn"])["Listeners"][0]
@@ -98,7 +98,8 @@ def inspect_network(contracts):
     matching = [db for db in instances if db.get("Endpoint", {}).get("Address") == database["databaseHost"] and db["Endpoint"]["Port"] == database["databasePort"]]
     if len(matching) != 1:
         raise DeploymentError("Database endpoint cannot be verified in the active AWS account")
-    validate_network(contracts, dict(cluster=cluster, listener=listener, alb=alb, target=target, groups=groups, database=matching[0]))
+    validate_network(contracts, dict(cluster=cluster, listener=listener, alb=alb, target=target, groups=groups, database=matching[0]),
+                     phase4_enabled=phase4_enabled)
     return target_arn
 
 
@@ -344,7 +345,7 @@ def deploy(values, workspace):
         run(["aws", "s3", "cp", f's3://{values["TF_STATE_BUCKET"]}/{key}', str(path), "--only-show-errors"])
         contracts[producer] = load_contract(str(path), producer, values["DEPLOY_ENVIRONMENT"], f"{version}.0")
     validate_inputs(contracts, values["DEPLOY_ENVIRONMENT"], account)
-    target = inspect_network(contracts)
+    target = inspect_network(contracts, phase4_enabled=values.get("PHASE4_SAGA_ENABLED") == "true")
     secrets = read_secrets(contracts)
     # Validate everything before applying any workload or Kubernetes Secret.
     runtime_secret(contracts["database"]["outputs"], secrets, values)
