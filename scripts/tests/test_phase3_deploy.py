@@ -191,7 +191,7 @@ class Phase3DeploymentTests(unittest.TestCase):
                 return "rendered-manifests"
 
             with self.subTest(payload=payload), trusted_temp_directory() as directory, \
-                 patch.object(self.module, "verify_ecr_repository", return_value="123456789012.dkr.ecr.us-east-1.amazonaws.com/garageflow"), \
+                 patch.object(self.module, "prepare_image", return_value="garageflow@sha256:" + "a" * 64), \
                  patch.object(self.module, "run", side_effect=command):
                 error = None
                 try:
@@ -227,7 +227,7 @@ class Phase3DeploymentTests(unittest.TestCase):
                 return "rendered-manifests"
             repository_url = fixtures.contracts()["platform"]["outputs"]["ecrRepositoryUrl"]
             with trusted_temp_directory() as directory, patch.object(self.module, "run", side_effect=command), \
-                 patch.object(self.module, "aws", return_value={"repositories": [{"repositoryUri": repository_url}]}), patch.dict(os.environ):
+                 patch.object(self.module, "prepare_image", return_value=repository_url + "@sha256:" + "b" * 64), patch.dict(os.environ):
                 values = dict(fixtures.credentials(), GITHUB_SHA="a" * 40, EXPECTED_AWS_ACCOUNT_ID="123456789012", AWS_REGION="us-east-1", DEPLOY_ENVIRONMENT="homologation", OBSERVABILITY_ENABLED="true")
                 if fail_migration:
                     with self.assertRaises(self.module.DeploymentError):
@@ -236,7 +236,7 @@ class Phase3DeploymentTests(unittest.TestCase):
                 else:
                     self.module.deploy_workload(fixtures.contracts(), values, fixtures.secrets(), directory)
                     self.assertEqual(["Namespace", "Secret", "ConfigMap", "Job", "Service", "Deployment", "HorizontalPodAutoscaler"], [obj["kind"] for obj in applied])
-                    self.assertIn(":", applied[-2]["spec"]["template"]["spec"]["containers"][0]["image"])
+                    self.assertEqual(repository_url + "@sha256:" + "b" * 64, applied[-2]["spec"]["template"]["spec"]["containers"][0]["image"])
                     self.assertEqual(5, applied[-2]["spec"]["replicas"])
                     self.assertEqual("true", applied[2]["data"]["Observability__Enabled"])
                     self.assertEqual("homologation", applied[2]["data"]["Observability__Environment"])
@@ -247,6 +247,44 @@ class Phase3DeploymentTests(unittest.TestCase):
                                       "--force-conflicts", "-f", "-"], apply_commands[1])
                 self.assertNotIn("PRIVATE-ECR", str(commands))
                 self.assertNotIn("temporary-secret", str(commands))
+
+    def test_redeploy_uses_existing_immutable_digest_without_pushing(self):
+        repository = "123456789012.dkr.ecr.us-east-1.amazonaws.com/garageflow"
+        commit, digest = "a" * 40, "sha256:" + "b" * 64
+        found = {"images": [{"imageId": {"imageTag": commit, "imageDigest": digest}}], "failures": []}
+        with patch.object(self.module, "verify_ecr_repository", return_value=(repository, True)), \
+             patch.object(self.module, "aws", return_value=found) as cloud, patch.object(self.module, "run") as command:
+            self.assertEqual(repository + "@" + digest, self.module.prepare_image({}, {"GITHUB_SHA": commit}, Path(".")))
+            cloud.assert_called_once_with("ecr", "batch-get-image", "--registry-id", "123456789012",
+                                          "--repository-name", "garageflow", "--image-ids", "imageTag=" + commit)
+            command.assert_not_called()
+
+    def test_first_publish_pins_digest_and_handles_concurrent_publication(self):
+        repository = "123456789012.dkr.ecr.us-east-1.amazonaws.com/garageflow"
+        commit, digest = "a" * 40, "sha256:" + "b" * 64
+        missing = {"images": [], "failures": [{"failureCode": "ImageNotFound"}]}
+        found = {"images": [{"imageId": {"imageTag": commit, "imageDigest": digest}}], "failures": []}
+        for push_result in ("", self.module.DeploymentError("push failed")):
+            with self.subTest(push_result=push_result), patch.dict(os.environ), \
+                 patch.object(self.module, "verify_ecr_repository", return_value=(repository, True)), \
+                 patch.object(self.module, "aws", side_effect=[missing, found]), \
+                 patch.object(self.module, "run", side_effect=["password", "", "", push_result]) as command:
+                self.assertEqual(repository + "@" + digest, self.module.prepare_image({}, {"GITHUB_SHA": commit}, Path(".")))
+                command.assert_any_call(["docker", "push", repository + ":" + commit])
+
+    def test_ecr_lookup_failure_does_not_trigger_publish(self):
+        with patch.object(self.module, "aws", return_value={"images": [], "failures": [{"failureCode": "UpstreamUnavailable"}]}):
+            with self.assertRaises(self.module.DeploymentError):
+                self.module.published_digest("123456789012.dkr.ecr.us-east-1.amazonaws.com/garageflow", "a" * 40)
+
+    def test_mutable_repository_still_publishes_and_propagates_push_failure(self):
+        repository = "123456789012.dkr.ecr.us-east-1.amazonaws.com/garageflow"
+        with patch.dict(os.environ), patch.object(self.module, "verify_ecr_repository", return_value=(repository, False)), \
+             patch.object(self.module, "published_digest") as lookup, \
+             patch.object(self.module, "run", side_effect=["password", "", "", self.module.DeploymentError("push failed")]):
+            with self.assertRaises(self.module.DeploymentError):
+                self.module.prepare_image({}, {"GITHUB_SHA": "a" * 40}, Path("."))
+            lookup.assert_not_called()
 
     def test_unverified_ecr_repository_stops_before_registry_login(self):
         fixtures = test_phase3_inputs.Phase3InputsTests()
