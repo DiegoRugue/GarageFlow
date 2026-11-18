@@ -262,7 +262,48 @@ def verify_ecr_repository(platform, values):
                        "--repository-names", name).get("repositories", [])
     if len(repositories) != 1 or repositories[0].get("repositoryUri") != url:
         raise DeploymentError("Live ECR repository does not match protected deployment metadata")
-    return url
+    return url, repositories[0].get("imageTagMutability") == "IMMUTABLE"
+
+
+def published_digest(repository, commit):
+    registry, name = repository.split("/", 1)
+    result = aws("ecr", "batch-get-image", "--registry-id", registry.split(".", 1)[0],
+                 "--repository-name", name, "--image-ids", f"imageTag={commit}")
+    images, failures = result["images"], result["failures"]
+    if not images and len(failures) == 1 and failures[0].get("failureCode") == "ImageNotFound":
+        return None
+    if not failures and len(images) == 1:
+        image_id = images[0]["imageId"]
+        digest = image_id.get("imageDigest", "")
+        if image_id.get("imageTag") == commit and re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            return digest
+    raise DeploymentError("Could not resolve the commit image in ECR")
+
+
+def prepare_image(platform, values, workspace):
+    repository, immutable = verify_ecr_repository(platform, values)
+    commit = values["GITHUB_SHA"]
+    digest = published_digest(repository, commit) if immutable else None
+    if digest:
+        return f"{repository}@{digest}"
+    tag = f"{repository}:{commit}"
+    password = run(["aws", "ecr", "get-login-password"])
+    os.environ["DOCKER_CONFIG"] = str(workspace / "docker")
+    run(["docker", "login", "--username", "AWS", "--password-stdin", repository.split("/", 1)[0]], payload=password)
+    run(["docker", "build", "--platform", "linux/amd64", "-t", tag, "."])
+    try:
+        run(["docker", "push", tag])
+    except DeploymentError:
+        # An immutable tag may have been published by another runner during the build.
+        if not immutable:
+            raise
+        digest = published_digest(repository, commit)
+        if not digest:
+            raise
+    digest = digest or published_digest(repository, commit)
+    if not digest:
+        raise DeploymentError("Published commit image is missing from ECR")
+    return f"{repository}@{digest}"
 
 
 def validate_phase4_config(values):
@@ -288,14 +329,7 @@ def deploy_workload(contracts, values, secrets, workspace):
     if phase4:
         validate_phase4_config(values)
     platform = contracts["platform"]["outputs"]
-    repository = verify_ecr_repository(platform, values)
-    image = f'{repository}:{values["GITHUB_SHA"]}'
-    registry = repository.split("/")[0]
-    password = run(["aws", "ecr", "get-login-password"])
-    os.environ["DOCKER_CONFIG"] = str(workspace / "docker")
-    run(["docker", "login", "--username", "AWS", "--password-stdin", registry], payload=password)
-    run(["docker", "build", "--platform", "linux/amd64", "-t", image, "."])
-    run(["docker", "push", image])
+    image = prepare_image(platform, values, workspace)
     rendered = run(["kubectl", "kustomize", "k8s/phase4" if phase4 else "k8s/phase3", "--load-restrictor", "LoadRestrictionsNone"])
     objects = parse_kubectl_json_stream(run(["kubectl", "create", "--dry-run=client", "--validate=false", "-f", "-", "-o", "json"], payload=rendered))
     by_kind = {item["kind"]: item for item in objects}
